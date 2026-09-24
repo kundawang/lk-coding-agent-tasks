@@ -281,10 +281,13 @@ class SQLAlchemy:
         if not has_app_context():
             return f"<{type(self).__name__}>"
 
-        message = f"{type(self).__name__} {self.engine.url}"
+        if None in self.engines:
+            message = f"{type(self).__name__} {self.engine.url}"
 
-        if len(self.engines) > 1:
-            message = f"{message} +{len(self.engines) - 1}"
+            if len(self.engines) > 1:
+                message = f"{message} +{len(self.engines) - 1}"
+        else:
+            message = f"{type(self).__name__} {len(self.engines)} engines"
 
         return f"<{message}>"
 

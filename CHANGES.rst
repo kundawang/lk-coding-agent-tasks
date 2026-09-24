@@ -1,3 +1,11 @@
+Unreleased
+----------
+
+-   ``repr(db)`` no longer raises a ``KeyError`` when only ``SQLALCHEMY_BINDS``
+    is configured without a default engine. It shows the number of engines
+    instead. :issue:`1194`
+
+
 Version 3.1.1
 -------------
 

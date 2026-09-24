@@ -12,6 +12,20 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_sqlalchemy.record_queries import get_recorded_queries
 
 
+def test_repr_no_default_engines(app: Flask) -> None:
+    del app.config["SQLALCHEMY_DATABASE_URI"]
+    app.config["SQLALCHEMY_BINDS"] = {"a": "sqlite://", "b": "sqlite://"}
+    db = SQLAlchemy(app)
+
+    with app.app_context():
+        assert repr(db) == "<SQLAlchemy 2 engines>"
+
+
+@pytest.mark.usefixtures("app_ctx")
+def test_repr_with_default(db: SQLAlchemy) -> None:
+    assert repr(db) == "<SQLAlchemy sqlite://>"
+
+
 @pytest.mark.usefixtures("app_ctx")
 def test_get_or_404(db: SQLAlchemy, Todo: t.Any) -> None:
     item = Todo()
