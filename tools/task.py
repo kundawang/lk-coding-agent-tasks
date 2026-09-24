@@ -220,13 +220,21 @@ def clear_worktree(keep=()):
 def copy_workspace(src, dst=REPO):
     if not os.path.isdir(src):
         raise SystemExit(f"工作区不存在: {src}")
+
+    def skip_symlinks(directory, names):
+        # 有些仓库的测试夹具里有 symlink，Windows 上复制会直接 Access Denied。
+        # 初始环境用不到这些链接，跳过即可。
+        return [n for n in names if os.path.islink(os.path.join(directory, n))]
+
     for name in os.listdir(src):
         if name in EXCLUDES:
             continue
         s, d = os.path.join(src, name), os.path.join(dst, name)
         if os.path.isdir(s):
             shutil.copytree(s, d, dirs_exist_ok=True,
-                            ignore=shutil.ignore_patterns(*EXCLUDES))
+                            ignore=lambda directory, names: (
+                                shutil.ignore_patterns(*EXCLUDES)(directory, names)
+                                + skip_symlinks(directory, names)))
         else:
             shutil.copy2(s, d)
 

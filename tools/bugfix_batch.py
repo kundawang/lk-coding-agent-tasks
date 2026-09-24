@@ -88,6 +88,10 @@ def main():
             continue
         title = titles.get(task_id) or f"{info['repo']} 真实 bug 修复"
         lang = f"{info['lang']}, {info['repo'].split('/')[1]}"
+        # 上一次跑崩了可能把工作区留在别的分支上，先强制回到 main 再建题
+        subprocess.run(["git", "checkout", "-f", "-q", "main"], cwd=build.REPO, capture_output=True)
+        subprocess.run(["git", "reset", "-q", "--hard"], cwd=build.REPO, capture_output=True)
+        subprocess.run(["git", "clean", "-fdq"], cwd=build.REPO, capture_output=True)
         ns = argparse.Namespace(
             id=task_id.upper(), workspace=dest, prompt_file=prompt_file, title=title,
             task_type="Bug 修复", difficulty="困难", lang=lang,
