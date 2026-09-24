@@ -28,9 +28,12 @@ class CalendarIntervalTrigger(Trigger):
     assuming the date and time are valid.
 
     If the resulting datetime is invalid due to a daylight saving forward shift, the
-    date is discarded and the process moves on to the next date. If instead the datetime
-    is ambiguous due to a backward DST shift, the earlier of the two resulting datetimes
-    is used.
+    date is discarded and the process moves on to the next date. However, if the DST
+    transition happens at midnight (so that midnight itself does not exist on that
+    date, as happens for example in the America/Santiago time zone), the task is run
+    at the normalized time on that same date instead of skipping the date. If instead
+    the datetime is ambiguous due to a backward DST shift, the earlier of the two
+    resulting datetimes is used.
 
     If no previous run time is specified when requesting a new run time (like when
     starting for the first time or resuming after being paused), ``start_date`` is used
@@ -119,7 +122,25 @@ class CalendarIntervalTrigger(Trigger):
 
             # Check if the time is off due to normalization and a forward DST shift
             if next_time.timetz() != self._time:
-                previous_date = next_time.date()
+                # If midnight does not exist on this date, the DST transition
+                # happens at midnight and shifts the entire day. Trigger at the
+                # normalized time on this date rather than skipping it, and keep
+                # the intended date as the anchor for computing the next date.
+                midnight_timestamp = datetime.combine(
+                    next_date, time(0, 0, tzinfo=self.timezone)
+                ).timestamp()
+                normalized_midnight = datetime.fromtimestamp(
+                    midnight_timestamp, self.timezone
+                )
+                if (
+                    normalized_midnight.date() == next_date
+                    and normalized_midnight.time() != time(0, 0)
+                    and next_time.date() == next_date
+                ):
+                    self._last_fire_date = next_date
+                    return next_time
+
+                previous_date = next_date
             else:
                 self._last_fire_date = next_date
                 return next_time

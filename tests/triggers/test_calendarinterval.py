@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -50,6 +51,47 @@ def test_missing_time(timezone, serializer):
         trigger = serializer.deserialize(serializer.serialize(trigger))
 
     assert trigger.next() == datetime(2016, 3, 28, 2, 30, tzinfo=timezone)
+
+
+def test_missing_time_at_midnight(serializer):
+    """
+    Test that if the designated time (midnight) does not exist on a day due to a
+    DST transition happening at midnight, the task still runs on that day at the
+    normalized time, and the dates afterwards don't drift.
+
+    """
+    timezone = ZoneInfo("America/Santiago")
+    trigger = CalendarIntervalTrigger(
+        months=1, start_date=date(2024, 8, 8), timezone=timezone
+    )
+    if serializer:
+        trigger = serializer.deserialize(serializer.serialize(trigger))
+
+    # Midnight on 2024-09-08 does not exist in America/Santiago due to the DST
+    # forward shift, so the task runs at the normalized time (01:00) instead
+    assert trigger.next() == datetime(2024, 8, 8, tzinfo=timezone)
+    assert trigger.next() == datetime(2024, 9, 8, 1, tzinfo=timezone)
+    assert trigger.next() == datetime(2024, 10, 8, tzinfo=timezone)
+    assert trigger.next() == datetime(2024, 11, 8, tzinfo=timezone)
+
+
+def test_missing_time_at_midnight_daily(serializer):
+    """
+    Test that a daily task scheduled at midnight is not skipped on the day of a
+    DST transition happening at midnight.
+
+    """
+    timezone = ZoneInfo("America/Santiago")
+    trigger = CalendarIntervalTrigger(
+        days=1, start_date=date(2024, 9, 6), timezone=timezone
+    )
+    if serializer:
+        trigger = serializer.deserialize(serializer.serialize(trigger))
+
+    assert trigger.next() == datetime(2024, 9, 6, tzinfo=timezone)
+    assert trigger.next() == datetime(2024, 9, 7, tzinfo=timezone)
+    assert trigger.next() == datetime(2024, 9, 8, 1, tzinfo=timezone)
+    assert trigger.next() == datetime(2024, 9, 9, tzinfo=timezone)
 
 
 def test_repeated_time(timezone, serializer):
