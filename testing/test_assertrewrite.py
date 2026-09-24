@@ -1438,6 +1438,57 @@ class TestAssertionRewriteHookDetails:
         os.utime(fn, (new_mtime, new_mtime))
         assert _read_pyc(fn, pyc, state.trace) is not None
 
+    def test_read_pyc_rejects_moved_source(
+        self, tmp_path: Path, pytester: Pytester
+    ) -> None:
+        from _pytest.assertion import AssertionState
+        from _pytest.assertion.rewrite import _read_pyc
+        from _pytest.assertion.rewrite import _rewrite_test
+        from _pytest.assertion.rewrite import _write_pyc
+
+        config = pytester.parseconfig()
+        state = AssertionState(config, "rewrite")
+
+        source = tmp_path / "old" / "test_source.py"
+        source.parent.mkdir()
+        source.write_text("def test(): assert True", encoding="utf-8")
+
+        hash, co = _rewrite_test(source, config)
+        pyc = source.with_name("test_source.pyc")
+        _write_pyc(state, co, hash, pyc)
+
+        moved_source = tmp_path / "artefacts" / "test_source.py"
+        moved_source.parent.mkdir()
+        pyc.rename(moved_source.with_name("test_source.pyc"))
+        source.rename(moved_source)
+
+        moved_pyc = moved_source.with_name("test_source.pyc")
+        assert _read_pyc(moved_source, moved_pyc) is None
+
+    def test_rewrite_cache_invalidated_when_source_moved(
+        self, pytester: Pytester, monkeypatch
+    ) -> None:
+        source_dir = pytester.path / "old_package"
+        source_dir.mkdir()
+        source = source_dir / "test_moved.py"
+        source.write_text("def test_moved():\n    assert False\n", encoding="utf-8")
+
+        monkeypatch.chdir(source_dir)
+        assert pytester.runpytest_subprocess("--tb=long", str(source)).ret == 1
+
+        moved_dir = pytester.path / "artefacts" / "renamed_package"
+        moved_dir.parent.mkdir()
+        moved_source = moved_dir / "test_moved.py"
+        source_dir.rename(moved_dir)
+        monkeypatch.chdir(moved_dir)
+
+        result = pytester.runpytest_subprocess("--tb=long", str(moved_source))
+        assert result.ret == 1
+
+        pyc = moved_dir / "__pycache__" / ("test_moved" + PYC_TAIL)
+        co = marshal.loads(pyc.read_bytes()[16:])
+        assert co.co_filename == str(moved_source)
+
     def test_read_pyc_more_invalid(self, tmp_path: Path) -> None:
         from _pytest.assertion.rewrite import _read_pyc
 

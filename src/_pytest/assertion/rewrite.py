@@ -379,6 +379,13 @@ def _read_pyc(
         if not isinstance(co, types.CodeType):
             trace(f"_read_pyc({source}): not a code object")
             return None
+        current_source = os.path.normcase(os.path.abspath(os.fspath(source)))
+        cached_source = os.path.normcase(os.path.abspath(co.co_filename))
+        if cached_source != current_source:
+            trace(
+                f"_read_pyc({source}): code filename mismatch ({co.co_filename})"
+            )
+            return None
         return co
 
 
