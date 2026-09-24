@@ -915,6 +915,28 @@ class _freeze_time:
         return wrap_coroutine(self, coroutine)
 
     def decorate_callable(self, func: "Callable[P, T]") -> "Callable[P, T]":
+        if inspect.isgeneratorfunction(func):
+            # Generator functions (e.g. pytest yield fixtures) must be wrapped
+            # in a generator themselves, otherwise callers such as pytest no
+            # longer recognize them as generators. The freeze is kept active
+            # for the whole iteration, so both the setup and the teardown
+            # parts of a yield fixture run with frozen time.
+            @functools.wraps(func)
+            def generator_wrapper(*args: "P.args", **kwargs: "P.kwargs") -> Any:
+                with self as time_factory:
+                    if self.as_arg and self.as_kwarg:
+                        assert False, "You can't specify both as_arg and as_kwarg at the same time. Pick one."
+                    elif self.as_arg:
+                        generator = func(time_factory, *args, **kwargs)  # type: ignore
+                    elif self.as_kwarg:
+                        kwargs[self.as_kwarg] = time_factory
+                        generator = func(*args, **kwargs)
+                    else:
+                        generator = func(*args, **kwargs)
+                    yield from generator
+
+            return generator_wrapper  # type: ignore
+
         @functools.wraps(func)
         def wrapper(*args: "P.args", **kwargs: "P.kwargs") -> T:
             with self as time_factory:
