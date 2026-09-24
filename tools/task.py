@@ -233,7 +233,7 @@ def copy_workspace(src, dst=REPO):
         if os.path.isdir(s):
             shutil.copytree(s, d, dirs_exist_ok=True,
                             ignore=lambda directory, names: (
-                                shutil.ignore_patterns(*EXCLUDES)(directory, names)
+                                list(shutil.ignore_patterns(*EXCLUDES)(directory, names))
                                 + skip_symlinks(directory, names)))
         else:
             shutil.copy2(s, d)
