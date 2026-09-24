@@ -10,7 +10,7 @@ from hypothesis import strategies as st
 import isort.format
 
 
-def test_ask_whether_to_apply_changes_to_file():
+def test_ask_whether_to_apply_changes_to_file(capsys):
     with patch("builtins.input", MagicMock(return_value="y")):
         assert isort.format.ask_whether_to_apply_changes_to_file("")
     with patch("builtins.input", MagicMock(return_value="n")):
@@ -18,6 +18,12 @@ def test_ask_whether_to_apply_changes_to_file():
     with patch("builtins.input", MagicMock(return_value="q")):
         with pytest.raises(SystemExit):
             assert isort.format.ask_whether_to_apply_changes_to_file("")
+    with patch("builtins.input", MagicMock(side_effect=EOFError)):
+        with pytest.raises(SystemExit) as system_exit:
+            assert isort.format.ask_whether_to_apply_changes_to_file("")
+        assert system_exit.value.code == 1
+        out, _ = capsys.readouterr()
+        assert "quitting" in out
 
 
 def test_basic_printer(capsys):
