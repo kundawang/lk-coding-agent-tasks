@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-099",
+  "title": "python-markdown 遇到超长反方括号卡成一分多钟（真实开源 bug）",
+  "created_at": "2026-09-24T22:33:25",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, markdown",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-099/base",
+    "sha": "fdc025f8e3585624056893bb34905d0e185e2210",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/fdc025f8e3585624056893bb34905d0e185e2210"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-099/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-099/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
