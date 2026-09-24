@@ -1,0 +1,206 @@
+/*
+ * Copyright 2016 The Netty Project
+ *
+ * The Netty Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package io.netty.handler.codec.smtp;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.DecoderException;
+import io.netty.handler.codec.TooLongFrameException;
+import io.netty.util.CharsetUtil;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+public class SmtpResponseDecoderTest {
+
+    @Test
+    public void testDecodeOneLineResponse() {
+        EmbeddedChannel channel = newChannel();
+        assertTrue(channel.writeInbound(newBuffer("200 Ok\r\n")));
+        assertTrue(channel.finish());
+
+        SmtpResponse response = channel.readInbound();
+        assertEquals(200, response.code());
+        List<CharSequence> sequences = response.details();
+        assertEquals(1, sequences.size());
+
+        assertEquals("Ok", sequences.get(0).toString());
+        assertNull(channel.readInbound());
+    }
+
+    @Test
+    public void testDecodeOneLineResponseNoDetails() {
+        EmbeddedChannel channel = newChannel();
+        assertTrue(channel.writeInbound(newBuffer("250 \r\n")));
+        assertTrue(channel.finish());
+
+        SmtpResponse response = channel.readInbound();
+        assertEquals(250, response.code());
+        List<CharSequence> sequences = response.details();
+        assertEquals(0, sequences.size());
+    }
+
+    @Test
+    public void testDecodeOneLineResponseChunked() {
+        EmbeddedChannel channel = newChannel();
+        assertFalse(channel.writeInbound(newBuffer("200 Ok")));
+        assertTrue(channel.writeInbound(newBuffer("\r\n")));
+        assertTrue(channel.finish());
+
+        SmtpResponse response = channel.readInbound();
+        assertEquals(200, response.code());
+        List<CharSequence> sequences = response.details();
+        assertEquals(1, sequences.size());
+
+        assertEquals("Ok", sequences.get(0).toString());
+        assertNull(channel.readInbound());
+    }
+
+    @Test
+    public void testDecodeTwoLineResponse() {
+        EmbeddedChannel channel = newChannel();
+        assertTrue(channel.writeInbound(newBuffer("200-Hello\r\n200 Ok\r\n")));
+        assertTrue(channel.finish());
+
+        SmtpResponse response = channel.readInbound();
+        assertEquals(200, response.code());
+        List<CharSequence> sequences = response.details();
+        assertEquals(2, sequences.size());
+
+        assertEquals("Hello", sequences.get(0).toString());
+        assertEquals("Ok", sequences.get(1).toString());
+        assertNull(channel.readInbound());
+    }
+
+    @Test
+    public void testDecodeTwoLineResponseChunked() {
+        EmbeddedChannel channel = newChannel();
+        assertFalse(channel.writeInbound(newBuffer("200-")));
+        assertFalse(channel.writeInbound(newBuffer("Hello\r\n2")));
+        assertFalse(channel.writeInbound(newBuffer("00 Ok")));
+        assertTrue(channel.writeInbound(newBuffer("\r\n")));
+        assertTrue(channel.finish());
+
+        SmtpResponse response = channel.readInbound();
+        assertEquals(200, response.code());
+        List<CharSequence> sequences = response.details();
+        assertEquals(2, sequences.size());
+
+        assertEquals("Hello", sequences.get(0).toString());
+        assertEquals("Ok", sequences.get(1).toString());
+        assertNull(channel.readInbound());
+    }
+
+    @Test
+    public void testDecodeInvalidSeparator() {
+        final EmbeddedChannel channel = newChannel();
+        assertThrows(DecoderException.class, new Executable() {
+            @Override
+            public void execute() {
+                channel.writeInbound(newBuffer("200:Ok\r\n"));
+            }
+        });
+    }
+
+    @Test
+    public void testDecodeInvalidCode() {
+        final EmbeddedChannel channel = newChannel();
+        assertThrows(DecoderException.class, new Executable() {
+            @Override
+            public void execute() {
+                channel.writeInbound(newBuffer("xyz Ok\r\n"));
+            }
+        });
+    }
+
+    @Test
+    public void testDecodeLineWithOnlyCodeAndNoSeparator() {
+        final EmbeddedChannel channel = newChannel();
+        // A line consisting of just the 3-digit code (no separator, no detail) must be rejected as an invalid
+        // line rather than crash the decoder: ByteToMessageDecoder wraps any *unexpected* exception thrown out
+        // of decode() (e.g. an IndexOutOfBoundsException from reading past the line) into a DecoderException
+        // with that exception as its cause, whereas the intentional "invalid line" rejection path throws a
+        // DecoderException with no cause. Asserting there is no cause distinguishes the two.
+        DecoderException exception = assertThrows(DecoderException.class, new Executable() {
+            @Override
+            public void execute() {
+                channel.writeInbound(newBuffer("250\r\n"));
+            }
+        });
+        assertNull(exception.getCause());
+        channel.finishAndReleaseAll();
+    }
+
+    @Test
+    public void testDecodeInvalidLine() {
+        final EmbeddedChannel channel = newChannel();
+        assertThrows(DecoderException.class, new Executable() {
+            @Override
+            public void execute() {
+                channel.writeInbound(newBuffer("Ok\r\n"));
+            }
+        });
+    }
+
+    @Test
+    public void testDecodeMultiLineResponseExceedingMaxResponseSize() {
+        EmbeddedChannel channel = new EmbeddedChannel(new SmtpResponseDecoder(Integer.MAX_VALUE, 256));
+        assertThrows(TooLongFrameException.class, () -> {
+            for (int i = 0; i < 1000; i++) {
+                channel.writeInbound(newBuffer("250-A\r\n"));
+            }
+        });
+    }
+
+    @Test
+    public void testDecodeMultiLineResponseWithinMaxResponseSize() {
+        EmbeddedChannel channel = new EmbeddedChannel(new SmtpResponseDecoder(Integer.MAX_VALUE, 256));
+        assertTrue(channel.writeInbound(newBuffer("250-Hello\r\n250-World\r\n250 Ok\r\n")));
+        assertTrue(channel.finish());
+
+        SmtpResponse response = channel.readInbound();
+        assertEquals(250, response.code());
+        assertEquals(3, response.details().size());
+        assertNull(channel.readInbound());
+    }
+
+    @Test
+    public void testMaxResponseSizeAppliesPerResponse() {
+        EmbeddedChannel channel = new EmbeddedChannel(new SmtpResponseDecoder(Integer.MAX_VALUE, 256));
+        for (int i = 0; i < 100; i++) {
+            assertTrue(channel.writeInbound(newBuffer("250-Hello\r\n250 Ok\r\n")));
+            SmtpResponse response = channel.readInbound();
+            assertEquals(2, response.details().size());
+        }
+        assertFalse(channel.finish());
+    }
+
+    private static EmbeddedChannel newChannel() {
+        return new EmbeddedChannel(new SmtpResponseDecoder(Integer.MAX_VALUE));
+    }
+
+    private static ByteBuf newBuffer(CharSequence seq) {
+        return Unpooled.copiedBuffer(seq, CharsetUtil.US_ASCII);
+    }
+}

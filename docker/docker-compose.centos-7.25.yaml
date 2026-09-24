@@ -1,0 +1,38 @@
+version: "3"
+
+services:
+
+  runtime-setup:
+    image: netty:centos-7-25
+    build:
+      args:
+        java_version : "25.0.2-zulu"
+      # See docker-compose.centos-7.111.yaml for why this cache ref is shared across centos-7.*.yaml.
+      cache_from:
+        - type=registry,ref=ghcr.io/netty/netty-build-cache:centos7
+      cache_to:
+        - type=registry,ref=ghcr.io/netty/netty-build-cache:centos7,mode=max,ignore-error=true
+
+  build:
+    image: netty:centos-7-25
+
+  build-leak:
+    image: netty:centos-7-25
+
+  build-with-oio-testsuite:
+    image: netty:centos-7-25
+
+  build-boringssl-static:
+    image: netty:centos-7-25
+
+  build-leak-boringssl-static:
+    image: netty:centos-7-25
+
+  build-boringssl-snapshot:
+    image: netty:centos-7-25
+
+  build-boringssl-static-jdk8-tests:
+    image: netty:centos-7-25
+
+  shell:
+    image: netty:centos-7-25
