@@ -1,0 +1,12 @@
+{
+  "font": "16px sans-serif",
+  "width": 320,
+  "lineHeight": 26,
+  "rules": {
+    "noLineStart": "，。、；：？！）」』】》",
+    "noLineEnd": "（「『【《",
+    "hyphenateEnglish": true,
+    "squeezePunctuation": true,
+    "maxSqueezeRatio": 0.5
+  }
+}
