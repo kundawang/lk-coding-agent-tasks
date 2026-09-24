@@ -1,0 +1,111 @@
+import pytest
+from hypothesis import given
+from hypothesis import strategies as st
+
+from isort import _parse_utils, parse
+from isort.settings import Config
+
+TEST_CONTENTS = """
+import xyz
+import abc
+import (\\ # one
+    one as \\ # two
+    three)
+import \\
+    zebra as \\ # one
+    not_bacon
+from x import (\\ # one
+    one as \\ # two
+    three)
+
+
+def function():
+    pass
+"""
+
+
+def test_file_contents():
+    (
+        in_lines,
+        out_lines,
+        import_index,
+        _,
+        _,
+        _,
+        _,
+        _,
+        change_count,
+        original_line_count,
+        _,
+        _,
+        _,
+        _,
+    ) = parse.file_contents(TEST_CONTENTS, config=Config(default_section=""))
+    assert "\n".join(in_lines) == TEST_CONTENTS
+    assert "import" not in "\n".join(out_lines)
+    assert import_index == 1
+    assert change_count == -11
+    assert original_line_count == len(in_lines)
+
+
+def test_file_contents_empty():
+    parsed = parse.file_contents("", config=Config(default_section=""))
+    assert parsed.in_lines == []
+    assert parsed.original_line_count == 0
+
+
+@pytest.mark.parametrize("line_separator", ["\n", "\r\n", "\r"])
+def test_file_contents_splits_only_on_newlines(line_separator):
+    contents = line_separator.join(["import b", "import a", "\fpass"])
+    parsed = parse.file_contents(contents, config=Config(default_section=""))
+    assert parsed.in_lines == ["import b", "import a", "\fpass"]
+
+
+# These tests were written by the `hypothesis.extra.ghostwriter` module
+# and is provided under the Creative Commons Zero public domain dedication.
+
+
+@given(contents=st.text())
+def test_fuzz__infer_line_separator(contents):
+    parse._infer_line_separator(contents=contents)
+
+
+@given(import_string=st.text())
+def test_fuzz__strip_syntax(import_string):
+    _parse_utils.strip_syntax(import_string=import_string)
+
+
+@given(line=st.text(), config=st.builds(Config))
+def test_fuzz_import_type(line, config):
+    _parse_utils.import_type(line=line, config=config)
+
+
+@given(line=st.text(), in_quote=st.text(), needs_import=st.booleans())
+def test_fuzz_skip_line(line, in_quote, needs_import):
+    _parse_utils.skip_line(line=line, in_quote=in_quote, needs_import=needs_import)
+
+
+@pytest.mark.parametrize(
+    ("raw_line", "expected"),
+    [
+        ("from . cimport a", "from . cimport a"),
+        ("from.cimport a", "from . cimport a"),
+        ("from..cimport a", "from .. cimport a"),
+        ("from . import a", "from . import a"),
+        ("from.import a", "from . import a"),
+        ("from..import a", "from .. import a"),
+        ("import *", "import *"),
+        ("import*", "import *"),
+        ("from . import a", "from . import a"),  # noqa: PT014
+        ("from .import a", "from . import a"),
+        ("from ..import a", "from .. import a"),
+        ("from . cimport a", "from . cimport a"),  # noqa: PT014
+        ("from .cimport a", "from . cimport a"),
+        ("from ..cimport a", "from .. cimport a"),
+        ("from\t.\timport a", "from . import a"),
+    ],
+)
+def test_normalize_line(raw_line, expected):
+    line, returned_raw_line = _parse_utils.normalize_line(raw_line)
+    assert line == expected
+    assert returned_raw_line == raw_line
