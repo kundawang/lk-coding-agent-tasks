@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-142",
+  "title": "commons-text containsAllWords 漏掉跨行的词（真实开源 bug）",
+  "created_at": "2026-09-24T23:47:27",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Java, commons-text",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-142/base",
+    "sha": "912dfdc91563206c0a7b108432944e2e6033feae",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/912dfdc91563206c0a7b108432944e2e6033feae"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-142/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-142/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
