@@ -1,0 +1,10 @@
+{
+  "terms": [
+    { "correct": "Kubernetes", "wrong": ["k8s", "k8S", "kubernetes"], "caseSensitive": true },
+    { "correct": "主节点", "wrong": ["master 节点", "Master 节点"] },
+    { "correct": "登录", "wrong": ["登陆"] },
+    { "correct": "账号", "wrong": ["帐号"] },
+    { "correct": "SQLite", "wrong": ["sqlite", "Sqlite"], "caseSensitive": true }
+  ],
+  "ignoreWords": ["XXX"]
+}
