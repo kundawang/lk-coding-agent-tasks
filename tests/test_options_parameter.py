@@ -4,7 +4,39 @@ The `options={...}` dict form is the documented API; the `**kwargs` form
 continues to work undocumented for backwards compatibility.
 """
 
+import llm
 import pytest
+
+
+class ModelWithDefaultOptions(llm.Model):
+    model_id = "with-default-options"
+
+    class Options(llm.Options):
+        temperature: float = 0.5
+        max_tokens: int | None = None
+
+    def execute(self, prompt, stream, response, conversation):
+        yield "ok"
+
+
+def test_direct_prompt_construction_uses_model_default_options():
+    # Constructing a Prompt directly (no options=) should pick up the
+    # model's own default options, matching model.prompt() and the CLI.
+    model = ModelWithDefaultOptions()
+    prompt = llm.Prompt("hi", model)
+    assert isinstance(prompt.options, ModelWithDefaultOptions.Options)
+    assert prompt.options.temperature == 0.5
+    assert prompt.options.max_tokens is None
+
+
+def test_direct_prompt_construction_explicit_options_unchanged():
+    model = ModelWithDefaultOptions()
+    options = ModelWithDefaultOptions.Options(temperature=0.9)
+    prompt = llm.Prompt("hi", model, options=options)
+    assert prompt.options is options
+    # A plain dict passed explicitly is left untouched too
+    prompt2 = llm.Prompt("hi", model, options={"temperature": 0.1})
+    assert prompt2.options == {"temperature": 0.1}
 
 
 def test_prompt_with_options_dict(mock_model):

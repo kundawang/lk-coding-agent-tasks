@@ -519,7 +519,11 @@ class Prompt:
         self.schema = schema
         self.tools = _wrap_tools(tools or [])
         self.tool_results = tool_results or []
-        self.options = options or {}
+        if options is None:
+            # Match the behavior of model.prompt() and the CLI: fall back
+            # to the model's own default options.
+            options = model.Options()
+        self.options = options
         self.hide_reasoning = hide_reasoning
         # Explicit messages= list, if the caller supplied one. Copied so
         # later mutation by the caller doesn't alter the Prompt.
