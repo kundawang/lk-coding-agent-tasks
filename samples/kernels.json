@@ -1,0 +1,9 @@
+{
+  "filters": [
+    { "id": "box", "name": "均值模糊", "kernel": [[1, 1, 1], [1, 1, 1], [1, 1, 1]], "divisor": 9 },
+    { "id": "sharpen", "name": "锐化", "kernel": [[0, -1, 0], [-1, 5, -1], [0, -1, 0]], "divisor": 1 },
+    { "id": "sobel-x", "name": "边缘（横向）", "kernel": [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], "divisor": 1, "abs": true },
+    { "id": "emboss", "name": "浮雕", "kernel": [[-2, -1, 0], [-1, 1, 1], [0, 1, 2]], "divisor": 1, "offset": 128 }
+  ],
+  "presets": { "radius": 1, "gain": 1.0 }
+}
