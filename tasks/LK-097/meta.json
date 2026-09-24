@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-097",
+  "title": "plotly express 把无符号整数列当分类轴（真实开源 bug）",
+  "created_at": "2026-09-24T22:32:29",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, plotly.py",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-097/base",
+    "sha": "4ce2d90b4dbbdf64218270964fdbe488f65345c7",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/4ce2d90b4dbbdf64218270964fdbe488f65345c7"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-097/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-097/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
