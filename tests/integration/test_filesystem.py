@@ -18,7 +18,13 @@ from requests_cache.serializers import (
     utf8_serializer,
     yaml_serializer,
 )
-from tests.conftest import CACHE_NAME, HTTPBIN_FORMATS, HTTPBIN_METHODS
+from tests.conftest import (
+    CACHE_NAME,
+    HTTPBIN_FORMATS,
+    HTTPBIN_METHODS,
+    MOCKED_URL,
+    mount_mock_adapter,
+)
 from tests.integration.base_cache_test import BaseCacheTest
 from tests.integration.base_storage_test import BaseStorageTest
 
@@ -65,6 +71,13 @@ class TestFileDict(BaseStorageTest):
         cache = self.init_cache(extension='dat')
         cache['key'] = 'value'
         assert cache._key2path('key').suffix == '.dat'
+
+    def test_corrupt_file__cache_miss(self):
+        cache = self.init_cache(serializer='pickle')
+        cache['key'] = 'value'
+        cache._key2path('key').write_bytes(b'')
+
+        assert cache.get('key') is None
 
     def test_size(self):
         """Check that size updates with bytes added/updated/removed."""
@@ -476,6 +489,20 @@ class TestLRUDict:
 class TestFileCache(BaseCacheTest):
     backend_class = FileCache
     init_kwargs = {'use_temp': True}
+
+    def test_corrupt_response__cache_miss(self):
+        session = mount_mock_adapter(self.init_session(serializer='pickle'))
+
+        response = session.get(MOCKED_URL)
+        assert response.from_cache is False
+        cache_key = next(iter(session.cache.responses.keys()))
+        session.cache.responses._key2path(cache_key).write_bytes(b'')
+
+        response = session.get(MOCKED_URL)
+        assert response.from_cache is False
+
+        response = session.get(MOCKED_URL)
+        assert response.from_cache is True
 
     @pytest.mark.parametrize('serializer', TEST_SERIALIZERS.values())
     @pytest.mark.parametrize('method', HTTPBIN_METHODS)

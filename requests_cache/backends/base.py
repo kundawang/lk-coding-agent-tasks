@@ -11,7 +11,6 @@ from abc import ABC
 from collections import UserDict
 from datetime import datetime
 from logging import getLogger
-from pickle import PickleError
 from typing import TYPE_CHECKING, Iterable, Iterator, List, MutableMapping, Optional, TypeVar, Union
 from warnings import warn
 
@@ -23,9 +22,6 @@ from ..cache_keys import create_key, redact_response
 from ..models import AnyRequest, CachedResponse
 from ..policy import DEFAULT_CACHE_NAME, CacheSettings, ExpirationTime
 from ..serializers import SerializerType, init_serializer
-
-# Specific exceptions that may be raised during deserialization
-DESERIALIZE_ERRORS = (AttributeError, ImportError, PickleError, TypeError, ValueError)
 
 logger = getLogger(__name__)
 
@@ -353,8 +349,7 @@ class BaseStorage(MutableMapping[KT, VT], ABC):
     def deserialize(self, key, value: VT):
         """Deserialize a value, if a serializer is available.
 
-        If deserialization fails (usually due to a value saved in an older requests-cache version),
-        ``None`` will be returned.
+        If deserialization fails for any reason, ``None`` will be returned.
         """
         if not self.serializer:
             return value
@@ -363,16 +358,17 @@ class BaseStorage(MutableMapping[KT, VT], ABC):
 
         try:
             obj = self.serializer.loads(value)
-            # Set cache key, if it's a response object
-            try:
-                obj.cache_key = key
-            except AttributeError:
-                pass
-            return obj
-        except DESERIALIZE_ERRORS as e:
+        except Exception as e:
             logger.error(f'Unable to deserialize response: {str(e)}')
             logger.debug(e, exc_info=True)
             return None
+
+        # Set cache key, if it's a response object
+        try:
+            obj.cache_key = key
+        except AttributeError:
+            pass
+        return obj
 
     def __str__(self):
         return str(list(self.keys()))

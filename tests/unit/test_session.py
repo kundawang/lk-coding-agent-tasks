@@ -19,7 +19,6 @@ from requests.structures import CaseInsensitiveDict
 from requests_cache import ALL_METHODS, CachedSession
 from requests_cache._utils import get_placeholder_class
 from requests_cache.backends import BACKEND_CLASSES, BaseCache
-from requests_cache.backends.base import DESERIALIZE_ERRORS
 from requests_cache.models import CachedResponse
 from requests_cache.policy import (
     DO_NOT_CACHE,
@@ -480,7 +479,10 @@ def test_include_get_headers():
 # -----------------------------------------------------
 
 
-@pytest.mark.parametrize('exception_cls', DESERIALIZE_ERRORS)
+@pytest.mark.parametrize(
+    'exception_cls',
+    [AttributeError, EOFError, ImportError, PickleError, RuntimeError, TypeError, ValueError],
+)
 def test_cache_error(exception_cls, mock_session):
     """If there is an error while fetching a cached response, a new one should be fetched"""
     mock_session.get(MOCKED_URL)
