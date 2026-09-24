@@ -166,6 +166,27 @@ def issue_of(repo, message, tok):
             "url": issue.get("html_url") or ""}
 
 
+def discover(tok, per_lang=45, stars=1500):
+    """用搜索 API 捞一批「star 多 + 宽松许可」的仓库当候选。"""
+    found = []
+    for lang in ("python", "javascript", "typescript", "go"):
+        for lic in ("mit", "apache-2.0", "bsd-3-clause"):
+            query = f"language:{lang}+license:{lic}+stars:>{stars}+archived:false"
+            for page in (1, 2):
+                try:
+                    data = api(f"/search/repositories?q={query}&sort=stars&order=desc"
+                               f"&per_page=30&page={page}", tok)
+                except Exception:
+                    break
+                for item in data.get("items") or []:
+                    full = item["full_name"]
+                    if full not in found:
+                        found.append(full)
+                if len(found) >= per_lang * 4:
+                    break
+    return found
+
+
 def download(repo, sha, dest, tok):
     if os.path.isdir(dest) and os.listdir(dest):
         return True
@@ -195,6 +216,9 @@ def main():
     ap.add_argument("--start", type=int, default=52, help="从 lk-0xx 开始编号")
     ap.add_argument("--min-lines", type=int, default=5, help="改动行数下限")
     ap.add_argument("--max-lines", type=int, default=120, help="改动行数上限（中等难度）")
+    ap.add_argument("--discover", action="store_true", help="先用搜索 API 扩一批候选仓库")
+    ap.add_argument("--collect", type=int, default=0, help="收集 N 道的素材（含 issue 原文）写成 JSONL")
+    ap.add_argument("--out", default="", help="--collect 的输出文件")
     args = ap.parse_args()
 
     tok = token()
@@ -204,7 +228,15 @@ def main():
     refs = os.path.join(os.path.expanduser("~"), ".coding-agent-tasks", "refs")
     found, skipped = [], []
 
-    for repo, lang in CANDIDATES:
+    candidates = list(CANDIDATES)
+    if args.discover:
+        extra = discover(tok)
+        print(f"搜索到 {len(extra)} 个候选仓库")
+        for full in extra:
+            if all(full != r for r, _ in candidates):
+                candidates.append((full, ""))
+
+    for repo, lang in candidates:
         lic, err = repo_license(repo, tok)
         if err or lic not in OK_LICENSES:
             skipped.append(f"{repo}: 许可证 {lic or '未知'}，跳过")
@@ -218,7 +250,11 @@ def main():
                 continue
             if not (1 <= size["files"] <= 4):
                 continue
+            issue = issue_of(repo, size["message"], tok)
+            if args.collect and not issue:
+                continue          # 收集模式只要有 issue 原文的（prompt 更像真人写的）
             picked = {**cand, **size, "license": lic, "repo": repo, "lang": lang}
+            picked["issue"] = issue
             break
         if picked:
             found.append(picked)
@@ -236,6 +272,37 @@ def main():
             print("  " + line)
     if args.plan or not args.take:
         print("\n（--plan 模式，没有落盘。确认后加 --take N 真正建题）")
+        return 0
+
+    if args.collect:
+        out = args.out or os.path.join(REPO, "..", "..", "work", "bugfix-candidates.jsonl")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        written = 0
+        for index, item in enumerate(found):
+            if written >= args.collect:
+                break
+            task_id = "lk-%03d" % (args.start + index)
+            slug = item["repo"].split("/")[1].lower()
+            dest = os.path.join(work, task_id + "-" + slug)
+            try:
+                download(item["repo"], item["parent"], dest, tok)
+            except Exception as exc:
+                print(f"  {item['repo']} 下载失败，跳过：{exc}")
+                continue
+            issue = item.get("issue") or {}
+            mode = "a" if written else "w"
+            with open(out, mode, encoding="utf-8") as fh:
+                fh.write(json.dumps({
+                    "task_id": task_id, "repo": item["repo"], "license": item["license"],
+                    "lang": item["lang"], "fix_commit": item["sha"], "buggy_commit": item["parent"],
+                    "fix_message": item["msg"], "files": item["paths"], "changes": item["changes"],
+                    "issue_title": issue.get("title"), "issue_body": (issue.get("body") or "")[:1500],
+                    "issue_url": issue.get("url"), "workspace": dest,
+                }, ensure_ascii=False) + "\n")
+            written += 1
+            print(f"  {task_id}  {item['repo']:28s} {item['changes']:4d} 行  "
+                  f"issue: {(issue.get('title') or '(无)')[:46]}")
+        print(f"\n素材写到 {out}（{written} 条）")
         return 0
 
     os.makedirs(refs, exist_ok=True)
