@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-118",
+  "title": "twine 配置文件格式错误时报错外泄凭据（真实开源 bug）",
+  "created_at": "2026-09-24T23:26:21",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, twine",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-118/base",
+    "sha": "ef32e9353f839807e843dd7f0241456a01b888ed",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/ef32e9353f839807e843dd7f0241456a01b888ed"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-118/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-118/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
