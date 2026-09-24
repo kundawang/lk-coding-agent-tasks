@@ -1,0 +1,45 @@
+{
+  "task_id": "LK-005",
+  "title": "cornerstore 街角小店经营模拟（从 0 实现）",
+  "created_at": "2026-09-19T11:03:53",
+  "task_type": "0-1 代码生成",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, Canvas, 原生 ES module（无构建、无依赖）",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "无外部依赖",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-005/base",
+    "sha": "735ea4b5c6841fcca306e5b0469f050960cdd47d",
+    "permalink": "https://github.com/kundawang/coding-agent-tasks/commit/735ea4b5c6841fcca306e5b0469f050960cdd47d"
+  },
+  "runs": {
+    "A": {
+      "session_id": "01a0b7c2-07d3-7d42-9cd2-4b8b372ca6f0",
+      "trajectory_local": "C:\\Users\\Administrator\\Documents\\Codex\\2026-09-18\\https-bcnrsnl3m9wk-feishu-cn-wiki-fgvdwpdlhigokzkfr7eckeqanud\\outputs\\lk-coding-agent-tasks\\tasks\\LK-005\\trajectories\\A-01a0b7c2-07d3-7d42-9cd2-4b8b372ca6f0.jsonl",
+      "trajectory_url": "",
+      "branch": "lk-005/a",
+      "product_snapshot_sha": "7897e77e29aa311355dad22552b754b595b213ae",
+      "product_snapshot_permalink": "https://github.com/kundawang/coding-agent-tasks/commit/7897e77e29aa311355dad22552b754b595b213ae",
+      "trajectory_source": "C:\\Users\\Administrator\\.codex-cli\\sessions\\2026\\09\\19\\rollout-2026-09-19T11-42-21-01a0b7c2-07d3-7d42-9cd2-4b8b372ca6f0.jsonl"
+    },
+    "B": {
+      "session_id": "01a0b7c3-90e8-7db3-a793-54d6a95484f4",
+      "trajectory_local": "C:\\Users\\Administrator\\Documents\\Codex\\2026-09-18\\https-bcnrsnl3m9wk-feishu-cn-wiki-fgvdwpdlhigokzkfr7eckeqanud\\outputs\\lk-coding-agent-tasks\\tasks\\LK-005\\trajectories\\B-01a0b7c3-90e8-7db3-a793-54d6a95484f4.jsonl",
+      "trajectory_url": "",
+      "branch": "lk-005/b",
+      "product_snapshot_sha": "0e9d9bbbabede221f3763b70373961b02f8cd418",
+      "product_snapshot_permalink": "https://github.com/kundawang/coding-agent-tasks/commit/0e9d9bbbabede221f3763b70373961b02f8cd418",
+      "trajectory_source": "C:\\Users\\Administrator\\.codex-cli\\sessions\\2026\\09\\19\\rollout-2026-09-19T11-44-02-01a0b7c3-90e8-7db3-a793-54d6a95484f4.jsonl"
+    }
+  },
+  "notes": "",
+  "updated_at": "2026-09-19T11:19:22",
+  "submit": {
+    "uid": "145",
+    "record_id": "recvvyfVSUQ2sH",
+    "at": "2026-09-19T16:40:43"
+  }
+}

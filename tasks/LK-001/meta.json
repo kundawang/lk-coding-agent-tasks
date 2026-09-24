@@ -1,0 +1,44 @@
+{
+  "task_id": "LK-001",
+  "title": "emberdeck 卡牌构筑战斗原型（从 0 实现）",
+  "created_at": "2026-09-18T19:00:54",
+  "task_type": "0-1 代码生成",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, 原生 ES module（无构建、无依赖）",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "无外部依赖",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-001/base",
+    "sha": "5c6ec6d2fc63f32f29b388f1340b7c5b9d1d68cd",
+    "permalink": "https://github.com/kundawang/coding-agent-tasks/commit/5c6ec6d2fc63f32f29b388f1340b7c5b9d1d68cd"
+  },
+  "runs": {
+    "A": {
+      "session_id": "01a0b89d-d3a5-7d02-817d-614d4e7be9b5",
+      "trajectory_local": "C:\\Users\\Administrator\\Documents\\Codex\\2026-09-18\\https-bcnrsnl3m9wk-feishu-cn-wiki-fgvdwpdlhigokzkfr7eckeqanud\\outputs\\lk-coding-agent-tasks\\tasks\\LK-001\\trajectories\\A-01a0b89d-d3a5-7d02-817d-614d4e7be9b5.jsonl",
+      "branch": "lk-001/a",
+      "product_snapshot_sha": "5c74e13b56e8991ec837a8aea9497d8e4c351053",
+      "product_snapshot_permalink": "https://github.com/kundawang/coding-agent-tasks/commit/5c74e13b56e8991ec837a8aea9497d8e4c351053",
+      "trajectory_source": "C:\\Users\\Administrator\\.codex-cli\\sessions\\2026\\09\\19\\rollout-2026-09-19T15-42-26-01a0b89d-d3a5-7d02-817d-614d4e7be9b5.jsonl",
+      "trajectory_url": ""
+    },
+    "B": {
+      "session_id": "01a0b89d-e8c9-7bf2-a27d-33e5662e03f3",
+      "trajectory_local": "C:\\Users\\Administrator\\Documents\\Codex\\2026-09-18\\https-bcnrsnl3m9wk-feishu-cn-wiki-fgvdwpdlhigokzkfr7eckeqanud\\outputs\\lk-coding-agent-tasks\\tasks\\LK-001\\trajectories\\B-01a0b89d-e8c9-7bf2-a27d-33e5662e03f3.jsonl",
+      "branch": "lk-001/b",
+      "product_snapshot_sha": "240d5d34efb578719ce6d1201913243007f16e0e",
+      "product_snapshot_permalink": "https://github.com/kundawang/coding-agent-tasks/commit/240d5d34efb578719ce6d1201913243007f16e0e",
+      "trajectory_source": "C:\\Users\\Administrator\\.codex-cli\\sessions\\2026\\09\\19\\rollout-2026-09-19T15-42-31-01a0b89d-e8c9-7bf2-a27d-33e5662e03f3.jsonl",
+      "trajectory_url": ""
+    }
+  },
+  "notes": "",
+  "submit": {
+    "uid": "142",
+    "record_id": "recvvyfVSUSEkS",
+    "at": "2026-09-19T16:40:19"
+  }
+}

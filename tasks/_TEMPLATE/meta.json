@@ -1,0 +1,49 @@
+{
+  "task_id": "T000",
+  "title": "",
+  "created_at": "",
+  "updated_at": "",
+  "task_type": "",
+  "difficulty": "",
+  "language_framework": "",
+  "harness": "",
+  "harness_version": "",
+  "os": "Windows",
+  "env_level": "",
+  "validity": "有效",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "",
+    "sha": "",
+    "permalink": ""
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_source": "",
+      "trajectory_url": "",
+      "recording_local": "",
+      "branch": "",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_source": "",
+      "trajectory_url": "",
+      "recording_local": "",
+      "branch": "",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "gsb": {
+    "conclusion": "",
+    "reason": "",
+    "reason_author": ""
+  },
+  "remark": "",
+  "notes": ""
+}
