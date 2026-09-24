@@ -967,9 +967,23 @@ def materialize(task_id, base_ref, dest):
     archive = subprocess.run(["git", "archive", base_ref], cwd=REPO, capture_output=True)
     if archive.returncode != 0:
         raise SystemExit("git archive 失败")
-    extract = subprocess.run(["tar", "-x", "-C", dest], input=archive.stdout, capture_output=True)
-    if extract.returncode != 0:
-        raise SystemExit(f"解包失败: {extract.stderr.decode(errors='replace')[:300]}")
+    # 用 Python 的 tarfile 解，别用外面的 tar 命令：Windows 自带的 bsdtar 碰不到
+    # 长路径（比如 django 测试目录），会整包失败。
+    import io
+    import tarfile
+    skipped = 0
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+        for member in tar.getmembers():
+            if member.name == ".git" or member.name.startswith(".git/"):
+                continue
+            if ".." in member.name.split("/"):
+                continue
+            try:
+                tar.extract(member, dest, filter="data")
+            except (OSError, ValueError):
+                skipped += 1
+    if skipped:
+        print(f"   （初始快照里有 {skipped} 个超长/特殊路径没铺出来）")
 
     ensure_workspace_repo(dest)
     return f"铺出 {base}"
