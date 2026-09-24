@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-061",
+  "title": "Flask SERVER_NAME 填 IPv6 时端口解析崩掉（真实开源 bug）",
+  "created_at": "2026-09-24T18:48:34",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, flask",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-061/base",
+    "sha": "eab37eb583993488c41a30dca0fc2ebd29496ef1",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/eab37eb583993488c41a30dca0fc2ebd29496ef1"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-061/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-061/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
