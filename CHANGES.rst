@@ -3,6 +3,9 @@ Version 3.2.0
 
 Unreleased
 
+-   ``Flask.run`` parses an IPv6 address in ``SERVER_NAME``, such as
+    ``'[::1]:5000'`` or ``'[::1]'``, using the address as the host and the
+    port after the closing bracket. :issue:`4748`
 -   Drop support for Python 3.9. :pr:`5730`
 -   Remove previously deprecated code: ``__version__``. :pr:`5648`
 -   ``RequestContext`` has merged with ``AppContext``. ``RequestContext`` is now

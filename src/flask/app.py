@@ -721,7 +721,18 @@ class Flask(App):
         sn_host = sn_port = None
 
         if server_name:
-            sn_host, _, sn_port = server_name.partition(":")
+            if server_name[0] == "[":
+                # An IPv6 address in brackets, optionally with a port:
+                # ``'[::1]'`` or ``'[::1]:5000'``. Strip the brackets so
+                # the host can be passed to the development server.
+                sn_host, sep, sn_port = server_name[1:].partition("]")
+
+                if sep and sn_port:
+                    sn_port = sn_port.removeprefix(":")
+                else:
+                    sn_port = None
+            else:
+                sn_host, _, sn_port = server_name.partition(":")
 
         if not host:
             if sn_host:
