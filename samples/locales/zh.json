@@ -1,0 +1,7 @@
+{
+  "order.list.empty": "还没有订单",
+  "order.list.title": "订单列表",
+  "order.detail.pay": "去支付",
+  "order.status.paid": "已支付",
+  "order.status.cancelled": "已取消"
+}
