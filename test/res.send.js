@@ -2,6 +2,7 @@
 
 var assert = require('node:assert')
 const { Buffer } = require('node:buffer');
+var createETag = require('etag');
 var express = require('..');
 var methods = require('../lib/utils').methods;
 var request = require('supertest');
@@ -615,6 +616,60 @@ describe('res', function(){
           .expect(utils.shouldHaveHeader('Transfer-Encoding'))
           .expect(200, '', done);
       })
+    });
+
+    it('should still generate ETag for a string body', function (done) {
+      var app = express();
+      var body = 'hello, world!';
+
+      app.use(function (req, res) {
+        res.status(200).set('Transfer-Encoding', 'chunked').send(body);
+      });
+
+      request(app)
+        .get('/')
+        .expect(utils.shouldHaveHeader('ETag'))
+        .expect('ETag', createETag(Buffer.from(body), { weak: true }))
+        .expect(utils.shouldNotHaveHeader('Content-Length'))
+        .expect(utils.shouldHaveHeader('Transfer-Encoding'))
+        .expect(200, body, done);
+    });
+
+    it('should still generate ETag for a JSON body', function (done) {
+      var app = express();
+      var body = { hello: 'world' };
+      var expectedBody = JSON.stringify(body);
+
+      app.use(function (req, res) {
+        res.status(200).set('Transfer-Encoding', 'chunked').json(body);
+      });
+
+      request(app)
+        .get('/')
+        .expect('Content-Type', 'application/json; charset=utf-8')
+        .expect(utils.shouldHaveHeader('ETag'))
+        .expect('ETag', createETag(Buffer.from(expectedBody), { weak: true }))
+        .expect(utils.shouldNotHaveHeader('Content-Length'))
+        .expect(utils.shouldHaveHeader('Transfer-Encoding'))
+        .expect(200, expectedBody, done);
+    });
+
+    it('should not override a manually set ETag', function (done) {
+      var app = express();
+
+      app.use(function (req, res) {
+        res.status(200)
+          .set('Transfer-Encoding', 'chunked')
+          .set('ETag', '"custom"')
+          .send('hello, world!');
+      });
+
+      request(app)
+        .get('/')
+        .expect('ETag', '"custom"')
+        .expect(utils.shouldNotHaveHeader('Content-Length'))
+        .expect(utils.shouldHaveHeader('Transfer-Encoding'))
+        .expect(200, 'hello, world!', done);
     });
   })
 })
