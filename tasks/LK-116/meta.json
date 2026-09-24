@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-116",
+  "title": "requests-cache 遇到半截缓存抛 EOFError（真实开源 bug）",
+  "created_at": "2026-09-24T23:18:29",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, requests-cache",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-116/base",
+    "sha": "3e4debc626f3c18fecd39669d31b59f5d3110bbc",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/3e4debc626f3c18fecd39669d31b59f5d3110bbc"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-116/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-116/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
