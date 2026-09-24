@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-064",
+  "title": "quart 用 root_path 时前缀剥离错误导致路由错配（真实开源 bug）",
+  "created_at": "2026-09-24T18:48:40",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, quart",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-064/base",
+    "sha": "0b06e6f3bf39fac8c1bc216b99e5c9ddcc41002d",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/0b06e6f3bf39fac8c1bc216b99e5c9ddcc41002d"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-064/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-064/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
