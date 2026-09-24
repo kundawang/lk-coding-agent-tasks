@@ -1,8 +1,18 @@
 {
-  "_comment": "飞书提交表坐标。records 里可以按题号固定 record_id，SUBMIT 就不必每次 --uid。",
+  "_comment": "飞书提交表坐标。targets 里可以放多张表，用 --target 名字 切换；不带 --target 就用上面这张默认表。",
   "base_token": "BPO8bK6oAaLaGNsdTudckZZYnCf",
   "table_id": "tblrqoHBXgrXZgos",
   "submitter_name": "刘坤",
   "submitter_open_id": "ou_c137a561d460ea0dcb8321e4d383dee1",
-  "records": {}
+  "records": {},
+  "targets": {
+    "lk": {
+      "_comment": "另一张表：本机 lk 线 10 道题的交付表，没有「提交人」字段，行用 UID 1..10",
+      "base_token": "VumIbptjDacpvVsAlL7c4q0enRh",
+      "table_id": "tblBe4GuSzvDwDWA",
+      "submitter_field": "",
+      "uid_base": 1,
+      "uid_task_start": 12
+    }
+  }
 }

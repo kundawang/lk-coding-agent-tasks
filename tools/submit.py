@@ -44,17 +44,30 @@ except Exception:
 # ---------------------------------------------------------------- lark-cli
 
 def lark_bin():
-    """Windows 上 lark-cli 是 .cmd/.ps1 垫片，subprocess 直接给裸名字会找不到。"""
+    """调用 lark-cli。
+
+    Windows 上 lark-cli 是 .cmd 垫片，走它会先被 cmd.exe 解析一遍参数 ——
+    prompt 里出现 `|`、`(`、`)`、`&` 这类字符时会被当成命令分隔符，直接把内容吃掉。
+    所以优先找到真正的 JS 入口用 node 直接跑，绕开 cmd.exe。
+    """
+    for path in (
+        os.path.expandvars(r"%APPDATA%\npm\node_modules\@larksuite\cli\scripts\run.js"),
+        os.path.expandvars(r"%ProgramFiles%\nodejs\node_modules\@larksuite\cli\scripts\run.js"),
+    ):
+        if os.path.exists(path):
+            node = shutil.which("node")
+            if node:
+                return [node, path]
     for name in ("lark-cli.cmd", "lark-cli.exe", "lark-cli"):
         path = shutil.which(name)
         if path:
-            return path
-    return "lark-cli"
+            return [path]
+    return ["lark-cli"]
 
 
 def lark(args, expect_ok=True):
     """调用 lark-cli，返回解析后的 JSON。"""
-    proc = subprocess.run([lark_bin(), *args], capture_output=True, text=True,
+    proc = subprocess.run([*lark_bin(), *args], capture_output=True, text=True,
                           encoding="utf-8", errors="replace")
     raw = (proc.stdout or "").strip()
     # 有些子命令（上传附件之类）会先在 stdout 打一行 warning，再把 JSON 跟在后面
@@ -354,6 +367,47 @@ def list_my_records(cfg, submitter_field="提交人"):
         if not ids:
             break
     return out
+
+
+def list_records_by_uid(cfg):
+    """不按提交人搜，直接把表里的行连同 UID 列出来（新表没有提交人字段）。"""
+    out, offset = [], 0
+    while True:
+        d = lark([
+            "base", "+record-list",
+            "--base-token", cfg["base_token"],
+            "--table-id", cfg["table_id"],
+            "--field-id", "UID",
+            "--field-id", "初始环境快照",
+            "--limit", "200",
+            "--offset", str(offset),
+            "--format", "json",
+        ])["data"]
+        names = d.get("fields") or []
+        rows = d.get("data") or []
+        ids = d.get("record_id_list") or []
+        idx_uid = names.index("UID") if "UID" in names else None
+        idx_snap = names.index("初始环境快照") if "初始环境快照" in names else None
+        for i, rid in enumerate(ids):
+            row = rows[i] if i < len(rows) else []
+            uid = row[idx_uid] if idx_uid is not None and idx_uid < len(row) else ""
+            snap = row[idx_snap] if idx_snap is not None and idx_snap < len(row) else ""
+            out.append({"record_id": rid, "uid": str(uid or "").strip(), "snapshot": snap or ""})
+        if not d.get("has_more"):
+            break
+        offset += len(ids)
+        if not ids:
+            break
+    return out
+
+
+def repo_url():
+    """本仓库的 GitHub 网址，填「原仓库地址」用。"""
+    proc = subprocess.run(["git", "remote", "get-url", "origin"], cwd=REPO,
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+    url = (proc.stdout or "").strip()
+    m = re.search(r"github\.com[:/]+([^/]+/[^/]+?)(?:\.git)?$", url)
+    return f"https://github.com/{m.group(1)}" if m else ""
 
 
 def strip_markdown_link(value):
