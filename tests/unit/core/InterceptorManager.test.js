@@ -164,4 +164,58 @@ describe('core::InterceptorManager', () => {
     expect(visited).toEqual([first, second]);
     expect(manager.handlers).toHaveLength(0);
   });
+
+  it('treats a null handlers stack as empty when iterating', () => {
+    const manager = new InterceptorManager();
+
+    manager.use(() => {});
+    manager.handlers = null;
+
+    const visited = [];
+
+    expect(() => manager.forEach((handler) => visited.push(handler))).not.toThrow();
+    expect(visited).toEqual([]);
+  });
+
+  it('treats an undefined handlers stack as empty when iterating', () => {
+    const manager = new InterceptorManager();
+
+    manager.handlers = undefined;
+
+    expect(() => manager.forEach(() => {})).not.toThrow();
+  });
+
+  it('registers new interceptors after the handlers stack was nulled', () => {
+    const manager = new InterceptorManager();
+    const handler = () => {};
+
+    manager.use(() => {});
+    manager.handlers = null;
+
+    const id = manager.use(handler);
+
+    const visited = [];
+    manager.forEach((entry) => visited.push(entry.fulfilled));
+
+    expect(visited).toEqual([handler]);
+
+    manager.eject(id);
+
+    expect(manager.handlers).toHaveLength(0);
+  });
+
+  it('ignores stale interceptor IDs after the handlers stack was nulled', () => {
+    const manager = new InterceptorManager();
+    const staleId = manager.use(() => {});
+
+    manager.handlers = null;
+
+    expect(() => manager.eject(staleId)).not.toThrow();
+    expect(() => manager.clear()).not.toThrow();
+
+    const visited = [];
+    manager.forEach((handler) => visited.push(handler));
+
+    expect(visited).toEqual([]);
+  });
 });

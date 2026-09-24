@@ -53,4 +53,50 @@ describe('core::Axios', () => {
       }
     });
   });
+
+  describe('null interceptor handlers', () => {
+    function createInstanceWithNulledInterceptors() {
+      const instance = axios.create({
+        adapter: (config) =>
+          Promise.resolve({
+            data: 'ok',
+            status: 200,
+            statusText: 'OK',
+            headers: {},
+            config,
+          }),
+      });
+
+      instance.interceptors.request.handlers = null;
+      instance.interceptors.response.handlers = null;
+
+      return instance;
+    }
+
+    it('dispatches a request when interceptor handlers were nulled', async () => {
+      const instance = createInstanceWithNulledInterceptors();
+
+      const response = await instance.get('http://localhost/test');
+
+      expect(response.data).toBe('ok');
+    });
+
+    it('runs interceptors registered after the handlers were nulled', async () => {
+      const instance = createInstanceWithNulledInterceptors();
+      const calls = [];
+
+      instance.interceptors.request.use((config) => {
+        calls.push('request');
+        return config;
+      });
+      instance.interceptors.response.use((response) => {
+        calls.push('response');
+        return response;
+      });
+
+      await instance.get('http://localhost/test');
+
+      expect(calls).toEqual(['request', 'response']);
+    });
+  });
 });
