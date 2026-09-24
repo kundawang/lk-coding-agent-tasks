@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-139",
+  "title": "kotlinx.coroutines 在 Windows 上不认本地 repo 路径（真实开源 bug）",
+  "created_at": "2026-09-24T23:47:03",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Kotlin, kotlinx.coroutines",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-139/base",
+    "sha": "a77b3b985d28a6b8e3c92257f876f31a95fb2baa",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/a77b3b985d28a6b8e3c92257f876f31a95fb2baa"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-139/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-139/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
