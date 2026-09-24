@@ -1,0 +1,27 @@
+import org.junit.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.debug.*
+import org.junit.Test
+import java.io.*
+import java.lang.IllegalStateException
+
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+class DynamicAttachDebugTest {
+
+    @Test
+    fun testAgentDumpsCoroutines() =
+        DebugProbes.withDebugProbes {
+            runBlocking {
+                val baos = ByteArrayOutputStream()
+                DebugProbes.dumpCoroutines(PrintStream(baos))
+                // if the agent works, then dumps should contain something,
+                // at least the fact that this test is running.
+                Assert.assertTrue(baos.toString().contains("testAgentDumpsCoroutines"))
+            }
+        }
+
+    @Test(expected = IllegalStateException::class)
+    fun testAgentIsNotInstalled() {
+        DebugProbes.dumpCoroutines(PrintStream(ByteArrayOutputStream()))
+    }
+}
