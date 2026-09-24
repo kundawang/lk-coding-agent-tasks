@@ -1,0 +1,11 @@
+{
+  "name": "",
+  "owner": { "email": "not-an-email" },
+  "items": [
+    { "sku": "ab-123", "price": 3.333 },
+    { "sku": "AB-0001", "price": 3.333 },
+    { "sku": "AB-0001", "price": 3.333 }
+  ],
+  "status": "unknown",
+  "extra": 1
+}

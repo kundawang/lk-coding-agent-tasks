@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "required": ["name", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+    "owner": { "$ref": "#/definitions/person" },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["sku", "price"],
+        "properties": {
+          "sku": { "type": "string", "pattern": "^[A-Z]{2}-\\d{4}$" },
+          "price": { "type": "number", "minimum": 0, "multipleOf": 0.01 },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "status": { "enum": ["draft", "active", "closed"] }
+  },
+  "definitions": {
+    "person": {
+      "type": "object",
+      "required": ["email"],
+      "properties": { "email": { "type": "string", "format": "email" } }
+    }
+  }
+}

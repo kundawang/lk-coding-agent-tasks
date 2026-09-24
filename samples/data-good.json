@@ -1,0 +1,9 @@
+{
+  "name": "九月报价",
+  "owner": { "email": "ops@example.com" },
+  "items": [
+    { "sku": "AB-0001", "price": 12.5 },
+    { "sku": "CD-0002", "price": 3.33, "note": "促销价" }
+  ],
+  "status": "active"
+}
