@@ -1,0 +1,907 @@
+from __future__ import annotations
+
+import json
+import os
+import re
+import signal
+import sys
+import sysconfig
+from pathlib import Path
+from subprocess import PIPE, Popen
+from textwrap import dedent
+from time import sleep
+from typing import TYPE_CHECKING, Any
+
+import pytest
+from re_assert import Matches
+from virtualenv.discovery.py_info import PythonInfo
+
+from tox import __version__
+from tox.tox_env.api import ToxEnv
+from tox.tox_env.errors import Fail
+from tox.tox_env.info import Info
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
+
+    from tox.pytest import ToxProjectCreator
+
+
+@pytest.mark.parametrize("prefix", ["-", "- "])
+def test_run_ignore_cmd_exit_code(tox_project: ToxProjectCreator, prefix: str) -> None:
+    cmd = [
+        f"{prefix}python -c 'import sys; print(\"magic fail\", file=sys.stderr); sys.exit(1)'",
+        "python -c 'import sys; print(\"magic pass\", file=sys.stdout); sys.exit(0)'",
+    ]
+    project = tox_project({"tox.ini": f"[tox]\nno_package=true\n[testenv]\ncommands={cmd[0]}\n {cmd[1]}"})
+    outcome = project.run("r", "-e", "py")
+    outcome.assert_success()
+    assert "magic pass" in outcome.out
+    assert "magic fail" in outcome.err
+
+
+def test_run_sequential_fail(tox_project: ToxProjectCreator) -> None:
+    def _cmd(value: int) -> str:
+        return f"python -c 'import sys; print(\"exit {value}\"); sys.exit({value})'"
+
+    ini = f"[tox]\nenv_list=a,b\nno_package=true\n[testenv:a]\ncommands={_cmd(1)}\n[testenv:b]\ncommands={_cmd(0)}"
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("r", "-e", "a,b")
+    outcome.assert_failed()
+    reports = outcome.out.splitlines()[-3:]
+    assert Matches(r"  evaluation failed :\( \(.* seconds\)") == reports[-1]
+    assert Matches(r"  b: OK \(.*=setup\[.*\]\+cmd\[.*\] seconds\)") == reports[-2]
+    assert Matches(r"  a: FAIL code 1 \(.*=setup\[.*\]\+cmd\[.*\] seconds\)") == reports[-3]
+
+
+@pytest.mark.parametrize(
+    ("envs", "expected_code"),
+    [
+        ("a", 1),  # single failing env returns its exit code
+        ("a,b", 1),  # mixed fail+ok returns positive non-zero
+        ("a,c", 1),  # all failing returns positive non-zero
+    ],
+)
+def test_run_multi_env_exit_code_positive(tox_project: ToxProjectCreator, envs: str, expected_code: int) -> None:
+    """Exit code must be a positive integer so Windows CMD ``IF ERRORLEVEL 1`` detects failure (see #2945)."""
+
+    def _cmd(value: int) -> str:
+        return f"python -c 'import sys; sys.exit({value})'"
+
+    ini = (
+        f"[tox]\nno_package=true\n"
+        f"[testenv:a]\ncommands={_cmd(1)}\n"
+        f"[testenv:b]\ncommands={_cmd(0)}\n"
+        f"[testenv:c]\ncommands={_cmd(2)}\n"
+    )
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("r", "-e", envs)
+    assert outcome.code == expected_code
+
+
+def test_run_sequential_quiet(tox_project: ToxProjectCreator) -> None:
+    ini = "[tox]\nenv_list=a\nno_package=true\n[testenv]\ncommands=python -V"
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("r", "-q", "-e", "a")
+    outcome.assert_success()
+    reports = outcome.out.splitlines()[-3:]
+    assert Matches(r"  congratulations :\) \(.* seconds\)") == reports[-1]
+    assert Matches(r"  a: OK \([\d.]+ seconds\)") == reports[-2]
+
+
+@pytest.mark.slow
+@pytest.mark.integration
+def test_result_json_sequential(
+    tox_project: ToxProjectCreator,
+    enable_pip_pypi_access: str | None,  # ruff:ignore[unused-function-argument]
+) -> None:
+    cmd = [
+        "- python -c 'import sys; print(\"magic fail\", file=sys.stderr); sys.exit(1)'",
+        "python -c 'import sys; print(\"magic pass\"); sys.exit(0)'",
+    ]
+    project = tox_project(
+        {
+            "tox.ini": f"[tox]\nenvlist=py\n[testenv]\npackage=wheel\ncommands={cmd[0]}\n {cmd[1]}",
+            "setup.py": "from setuptools import setup\nsetup(name='a', version='1.0', py_modules=['run'],"
+            "install_requires=['setuptools>44'])",
+            "run.py": "print('run')",
+            "pyproject.toml": '[build-system]\nrequires=["setuptools"]\nbuild-backend="setuptools.build_meta"',
+        },
+    )
+    log = project.path / "log.json"
+    outcome = project.run("r", "-vv", "-e", "py", "--result-json", str(log))
+    outcome.assert_success()
+    with log.open("rt") as file_handler:
+        log_report = json.load(file_handler)
+
+    py_info = PythonInfo.current_system()
+    assert py_info.system_executable is not None
+    host_python = {
+        "executable": str(Path(py_info.system_executable).resolve()),
+        "extra_version_info": None,
+        "implementation": py_info.implementation,
+        "is_64": py_info.architecture == 64,
+        "sysplatform": py_info.platform,
+        "version": py_info.version,
+        "version_info": list(py_info.version_info),
+        "free_threaded": py_info.free_threaded,
+        "debug": py_info.debug_build,
+        "machine": py_info.machine,
+    }
+    packaging_setup = get_cmd_exit_run_id(log_report, ".pkg", "setup")
+    assert "result" not in log_report["testenvs"][".pkg"]
+
+    assert packaging_setup[-1][0] in {0, None}
+    assert packaging_setup == [
+        (0, "install_requires"),
+        (None, "_optional_hooks"),
+        (None, "get_requires_for_build_wheel"),
+        (0, "freeze"),
+    ]
+    packaging_test = get_cmd_exit_run_id(log_report, ".pkg", "test")
+    assert packaging_test == [(None, "build_wheel")]
+    packaging_installed = log_report["testenvs"][".pkg"].pop("installed_packages")
+    assert {i[: i.find("==")] for i in packaging_installed} == {"pip", "setuptools"}
+
+    result_py = log_report["testenvs"]["py"].pop("result")
+    assert result_py.pop("duration") > 0
+    assert result_py == {"success": True, "exit_code": 0, "skipped": False}
+
+    py_setup = get_cmd_exit_run_id(log_report, "py", "setup")
+    assert py_setup == [(0, "install_package_deps"), (0, "install_package"), (0, "freeze")]
+    py_test = get_cmd_exit_run_id(log_report, "py", "test")
+    assert py_test == [(1, "commands[0]"), (0, "commands[1]")]
+    packaging_installed = log_report["testenvs"]["py"].pop("installed_packages")
+    expected_pkg = {"pip", "setuptools", "a"}
+    if sys.version_info[0:2] == (3, 8):
+        expected_pkg.add("wheel")
+    assert {i[: i.find("==")] if "@" not in i else "a" for i in packaging_installed} == expected_pkg
+    install_package = log_report["testenvs"]["py"].pop("installpkg")
+    assert re.match(r"^[a-fA-F0-9]{64}$", install_package.pop("sha256"))
+    assert install_package == {"basename": "a-1.0-py3-none-any.whl", "type": "file"}
+
+    expected = {
+        "reportversion": "1",
+        "toxversion": __version__,
+        "platform": sys.platform,
+        "testenvs": {
+            "py": {"python": host_python},
+            ".pkg": {"python": host_python},
+        },
+    }
+    assert "host" in log_report
+    assert log_report.pop("host")
+    assert log_report == expected
+
+
+def get_cmd_exit_run_id(report: dict[str, Any], name: str, group: str) -> list[tuple[int | None, str]]:
+    return [(i["retcode"], i["run_id"]) for i in report["testenvs"][name].pop(group)]
+
+
+def test_rerun_sequential_skip(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    proj = tox_project({"tox.ini": "[testenv]\npackage=skip\ncommands=python -c 'print(1)'"})
+    result_first = proj.run("--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"))
+    result_first.assert_success()
+    result_rerun = proj.run("--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"))
+    result_rerun.assert_success()
+
+
+def test_rerun_sequential_wheel(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    proj = tox_project(
+        {"tox.ini": "[testenv]\npackage=wheel\ncommands=python -c 'from demo_pkg_inline import do; do()'"},
+    )
+    result_first = proj.run("--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"), "-vv")
+    result_first.assert_success()
+
+    result_rerun = proj.run("--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"))
+    result_rerun.assert_success()
+
+
+@pytest.mark.slow
+@pytest.mark.integration
+def test_rerun_sequential_sdist(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    proj = tox_project(
+        {"tox.ini": "[testenv]\npackage=sdist\ncommands=python -c 'from demo_pkg_inline import do; do()'"},
+    )
+    result_first = proj.run("--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"))
+    result_first.assert_success()
+    result_rerun = proj.run("--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"))
+    result_rerun.assert_success()
+
+
+def test_recreate_package(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    proj = tox_project(
+        {"tox.ini": "[testenv]\npackage=wheel\ncommands=python -c 'from demo_pkg_inline import do; do()'"},
+    )
+    result_first = proj.run("--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"), "-r")
+    result_first.assert_success()
+
+    result_rerun = proj.run(
+        "-r", "--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"), "--no-recreate-pkg"
+    )
+    result_rerun.assert_success()
+
+
+def test_recreate_env_does_not_destroy_shared_pkg(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    toml = (demo_pkg_inline / "pyproject.toml").read_text()
+    build = (demo_pkg_inline / "build.py").read_text()
+    proj = tox_project({
+        "tox.toml": """\
+env_list = ["a", "b"]
+
+[env_run_base]
+package = "wheel"
+commands = [["python", "-c", "from demo_pkg_inline import do; do()"]]
+
+[env.b]
+recreate = true
+""",
+        "pyproject.toml": toml,
+        "build.py": build,
+    })
+    result = proj.run("r", "-e", "a,b")
+    result.assert_success()
+
+
+def test_package_deps_change(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    toml = (demo_pkg_inline / "pyproject.toml").read_text()
+    build = (demo_pkg_inline / "build.py").read_text()
+    proj = tox_project({"tox.ini": "[testenv]\npackage=wheel", "pyproject.toml": toml, "build.py": build})
+    proj.patch_execute(lambda r: 0 if "install" in r.run_id else None)
+
+    result_first = proj.run("r")
+    result_first.assert_success()
+    assert ".pkg: install" not in result_first.out  # no deps initially
+
+    # new deps are picked up
+    (proj.path / "pyproject.toml").write_text(toml.replace("requires = []", 'requires = ["wheel"]'))
+    (proj.path / "build.py").write_text(build.replace("return []", "return ['setuptools']"))
+
+    result_rerun = proj.run("r")
+    result_rerun.assert_success()
+
+    # and installed
+    rerun_install = [i for i in result_rerun.out.splitlines() if i.startswith(".pkg: install")]
+    assert len(rerun_install) == 2
+    assert rerun_install[0].endswith("wheel")
+    assert rerun_install[1].endswith("setuptools")
+
+
+def test_package_build_fails(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project(
+        {
+            "tox.ini": "[testenv]\npackage=wheel",
+            "pyproject.toml": '[build-system]\nrequires=[]\nbuild-backend="build"\nbackend-path=["."]',
+            "build.py": "",
+        },
+    )
+
+    result = proj.run("r")
+    result.assert_failed(code=1)
+    assert "has no attribute 'build_wheel'" in result.out, result.out
+
+
+def test_backend_not_found(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project(
+        {
+            "tox.ini": "[testenv]\npackage=wheel",
+            "pyproject.toml": '[build-system]\nrequires=[]\nbuild-backend="build"',
+            "build.py": "",
+        },
+    )
+
+    result = proj.run("r")
+    result.assert_failed(code=-5)
+    assert "packaging backend failed (code=-5), with FailedToStart: could not start backend" in result.out, result.out
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(120)
+def test_missing_interpreter_skip_on(tox_project: ToxProjectCreator) -> None:
+    ini = "[tox]\nskip_missing_interpreters=true\n[testenv]\npackage=skip\nbase_python=missing-interpreter"
+    proj = tox_project({"tox.ini": ini})
+
+    result = proj.run("r")
+    result.assert_failed()
+    assert "py: SKIP" in result.out
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(120)
+def test_missing_interpreter_skip_off(tox_project: ToxProjectCreator) -> None:
+    ini = "[tox]\nskip_missing_interpreters=false\n[testenv]\npackage=skip\nbase_python=missing-interpreter"
+    proj = tox_project({"tox.ini": ini})
+
+    result = proj.run("r")
+    result.assert_failed()
+    exp = "py: failed with could not find python interpreter matching any of the specs missing-interpreter"
+    assert exp in result.out
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(120)
+def test_missing_interpreter_skip_set_env_substitution_ini(tox_project: ToxProjectCreator) -> None:
+    ini = """\
+[tox]
+env_list = ok, bad
+skip_missing_interpreters = true
+[testenv]
+package = skip
+set_env =
+    DATA_DIR={envsitepackagesdir}
+[testenv:bad]
+base_python = missing-interpreter
+set_env =
+    {[testenv]set_env}
+    EXTRA=yes
+"""
+    result = tox_project({"tox.ini": ini}).run("r")
+    result.assert_success()
+    assert "bad: SKIP" in result.out
+    assert "ok: OK" in result.out
+
+
+@pytest.mark.slow
+@pytest.mark.timeout(120)
+def test_missing_interpreter_skip_set_env_substitution_toml(tox_project: ToxProjectCreator) -> None:
+    toml = """\
+env_list = ["ok", "bad"]
+skip_missing_interpreters = true
+
+[env_run_base]
+package = "skip"
+
+[env.bad]
+base_python = ["missing-interpreter"]
+set_env = {DATA_DIR = "{envsitepackagesdir}", EXTRA = "yes"}
+"""
+    result = tox_project({"tox.toml": toml}).run("r")
+    result.assert_success()
+    assert "bad: SKIP" in result.out
+    assert "ok: OK" in result.out
+
+
+def test_env_tmp_dir_reset(tox_project: ToxProjectCreator) -> None:
+    ini = '[testenv]\npackage=skip\ncommands=python -c \'import os; os.mkdir(os.path.join( r"{env_tmp_dir}", "a"))\''
+    proj = tox_project({"tox.ini": ini})
+    result_first = proj.run("r")
+    result_first.assert_success()
+
+    result_second = proj.run("r", "-v", "-v")
+    result_second.assert_success()
+    assert "D clear env temp folder " in result_second.out, result_second.out
+
+
+def test_env_name_change_recreate(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project({"tox.ini": "[testenv]\npackage=skip\ncommands=\n"})
+    result_first = proj.run("r")
+    result_first.assert_success()
+
+    tox_env = result_first.state.envs["py"]
+    assert repr(tox_env) == "VirtualEnvRunner(name=py)"
+    path = tox_env.env_dir
+    with Info(path).compare({"name": "p", "type": "magical"}, ToxEnv.__name__):
+        pass
+
+    result_second = proj.run("r")
+    result_second.assert_success()
+    output = (
+        "recreate env because env type changed from {'name': 'p', 'type': 'magical'} "
+        "to {'name': 'py', 'type': 'VirtualEnvRunner'}"
+    )
+    assert output in result_second.out
+    assert "py: remove tox env folder" in result_second.out
+
+
+def test_skip_pkg_install(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    proj = tox_project({"tox.ini": "[testenv]\npackage=wheel\n"})
+    result_first = proj.run("--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"), "--skip-pkg-install")
+    result_first.assert_success()
+    assert result_first.out.startswith("py: skip building and installing the package"), result_first.out
+
+
+def test_skip_env_install(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    proj = tox_project({"tox.toml": '[env_run_base]\npackage = "wheel"\n'})
+    result = proj.run("--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"), "--skip-env-install")
+    result.assert_success()
+    assert "skip installing dependencies and package" in result.out
+    assert "skip building and installing the package" in result.out
+
+
+def test_skip_env_install_no_install_calls(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    proj = tox_project({
+        "tox.toml": """
+            [env_run_base]
+            package = "wheel"
+            deps = ["setuptools"]
+        """,
+    })
+    execute_calls = proj.patch_execute(lambda r: 0 if "install" in r.run_id else None)
+    result = proj.run("--root", str(demo_pkg_inline), "--workdir", str(proj.path / ".tox"), "--skip-env-install")
+    result.assert_success()
+    calls = [(i[0][0].conf.name, i[0][3].run_id) for i in execute_calls.call_args_list]
+    assert not any(run_id.startswith("install") for _, run_id in calls)
+
+
+def test_skip_develop_mode(tox_project: ToxProjectCreator, demo_pkg_setuptools: Path) -> None:
+    proj = tox_project({"tox.ini": "[testenv]\npackage=wheel\n"})
+    execute_calls = proj.patch_execute(lambda r: 0 if "install" in r.run_id else None)
+    result = proj.run("--root", str(demo_pkg_setuptools), "--develop", "--workdir", str(proj.path / ".tox"))
+    result.assert_success()
+    calls = [(i[0][0].conf.name, i[0][3].run_id) for i in execute_calls.call_args_list]
+    expected = [
+        (".pkg", "install_requires"),
+        (".pkg", "_optional_hooks"),
+        (".pkg", "get_requires_for_build_editable"),
+        (".pkg", "build_editable"),
+        ("py", "install_package"),
+    ]
+    assert calls == expected
+
+
+def _c(code: int) -> str:
+    return f"python -c 'raise SystemExit({code})'"
+
+
+def test_commands_pre_fail_post_runs(tox_project: ToxProjectCreator) -> None:
+    ini = f"[testenv]\npackage=skip\ncommands_pre={_c(8)}\ncommands={_c(0)}\ncommands_post={_c(9)}"
+    proj = tox_project({"tox.ini": ini})
+    result = proj.run()
+    result.assert_failed(code=8)
+    assert "commands_pre[0]" in result.out
+    assert "commands[0]" not in result.out
+    assert "commands_post[0]" in result.out
+
+
+def test_commands_pre_pass_post_runs_main_fails(tox_project: ToxProjectCreator) -> None:
+    ini = f"[testenv]\npackage=skip\ncommands_pre={_c(0)}\ncommands={_c(8)}\ncommands_post={_c(9)}"
+    proj = tox_project({"tox.ini": ini})
+    result = proj.run()
+    result.assert_failed(code=8)
+    assert "commands_pre[0]" in result.out
+    assert "commands[0]" in result.out
+    assert "commands_post[0]" in result.out
+
+
+def test_commands_post_fails_exit_code(tox_project: ToxProjectCreator) -> None:
+    ini = f"[testenv]\npackage=skip\ncommands_pre={_c(0)}\ncommands={_c(0)}\ncommands_post={_c(9)}"
+    proj = tox_project({"tox.ini": ini})
+    result = proj.run()
+    result.assert_failed(code=9)
+    assert "commands_pre[0]" in result.out
+    assert "commands[0]" in result.out
+    assert "commands_post[0]" in result.out
+
+
+@pytest.mark.parametrize(
+    ("pre", "main", "post", "outcome"),
+    [
+        (0, 8, 0, 8),
+        (0, 0, 8, 8),
+        (8, 0, 0, 8),
+    ],
+)
+def test_commands_ignore_errors(tox_project: ToxProjectCreator, pre: int, main: int, post: int, outcome: int) -> None:
+    def _s(key: str, code: int) -> str:
+        return f"\ncommands{key}=\n {_c(code)}\n {'' if code == 0 else _c(code + 1)}"
+
+    ini = f"[testenv]\npackage=skip\nignore_errors=True{_s('_pre', pre)}{_s('', main)}{_s('_post', post)}"
+    proj = tox_project({"tox.ini": ini})
+    result = proj.run()
+    result.assert_failed(code=outcome)
+    assert "commands_pre[0]" in result.out
+    assert "commands[0]" in result.out
+    assert "commands_post[0]" in result.out
+
+
+def test_ignore_outcome(tox_project: ToxProjectCreator) -> None:
+    ini = "[tox]\nno_package=true\n[testenv]\ncommands=python -c 'exit(1)'\nignore_outcome=true"
+    project = tox_project({"tox.ini": ini})
+    result = project.run("r")
+
+    result.assert_success()
+    reports = result.out.splitlines()
+
+    assert Matches(r"  py: IGNORED FAIL code 1 .*") == reports[-2]
+    assert Matches(r"  congratulations :\) .*") == reports[-1]
+
+
+def test_platform_does_not_match_run_env(tox_project: ToxProjectCreator) -> None:
+    ini = "[testenv]\npackage=skip\nplatform=wrong_platform"
+    proj = tox_project({"tox.ini": ini})
+
+    result = proj.run("r")
+    result.assert_failed()
+    exp = f"py: skipped because platform {sys.platform} does not match wrong_platform"
+    assert exp in result.out
+
+
+def test_platform_matches_run_env(tox_project: ToxProjectCreator) -> None:
+    ini = f"[testenv]\npackage=skip\nplatform={sys.platform}"
+    proj = tox_project({"tox.ini": ini})
+    result = proj.run("r")
+    result.assert_success()
+
+
+def test_machine_factor_run_env(tox_project: ToxProjectCreator) -> None:
+    parts = sysconfig.get_platform().rsplit("-", 1)
+    if len(parts) < 2:
+        pytest.skip("sysconfig.get_platform() has no machine component")
+    machine = parts[-1]
+    ini = f"[testenv]\npackage=skip\ncommands=\n    {machine}: python -c 'print(\"{machine}\")'"
+    proj = tox_project({"tox.ini": ini})
+    result = proj.run("r", "-e", f"py-{machine}")
+    result.assert_success()
+    assert machine in result.out
+
+    # verify the created virtualenv reports the correct machine in the journal
+    result_journal = proj.run("r", "-e", f"py-{machine}", "--result-json", str(proj.path / "out.json"))
+    result_journal.assert_success()
+    with (proj.path / "out.json").open() as f:
+        report = json.load(f)
+    py_journal = report["testenvs"][f"py-{machine}"]["python"]
+    py_info = PythonInfo.current_system()
+    assert py_journal["machine"] == py_info.machine
+
+
+@pytest.mark.timeout(120)
+def test_machine_factor_unavailable(tox_project: ToxProjectCreator) -> None:
+    ini = "[testenv]\npackage=skip\nbase_python=cpython3-64-fakearch999"
+    proj = tox_project({"tox.ini": ini})
+    result = proj.run("r")
+    result.assert_failed()
+    assert "could not find python interpreter" in result.out
+
+
+def test_platform_does_not_match_package_env(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    toml = (demo_pkg_inline / "pyproject.toml").read_text()
+    build = (demo_pkg_inline / "build.py").read_text()
+    ini = "[tox]\nenv_list=a,b\n[testenv]\npackage=wheel\n[testenv:.pkg]\nplatform=wrong_platform"
+    proj = tox_project({"tox.ini": ini, "pyproject.toml": toml, "build.py": build})
+    result = proj.run("r", "-e", "a,b")
+    result.assert_failed()  # tox run fails as all envs are skipped
+    assert "a: SKIP" in result.out
+    assert "b: SKIP" in result.out
+    msg = f"skipped because platform {sys.platform} does not match wrong_platform for package environment .pkg"
+    assert f"a: {msg}" in result.out
+    assert f"b: {msg}" in result.out
+
+
+def test_sequential_run_all(tox_project: ToxProjectCreator) -> None:
+    ini = "[tox]\nenv_list=a\n[testenv]\npackage=skip\n[testenv:b]"
+    outcome = tox_project({"tox.ini": ini}).run("r", "-e", "ALL")
+    assert "a: OK" in outcome.out
+    assert "b: OK" in outcome.out
+
+
+def test_virtualenv_cache(tox_project: ToxProjectCreator) -> None:
+    ini = "[testenv]\npackage=skip"
+    proj = tox_project({"tox.ini": ini})
+    result_first = proj.run("r", "-v", "-v")
+    result_first.assert_success()
+    assert " create virtual environment via " in result_first.out
+
+    result_second = proj.run("r", "-v", "-v")
+    result_second.assert_success()
+    assert " create virtual environment via " not in result_second.out
+
+
+def test_sequential_help(tox_project: ToxProjectCreator) -> None:
+    outcome = tox_project({"tox.ini": ""}).run("r", "-h")
+    outcome.assert_success()
+
+
+def test_sequential_clears_pkg_at_most_once(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    project = tox_project({"tox.ini": "[tox]\nenv_list=a,b"})
+    result = project.run(
+        "r", "--root", str(demo_pkg_inline), "--workdir", str(project.path / ".tox"), "-e", "a,b", "-r"
+    )
+    result.assert_success()
+
+
+def test_sequential_inserted_env_vars(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    ini = """
+    [testenv]
+    commands=python -c 'import os; [print(f"{k}={v}") for k, v in os.environ.items() if \
+                        k.startswith("TOX_") or k == "VIRTUAL_ENV"]'
+    """
+    project = tox_project({"tox.ini": ini})
+    result = project.run("r", "--root", str(demo_pkg_inline), "--workdir", str(project.path / ".tox"))
+    result.assert_success()
+
+    assert re.search(f"TOX_PACKAGE={re.escape(str(project.path))}.*.tar.gz{os.linesep}", result.out)
+    assert f"TOX_ENV_NAME=py{os.linesep}" in result.out
+    work_dir = project.path / ".tox"
+    assert f"TOX_WORK_DIR={work_dir}{os.linesep}" in result.out
+    env_dir = work_dir / "py"
+    assert f"TOX_ENV_DIR={env_dir}{os.linesep}" in result.out
+    assert f"VIRTUAL_ENV={env_dir}{os.linesep}" in result.out
+
+
+def test_missing_command_success_if_ignored(tox_project: ToxProjectCreator) -> None:
+    project = tox_project({"tox.ini": "[testenv]\ncommands= - missing-command\nskip_install=true"})
+    result = project.run()
+    result.assert_success()
+    assert "py: command failed but is marked ignore outcome so handling it as success" in result.out
+
+
+def test_fail_fast_cli_flag(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project({
+        "tox.toml": """
+        [env_run_base]
+        package = "skip"
+        [env.env1]
+        commands = [["python", "-c", "print('env1'); exit(0)"]]
+        [env.env2]
+        commands = [["python", "-c", "print('env2'); exit(1)"]]
+        [env.env3]
+        commands = [["python", "-c", "print('env3'); exit(0)"]]
+        """
+    })
+    result = proj.run("r", "-e", "env1,env2,env3", "--fail-fast")
+    assert result.code != 0
+    assert "env1" in result.out
+    assert "env2" in result.out
+    assert "SKIP" in result.out
+
+
+def test_fail_fast_config(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project({
+        "tox.toml": """
+        [env_run_base]
+        package = "skip"
+        [env.env1]
+        commands = [["python", "-c", "exit(0)"]]
+        [env.env2]
+        fail_fast = true
+        commands = [["python", "-c", "exit(1)"]]
+        [env.env3]
+        commands = [["python", "-c", "exit(0)"]]
+        """
+    })
+    result = proj.run("r", "-e", "env1,env2,env3")
+    assert result.code != 0
+    assert "SKIP" in result.out
+
+
+def test_fail_fast_respects_ignore_outcome(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project({
+        "tox.toml": """
+        [env_run_base]
+        package = "skip"
+        [env.env1]
+        commands = [["python", "-c", "exit(0)"]]
+        [env.env2]
+        ignore_outcome = true
+        commands = [["python", "-c", "exit(1)"]]
+        [env.env3]
+        commands = [["python", "-c", "exit(0)"]]
+        """
+    })
+    result = proj.run("r", "-e", "env1,env2,env3", "--fail-fast")
+    assert result.code == 0
+    assert "env1" in result.out
+    assert "env2" in result.out
+    assert "env3" in result.out
+    assert "IGNORED FAIL" in result.out
+
+
+def test_fail_fast_parallel_mode(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project({
+        "tox.toml": """
+        [env_run_base]
+        package = "skip"
+        [env.env1]
+        commands = [["python", "-c", "exit(0)"]]
+        [env.env2]
+        depends = ["env1"]
+        commands = [["python", "-c", "exit(1)"]]
+        [env.env3]
+        depends = ["env2"]
+        commands = [["python", "-c", "exit(0)"]]
+        [env.env4]
+        depends = ["env3"]
+        commands = [["python", "-c", "exit(0)"]]
+        """
+    })
+    result = proj.run("p", "-e", "env1,env2,env3,env4", "--fail-fast")
+    assert result.code != 0
+    assert "env1" in result.out
+    assert "env2" in result.out
+    assert "SKIP" in result.out
+
+
+def test_no_capture_with_result_json_fails(tox_project: ToxProjectCreator) -> None:
+    ini = "[testenv]\npackage=skip\ncommands=python --version"
+    result = tox_project({"tox.ini": ini}).run("r", "-e", "py", "--no-capture", "--result-json", "result.json")
+    result.assert_failed()
+
+
+def test_no_capture_short_flag_with_result_json_fails(tox_project: ToxProjectCreator) -> None:
+    ini = "[testenv]\npackage=skip\ncommands=python --version"
+    result = tox_project({"tox.ini": ini}).run("r", "-e", "py", "-i", "--result-json", "result.json")
+    result.assert_failed()
+
+
+def test_no_capture_flag_parsed(tox_project: ToxProjectCreator) -> None:
+    ini = "[testenv]\npackage=skip\ncommands=python -c 'print(\"hello\")'"
+    project = tox_project({"tox.ini": ini})
+    execute_calls = project.patch_execute(lambda r: 0)  # ruff:ignore[unused-lambda-argument]
+    result = project.run("r", "-e", "py", "--no-capture")
+    result.assert_success()
+    assert execute_calls.call_count > 0
+
+
+def test_no_capture_short_flag_parsed(tox_project: ToxProjectCreator) -> None:
+    ini = "[testenv]\npackage=skip\ncommands=python -c 'print(\"hello\")'"
+    project = tox_project({"tox.ini": ini})
+    execute_calls = project.patch_execute(lambda r: 0)  # ruff:ignore[unused-lambda-argument]
+    result = project.run("r", "-e", "py", "-i")
+    result.assert_success()
+    assert execute_calls.call_count > 0
+
+
+def test_interrupt_post_commands_config_and_context_manager(tox_project: ToxProjectCreator) -> None:
+    toml = "[env_run_base]\npackage = 'skip'\ninterrupt_post_commands = true"
+    proj = tox_project({"tox.toml": toml})
+    result = proj.run("c", "-e", "py", "-k", "interrupt_post_commands")
+    result.assert_success()
+    assert "interrupt_post_commands = True" in result.out
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT tests hang on Windows CI")
+@pytest.mark.flaky(max_runs=3, min_passes=1)
+def test_interrupt_post_commands_runs_after_sigint(tox_project: ToxProjectCreator, tmp_path: Path) -> None:
+    marker_main = tmp_path / "main"
+    marker_post = tmp_path / "post"
+    main_cmd = f"from pathlib import Path; Path('{marker_main}').write_text(''); import time; time.sleep(100)"
+    post_cmd = f"from pathlib import Path; Path('{marker_post}').write_text('done')"
+    toml = f"""
+    [env_run_base]
+    package = "skip"
+    interrupt_post_commands = true
+    commands = [["python", "-c", "{main_cmd}"]]
+    commands_post = [["python", "-c", "{post_cmd}"]]
+    """
+    proj = tox_project({"tox.toml": toml})
+    cmd = ["-c", str(proj.path / "tox.toml"), "r", "-e", "py"]
+    process = Popen([sys.executable, "-m", "tox", *cmd], stdout=PIPE, stderr=PIPE, universal_newlines=True)
+    while not marker_main.exists() and (process.poll() is None):
+        sleep(0.05)
+    sig = signal.CTRL_C_EVENT if sys.platform == "win32" else signal.SIGINT
+    process.send_signal(sig)
+    _out, err = process.communicate()
+    assert process.returncode != 0
+    assert "KeyboardInterrupt" in err
+    assert marker_post.exists(), "commands_post should have run after SIGINT"
+    assert marker_post.read_text() == "done"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT tests hang on Windows CI")
+@pytest.mark.flaky(max_runs=3, min_passes=1)
+def test_interrupt_post_commands_not_run_by_default(tox_project: ToxProjectCreator, tmp_path: Path) -> None:
+    marker_main = tmp_path / "main"
+    marker_post = tmp_path / "post"
+    main_cmd = f"from pathlib import Path; Path('{marker_main}').write_text(''); import time; time.sleep(100)"
+    post_cmd = f"from pathlib import Path; Path('{marker_post}').write_text('done')"
+    toml = f"""
+    [env_run_base]
+    package = "skip"
+    commands = [["python", "-c", "{main_cmd}"]]
+    commands_post = [["python", "-c", "{post_cmd}"]]
+    """
+    proj = tox_project({"tox.toml": toml})
+    cmd = ["-c", str(proj.path / "tox.toml"), "r", "-e", "py"]
+    process = Popen([sys.executable, "-m", "tox", *cmd], stdout=PIPE, stderr=PIPE, universal_newlines=True)
+    while not marker_main.exists() and (process.poll() is None):
+        sleep(0.05)
+    sig = signal.CTRL_C_EVENT if sys.platform == "win32" else signal.SIGINT
+    process.send_signal(sig)
+    _out, err = process.communicate()
+    assert process.returncode != 0
+    assert "KeyboardInterrupt" in err
+    assert not marker_post.exists(), "commands_post should NOT run after SIGINT by default"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT tests hang on Windows CI")
+@pytest.mark.flaky(max_runs=3, min_passes=1)
+def test_second_interrupt_stops_post_commands(tox_project: ToxProjectCreator, tmp_path: Path) -> None:
+    marker_main = tmp_path / "main"
+    marker_post_start = tmp_path / "post_start"
+    marker_post_end = tmp_path / "post_end"
+    main_cmd = f"from pathlib import Path; Path('{marker_main}').write_text(''); import time; time.sleep(100)"
+    post_start_cmd = f"from pathlib import Path; Path('{marker_post_start}').write_text('')"
+    post_end_cmd = f"from pathlib import Path; Path('{marker_post_end}').write_text('done')"
+    toml = f"""
+    [env_run_base]
+    package = "skip"
+    interrupt_post_commands = true
+    commands = [["python", "-c", "{main_cmd}"]]
+    commands_post = [
+        ["python", "-c", "{post_start_cmd}"],
+        ["python", "-c", "import time; time.sleep(100)"],
+        ["python", "-c", "{post_end_cmd}"],
+    ]
+    """
+    proj = tox_project({"tox.toml": toml})
+    cmd = ["-c", str(proj.path / "tox.toml"), "r", "-e", "py"]
+    process = Popen([sys.executable, "-m", "tox", *cmd], stdout=PIPE, stderr=PIPE, universal_newlines=True)
+    while not marker_main.exists() and (process.poll() is None):
+        sleep(0.05)
+    sig = signal.CTRL_C_EVENT if sys.platform == "win32" else signal.SIGINT
+    process.send_signal(sig)
+    while not marker_post_start.exists() and (process.poll() is None):
+        sleep(0.05)
+    process.send_signal(sig)
+    out, _err = process.communicate()
+    assert process.returncode != 0
+    assert marker_post_start.exists(), "commands_post should have started"
+    assert not marker_post_end.exists(), "second SIGINT should have stopped commands_post"
+    assert "second interrupt received" in out
+
+
+def test_fail_fast_exit_code_is_first_failure(tox_project: ToxProjectCreator) -> None:
+    """Documented contract: the overall exit code under fail fast is the first failed environment's code."""
+    toml = dedent("""\
+        env_list = ["a", "b"]
+        [env_run_base]
+        package = "skip"
+        [env.a]
+        commands = [["python", "-c", "raise SystemExit(7)"]]
+        [env.b]
+        commands = [["python", "-c", "print('ok')"]]
+    """)
+    project = tox_project({"tox.toml": toml})
+
+    outcome = project.run("r", "--fail-fast")
+
+    outcome.assert_failed(code=7)
+
+
+def test_teardown_continues_after_failure(tox_project: ToxProjectCreator, mocker: MockerFixture) -> None:
+    """One environment's teardown failure must not leave the remaining environments' resources alive."""
+    toml = dedent("""\
+        env_list = ["a", "b"]
+        [env_run_base]
+        package = "skip"
+        [env.a]
+        depends = ["b"]
+        [env.b]
+        depends = ["a"]
+    """)
+    project = tox_project({"tox.toml": toml})
+    torn_down: list[str] = []
+    original_teardown = ToxEnv.teardown
+
+    def recording_teardown(self: ToxEnv) -> None:
+        torn_down.append(self.conf.name)
+        if self.conf.name == "a":
+            msg = "teardown boom"
+            raise Fail(msg)
+        original_teardown(self)
+
+    mocker.patch.object(ToxEnv, "teardown", recording_teardown)
+
+    outcome = project.run("r", "--notest")
+
+    outcome.assert_failed()
+    assert "circular dependency detected" in outcome.out
+    assert torn_down == ["a", "b"]
+
+
+def test_result_json_marks_skipped(tox_project: ToxProjectCreator) -> None:
+    """A consumer of the JSON report can tell a skipped environment from a passing one."""
+    toml = dedent("""\
+        env_list = ["a", "b"]
+        [env_run_base]
+        package = "skip"
+        [env.a]
+        platform = "nonexistent"
+    """)
+    project = tox_project({"tox.toml": toml})
+
+    outcome = project.run("r", "--result-json", "out.json")
+
+    outcome.assert_success()
+    result = json.loads((project.path / "out.json").read_text())["testenvs"]["a"]["result"]
+    assert result == {"success": True, "exit_code": 0, "duration": result["duration"], "skipped": True}

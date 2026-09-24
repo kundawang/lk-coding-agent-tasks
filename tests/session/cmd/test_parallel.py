@@ -1,0 +1,325 @@
+from __future__ import annotations
+
+import sys
+from argparse import ArgumentTypeError
+from signal import SIGINT
+from subprocess import PIPE, Popen
+from textwrap import dedent
+from time import sleep
+from typing import TYPE_CHECKING
+from unittest import mock
+
+import pytest
+
+from tox.session.cmd.run import parallel
+from tox.session.cmd.run.parallel import parse_num_processes
+from tox.tox_env.api import ToxEnv
+from tox.tox_env.errors import Fail
+from tox.util.cpu import auto_detect_cpus
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from pytest_mock import MockerFixture
+
+    from tox.pytest import MonkeyPatch, ToxProjectCreator
+
+
+def test_parse_num_processes_all() -> None:
+    assert parse_num_processes("all") is None
+
+
+def test_parse_num_processes_auto() -> None:
+    auto = parse_num_processes("auto")
+    assert isinstance(auto, int)
+    assert auto > 0
+
+
+def test_parse_num_processes_exact() -> None:
+    assert parse_num_processes("3") == 3
+
+
+def test_parse_num_processes_not_number() -> None:
+    with pytest.raises(ArgumentTypeError, match="value must be a positive number"):
+        parse_num_processes("3df")
+
+
+def test_parse_num_processes_minus_one() -> None:
+    with pytest.raises(ArgumentTypeError, match="value must be positive"):
+        parse_num_processes("-1")
+
+
+def test_parallel_zero_turns_off(tox_project: ToxProjectCreator, mocker: MockerFixture) -> None:
+    # The -p help says "zero is turn off", so -p 0 must run sequentially (one
+    # worker) rather than auto-detecting the CPU count like -p auto.
+    execute = mocker.patch.object(parallel, "execute", return_value=0)
+    project = tox_project({"tox.ini": "[tox]\nno_package=true\nenv_list=a,b\n[testenv]\ncommands=python -c 'pass'\n"})
+    project.run("p", "-p", "0")
+
+    assert execute.call_args.kwargs["max_workers"] == 1
+
+
+def test_parallel_general(tox_project: ToxProjectCreator, monkeypatch: MonkeyPatch, mocker: MockerFixture) -> None:
+    def setup(self: ToxEnv) -> None:
+        if self.name == "f":
+            msg = "something bad happened"
+            raise Fail(msg)
+        return prev_setup(self)
+
+    prev_setup = ToxEnv._setup_env  # ruff:ignore[private-member-access]
+    mocker.patch.object(ToxEnv, "_setup_env", autospec=True, side_effect=setup)
+    monkeypatch.setenv("PATH", "")
+
+    ini = """
+    [tox]
+    no_package=true
+    skip_missing_interpreters = true
+    env_list= a, b, c, d, e, f
+    [testenv]
+    commands=python -c 'print("run {env_name}")'
+    depends = !c: c
+    parallel_show_output = c: true
+    [testenv:d]
+    base_python = missing_skip
+    [testenv:e]
+    commands=python -c 'import sys; print("run {env_name}"); sys.exit(1)'
+    """
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("p", "-p", "all")
+    outcome.assert_failed()
+
+    out = outcome.out
+    oks, skips, fails = {"a", "b", "c"}, {"d"}, {"e", "f"}
+    missing = set()
+    for env in "a", "b", "c", "d", "e", "f":
+        if env in {"c", "e"}:
+            assert "run c" in out, out
+        elif env == "f":
+            assert "f: failed with something bad happened" in out, out
+        else:
+            assert f"run {env}" not in out, out
+        of_type = "OK" if env in oks else ("SKIP" if env in skips else "FAIL")
+        of_type_icon = "✔" if env in oks else ("⚠" if env in skips else "✖")
+        env_done = f"{env}: {of_type} {of_type_icon}"
+        is_missing = env_done not in out
+        if is_missing:
+            missing.add(env_done)
+        env_report = f"  {env}: {of_type} {'code 1 ' if env in fails else ''}("
+        assert env_report in out, out
+        if not is_missing:
+            assert out.index(env_done) < out.index(env_report), out
+    assert len(missing) == 1, out
+
+
+def test_parallel_run_live_out(tox_project: ToxProjectCreator) -> None:
+    ini = """
+    [tox]
+    no_package=true
+    env_list= a, b
+    [testenv]
+    commands=python -c 'print("run {env_name}")'
+    """
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("p", "-p", "2", "--parallel-live")
+    outcome.assert_success()
+    assert "python -c" in outcome.out
+    assert "run a" in outcome.out
+    assert "run b" in outcome.out
+
+
+def test_parallel_show_output_with_pkg(tox_project: ToxProjectCreator, demo_pkg_inline: Path) -> None:
+    ini = "[testenv]\nparallel_show_output=True\ncommands=python -c 'print(\"r {env_name}\")'"
+    project = tox_project({"tox.ini": ini})
+    result = project.run("p", "--root", str(demo_pkg_inline), "--workdir", str(project.path / ".tox"))
+    result.assert_success()
+    assert "r py" in result.out
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="You need a conhost shell for keyboard interrupt")
+@pytest.mark.flaky(max_runs=3, min_passes=1)
+def test_keyboard_interrupt(tox_project: ToxProjectCreator, demo_pkg_inline: Path, tmp_path: Path) -> None:
+    marker = tmp_path / "a"
+    ini = f"""
+    [testenv]
+    package=wheel
+    commands=python -c 'from time import sleep; from pathlib import Path; \
+                        p = Path("{marker!s}"); p.write_text(""); sleep(100)'
+    [testenv:dep]
+    depends=py
+    """
+    proj = tox_project(
+        {
+            "tox.ini": ini,
+            "pyproject.toml": (demo_pkg_inline / "pyproject.toml").read_text(),
+            "build.py": (demo_pkg_inline / "build.py").read_text(),
+        },
+    )
+    cmd = ["-c", str(proj.path / "tox.ini"), "p", "-p", "1", "-e", f"py,py{sys.version_info[0]},dep"]
+    process = Popen([sys.executable, "-m", "tox", *cmd], stdout=PIPE, stderr=PIPE, universal_newlines=True)
+    while not marker.exists() and (process.poll() is None):
+        sleep(0.05)
+    process.send_signal(SIGINT)
+    out, err = process.communicate()
+    assert process.returncode != 0
+    assert "KeyboardInterrupt" in err, err
+    assert "KeyboardInterrupt - teardown started\n" in out, out
+    assert "interrupt tox environment: py\n" in out, out
+    assert "requested interrupt of" in out, out
+    assert "send signal SIGINT" in out, out
+    assert "interrupt finished with success" in out, out
+    assert "interrupt tox environment: .pkg" in out, out
+    assert "BrokenPipeError" not in out, out
+    assert "BrokenPipeError" not in err, err
+    assert "KeyError" not in out, out
+    assert "KeyError" not in err, err
+
+
+def test_parallels_help(tox_project: ToxProjectCreator) -> None:
+    outcome = tox_project({"tox.ini": ""}).run("p", "-h")
+    outcome.assert_success()
+
+
+def test_parallel_legacy_accepts_no_arg(tox_project: ToxProjectCreator) -> None:
+    outcome = tox_project({"tox.ini": ""}).run("-p", "-h")
+    outcome.assert_success()
+
+
+def test_parallel_requires_arg(tox_project: ToxProjectCreator) -> None:
+    outcome = tox_project({"tox.ini": ""}).run("p", "-p", "-h")
+    outcome.assert_failed()
+    assert "argument -p/--parallel: expected one argument" in outcome.err
+
+
+def test_parallel_all_empty_selection(tox_project: ToxProjectCreator) -> None:
+    """``-p all`` with nothing selected must not crash the driver thread with a ValueError."""
+    project = tox_project({"tox.toml": 'env_list = ["py"]\n[env_run_base]\npackage = "skip"\n'})
+    outcome = project.run("p", "-p", "all", "--skip-env", ".*")
+    outcome.assert_failed()  # nothing to run gracefully fails evaluation
+    assert "max_workers must be greater than 0" not in outcome.out
+    assert "Traceback" not in outcome.out
+
+
+def test_parallel_no_spinner(tox_project: ToxProjectCreator) -> None:
+    """Ensure passing `--parallel-no-spinner` implies `--parallel`."""
+    with mock.patch.object(parallel, "execute") as mocked:
+        tox_project({"tox.ini": ""}).run("p", "--parallel-no-spinner")
+
+    mocked.assert_called_once_with(
+        mock.ANY,
+        max_workers=auto_detect_cpus(),
+        has_spinner=False,
+        live=False,
+    )
+
+
+def test_parallel_no_spinner_with_parallel(tox_project: ToxProjectCreator) -> None:
+    """Ensure `--parallel N` is still respected with `--parallel-no-spinner`."""
+    with mock.patch.object(parallel, "execute") as mocked:
+        tox_project({"tox.ini": ""}).run("p", "--parallel-no-spinner", "--parallel", "2")
+
+    mocked.assert_called_once_with(
+        mock.ANY,
+        max_workers=2,
+        has_spinner=False,
+        live=False,
+    )
+
+
+def test_parallel_no_spinner_ci(
+    tox_project: ToxProjectCreator, mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ensure spinner is disabled by default in CI."""
+    mocked = mocker.patch.object(parallel, "execute")
+    monkeypatch.setenv("CI", "1")
+
+    tox_project({"tox.ini": ""}).run("p")
+
+    mocked.assert_called_once_with(
+        mock.ANY,
+        max_workers=auto_detect_cpus(),
+        has_spinner=False,
+        live=False,
+    )
+
+
+def test_parallel_no_spinner_legacy_sequential(tox_project: ToxProjectCreator, mocker: MockerFixture) -> None:
+    """--parallel-no-spinner alone should not force parallel mode in legacy command."""
+    mocked = mocker.patch("tox.session.cmd.legacy.run_sequential")
+
+    tox_project({"tox.ini": ""}).run("--parallel-no-spinner")
+
+    mocked.assert_called_once()
+
+
+def test_parallel_no_spinner_legacy_with_parallel(tox_project: ToxProjectCreator) -> None:
+    """--parallel-no-spinner combined with -p should still run parallel without spinner."""
+    with mock.patch.object(parallel, "execute") as mocked:
+        tox_project({"tox.ini": ""}).run("--parallel-no-spinner", "-p", "all")
+
+    mocked.assert_called_once_with(
+        mock.ANY,
+        max_workers=None,
+        has_spinner=False,
+        live=False,
+    )
+
+
+def test_parallel_list_dependencies(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project({
+        "tox.toml": """
+        [env_run_base]
+        skip_install = true
+        commands = [["python", "-c", "print('ok')"]]
+        """
+    })
+    result = proj.run("p", "-e", "py", "--list-dependencies")
+    result.assert_success()
+    assert "pip==" in result.out
+
+
+def test_no_capture_with_parallel_fails(tox_project: ToxProjectCreator) -> None:
+    ini = "[testenv]\npackage=skip\ncommands=python --version"
+    result = tox_project({"tox.ini": ini}).run("p", "-e", "py", "--no-capture")
+    result.assert_failed()
+
+
+def test_no_capture_short_flag_with_parallel_fails(tox_project: ToxProjectCreator) -> None:
+    ini = "[testenv]\npackage=skip\ncommands=python --version"
+    result = tox_project({"tox.ini": ini}).run("p", "-e", "py", "-i")
+    result.assert_failed()
+
+
+def test_parallel_fail_fast_lets_running_finish(tox_project: ToxProjectCreator) -> None:
+    """Documented contract: on fail fast, running environments finish; only pending ones are skipped."""
+    toml = dedent("""\
+        env_list = ["a", "b"]
+        [env_run_base]
+        package = "skip"
+        [env.a]
+        commands = [["python", "-c", "raise SystemExit(7)"]]
+        [env.b]
+        commands = [["python", "-c", "import time, pathlib; time.sleep(2); pathlib.Path('done.txt').write_text('x')"]]
+    """)
+    project = tox_project({"tox.toml": toml})
+
+    outcome = project.run("p", "-p", "2", "--fail-fast")
+
+    outcome.assert_failed(code=7)
+    assert (project.path / "done.txt").exists()
+    assert "b: OK" in outcome.out
+
+
+def test_parallel_spinner_stays_out_of_non_tty_output(tox_project: ToxProjectCreator) -> None:
+    """Redirected output must hold plain text, not spinner control sequences."""
+    toml = dedent("""\
+        env_list = ["a"]
+        [env_run_base]
+        package = "skip"
+        commands = [["python", "-c", "print('hi')"]]
+    """)
+    project = tox_project({"tox.toml": toml})
+
+    outcome = project.run("p")
+
+    outcome.assert_success()
+    assert "\x1b[" not in outcome.out

@@ -1,0 +1,307 @@
+from __future__ import annotations
+
+import os
+from functools import partial
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+from tox.config.loader.api import Override
+from tox.config.loader.memory import MemoryLoader
+from tox.config.sets import ConfigSet
+from tox.tox_env.python.pip.req_file import PythonDeps
+
+if TYPE_CHECKING:
+    from tests.conftest import ToxIniCreator
+    from tox.config.main import Config
+    from tox.pytest import ToxProjectCreator
+
+
+def test_empty_config_repr(empty_config: Config) -> None:
+    text = repr(empty_config)
+    assert str(empty_config.core["tox_root"]) in text
+    assert "config_source=ToxIni" in text
+
+
+def test_empty_conf_tox_envs(empty_config: Config) -> None:
+    tox_env_keys = list(empty_config)
+    assert tox_env_keys == []
+
+
+def test_empty_conf_get(empty_config: Config) -> None:
+    result = empty_config.get_env("magic")
+    assert isinstance(result, ConfigSet)
+    loaders = result["base"]
+    assert loaders == ["testenv"]
+
+
+def test_config_contains_env(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf("[tox]\nenv_list = py38\n[testenv]\n")
+    assert "py38" in config
+    assert "missing" not in config
+
+
+def test_config_contains_empty_env_name(empty_config: Config) -> None:
+    # a falsy (empty) environment name must still be reported as present, not swallowed by a truthiness check
+    empty_config._extra_envs = [""]  # ruff:ignore[private-member-access]
+    assert "" in empty_config
+
+
+def test_config_some_envs(tox_ini_conf: ToxIniCreator) -> None:
+    example = """
+    [tox]
+    env_list = py38, py37
+    [testenv]
+    deps = 1
+        other: 2
+    [testenv:magic]
+    """
+    config = tox_ini_conf(example)
+    tox_env_keys = list(config)
+    assert tox_env_keys == ["py38", "py37", "magic", "other"]
+
+    config_set = config.get_env("py38")
+    assert repr(config_set)
+    assert isinstance(config_set, ConfigSet)
+    assert list(config_set)
+
+
+def test_config_overrides(tox_ini_conf: ToxIniCreator) -> None:
+    conf = tox_ini_conf("[testenv]", override=[Override("testenv.c=ok")]).get_env("py")
+    conf.add_config("c", of_type=str, default="d", desc="desc")
+    assert conf["c"] == "ok"
+
+
+def test_config_override_wins_memory_loader(tox_ini_conf: ToxIniCreator) -> None:
+    main_conf = tox_ini_conf("[testenv]", override=[Override("testenv.c=ok")])
+    conf = main_conf.get_env("py", loaders=[MemoryLoader(c="something_else")])
+    conf.add_config("c", of_type=str, default="d", desc="desc")
+    assert conf["c"] == "ok"
+
+
+def test_config_override_appends_to_list(tox_ini_conf: ToxIniCreator) -> None:
+    example = """
+    [testenv]
+    passenv = foo
+    """
+    conf = tox_ini_conf(example, override=[Override("testenv.passenv+=bar")]).get_env("testenv")
+    conf.add_config("passenv", of_type=list[str], default=[], desc="desc")
+    assert conf["passenv"] == ["foo", "bar"]
+
+
+def test_config_override_sequence(tox_ini_conf: ToxIniCreator) -> None:
+    example = """
+    [testenv]
+    passenv = foo
+    """
+    overrides = [Override("testenv.passenv=bar"), Override("testenv.passenv+=baz")]
+    conf = tox_ini_conf(example, override=overrides).get_env("testenv")
+    conf.add_config("passenv", of_type=list[str], default=[], desc="desc")
+    assert conf["passenv"] == ["bar", "baz"]
+
+
+def test_config_override_appends_to_empty_list(tox_ini_conf: ToxIniCreator) -> None:
+    conf = tox_ini_conf("[testenv]", override=[Override("testenv.passenv+=bar")]).get_env("testenv")
+    conf.add_config("passenv", of_type=list[str], default=[], desc="desc")
+    assert conf["passenv"] == ["bar"]
+
+
+@pytest.mark.parametrize(
+    ("ini_key", "override_key"),
+    [
+        pytest.param("passenv", "pass_env", id="ini_old_override_new"),
+        pytest.param("pass_env", "passenv", id="ini_new_override_old"),
+    ],
+)
+def test_config_override_append_alias_key(tox_ini_conf: ToxIniCreator, ini_key: str, override_key: str) -> None:
+    example = f"""
+    [testenv]
+    {ini_key} = foo
+    """
+    conf = tox_ini_conf(example, override=[Override(f"testenv.{override_key}+=bar")]).get_env("testenv")
+    conf.add_config(["pass_env", "passenv"], of_type=list[str], default=[], desc="desc")
+    result = conf["pass_env"]
+    assert "foo" in result
+    assert "bar" in result
+
+
+def test_config_override_appends_to_setenv(tox_ini_conf: ToxIniCreator) -> None:
+    example = """
+    [testenv]
+    setenv =
+      foo = bar
+    """
+    conf = tox_ini_conf(example, override=[Override("testenv.setenv+=baz=quux")]).get_env("testenv")
+    assert conf["setenv"].load("foo") == "bar"
+    assert conf["setenv"].load("baz") == "quux"
+
+
+def test_config_override_appends_to_setenv_multiple(tox_ini_conf: ToxIniCreator) -> None:
+    example = """
+    [testenv]
+    setenv =
+      foo = bar
+    """
+    overrides = [Override("testenv.setenv+=baz=quux"), Override("testenv.setenv+=less=more")]
+    conf = tox_ini_conf(example, override=overrides).get_env("testenv")
+    assert conf["setenv"].load("foo") == "bar"
+    assert conf["setenv"].load("baz") == "quux"
+    assert conf["setenv"].load("less") == "more"
+
+
+def test_config_override_sequential_processing(tox_ini_conf: ToxIniCreator) -> None:
+    example = """
+    [testenv]
+    setenv =
+      foo = bar
+    """
+    overrides = [Override("testenv.setenv+=a=b"), Override("testenv.setenv=c=d"), Override("testenv.setenv+=e=f")]
+    conf = tox_ini_conf(example, override=overrides).get_env("testenv")
+    with pytest.raises(KeyError):
+        assert conf["setenv"].load("foo") == "bar"
+    with pytest.raises(KeyError):
+        assert conf["setenv"].load("a") == "b"
+    assert conf["setenv"].load("c") == "d"
+    assert conf["setenv"].load("e") == "f"
+
+
+def test_config_override_appends_to_empty_setenv(tox_ini_conf: ToxIniCreator) -> None:
+    conf = tox_ini_conf("[testenv]", override=[Override("testenv.setenv+=foo=bar")]).get_env("testenv")
+    assert conf["setenv"].load("foo") == "bar"
+
+
+def test_config_override_appends_to_pythondeps(tox_ini_conf: ToxIniCreator, tmp_path: Path) -> None:
+    example = """
+    [testenv]
+    deps = foo
+    """
+    conf = tox_ini_conf(example, override=[Override("testenv.deps+=bar")]).get_env("testenv")
+    conf.add_config(
+        "deps",
+        of_type=PythonDeps,
+        factory=partial(PythonDeps.factory, tmp_path),
+        default=PythonDeps("", root=tmp_path),
+        desc="desc",
+    )
+    assert conf["deps"].lines() == ["foo", "bar"]
+
+
+def test_config_multiple_overrides(tox_ini_conf: ToxIniCreator, tmp_path: Path) -> None:
+    example = """
+    [testenv]
+    deps = foo
+    """
+    overrides = [Override("testenv.deps+=bar"), Override("testenv.deps+=baz")]
+    conf = tox_ini_conf(example, override=overrides).get_env("testenv")
+    conf.add_config(
+        "deps",
+        of_type=PythonDeps,
+        factory=partial(PythonDeps.factory, tmp_path),
+        default=PythonDeps("", root=tmp_path),
+        desc="desc",
+    )
+    assert conf["deps"].lines() == ["foo", "bar", "baz"]
+
+
+def test_config_override_appends_to_empty_pythondeps(tox_ini_conf: ToxIniCreator, tmp_path: Path) -> None:
+    example = """
+    [testenv]
+    """
+    conf = tox_ini_conf(example, override=[Override("testenv.deps+=bar")]).get_env("testenv")
+    conf.add_config(
+        "deps",
+        of_type=PythonDeps,
+        factory=partial(PythonDeps.factory, tmp_path),
+        default=PythonDeps("", root=tmp_path),
+        desc="desc",
+    )
+    assert conf["deps"].lines() == ["bar"]
+
+
+def test_config_override_cannot_append(tox_ini_conf: ToxIniCreator) -> None:
+    example = """
+    [testenv]
+    foo = 1
+    """
+    conf = tox_ini_conf(example, override=[Override("testenv.foo+=2")]).get_env("testenv")
+    conf.add_config("foo", of_type=int, default=0, desc="desc")
+    with pytest.raises(ValueError, match="Only able to append to lists and dicts"):
+        conf["foo"]
+
+
+def test_args_are_paths_when_disabled(tox_project: ToxProjectCreator) -> None:
+    ini = "[testenv]\npackage=skip\ncommands={posargs}\nargs_are_paths=False"
+    project = tox_project({"tox.ini": ini, "w": {"a.txt": "a"}})
+    args = "magic.py", str(project.path), f"..{os.sep}tox.ini", "..", f"..{os.sep}.."
+    result = project.run("c", "-e", "py", "-k", "commands", "--", *args, from_cwd=project.path / "w")
+    result.assert_success()
+    assert result.out == f"[testenv:py]\ncommands = magic.py {project.path} ..{os.sep}tox.ini .. ..{os.sep}..\n"
+
+
+def test_args_are_paths_when_from_child_dir(tox_project: ToxProjectCreator) -> None:
+    project = tox_project({"tox.ini": "[testenv]\npackage=skip\ncommands={posargs}", "w": {"a.txt": "a"}})
+    args = "magic.py", str(project.path), f"..{os.sep}tox.ini", "..", f"..{os.sep}.."
+    result = project.run("c", "-e", "py", "-k", "commands", "--", *args, from_cwd=project.path / "w")
+    result.assert_success()
+    assert result.out == f"[testenv:py]\ncommands = magic.py {project.path} tox.ini . ..\n"
+
+
+def test_args_are_paths_long_arg(tox_project: ToxProjectCreator) -> None:
+    project = tox_project({"tox.ini": "[testenv]\npackage=skip\ncommands={posargs}", "w": {"a.txt": "a"}})
+    long_arg = "a" * 300  # exceeds filesystem filename length limit (typically 255)
+    result = project.run("c", "-e", "py", "-k", "commands", "--", long_arg, from_cwd=project.path / "w")
+    result.assert_success()
+    assert result.out == f"[testenv:py]\ncommands = {long_arg}\n"
+
+
+def test_args_are_paths_when_with_change_dir(tox_project: ToxProjectCreator) -> None:
+    project = tox_project({"tox.ini": "[testenv]\npackage=skip\ncommands={posargs}\nchange_dir=w", "w": {"a.txt": "a"}})
+    args = "magic.py", str(project.path), "tox.ini", f"w{os.sep}a.txt", "w", "."
+    result = project.run("c", "-e", "py", "-k", "commands", "--", *args)
+    result.assert_success()
+    assert result.out == f"[testenv:py]\ncommands = magic.py {project.path} ..{os.sep}tox.ini a.txt . ..\n"
+
+
+@pytest.mark.timeout(60)
+def test_get_env_reuses_config_across_package_flag(tox_project: ToxProjectCreator) -> None:
+    project = tox_project({
+        "tox.toml": """
+env_list = ["a"]
+
+[env.a]
+package = "external"
+package_env = ".build-a"
+
+[env.".build-a"]
+commands = [["python", "-c", "print('{env_tmp_dir}')"]]
+package_glob = "{env_tmp_dir}/dist/*.whl"
+""",
+    })
+    execute_calls = project.patch_execute(lambda r: 0)  # ruff:ignore[unused-lambda-argument]
+    project.run("r", "-e", "a")
+    calls = [(i[0][0].conf.name, i[0][3].cmd) for i in execute_calls.call_args_list]
+    pkg_cmds = [cmd for name, cmd in calls if name == ".build-a"]
+    assert pkg_cmds, f"no .build-a command found in {calls}"
+    for cmd in pkg_cmds:
+        cmd_str = " ".join(str(c) for c in cmd)
+        assert "{env_tmp_dir}" not in cmd_str, f"env_tmp_dir not expanded in command: {cmd}"
+
+
+def test_config_override_escaped_dot_namespace(tox_ini_conf: ToxIniCreator) -> None:
+    example = """
+    [testenv:3.14]
+    deps = original
+    """
+    conf = tox_ini_conf(example, override=[Override("testenv:3\\.14.deps=replaced")]).get_env("3.14")
+    conf.add_config("deps", of_type=str, default="", desc="desc")
+    assert conf["deps"] == "replaced"
+
+
+def test_relative_config_paths_resolve(tox_project: ToxProjectCreator) -> None:
+    project = tox_project({"tox.ini": "[tox]"})
+    ini = str(Path(project.path.name) / "tox.ini")
+    result = project.run("c", "-c", ini, "-k", "change_dir", "env_dir", from_cwd=project.path.parent)
+    result.assert_success()
+    expected = f"[testenv:py]\nchange_dir = {project.path}\nenv_dir = {project.path / '.tox' / 'py'}\n"
+    assert result.out == expected

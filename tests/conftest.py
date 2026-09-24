@@ -1,0 +1,213 @@
+from __future__ import annotations
+
+import contextlib
+import os
+import site
+import sys
+import sysconfig
+from functools import partial
+from pathlib import Path
+from shutil import rmtree
+from tempfile import mkdtemp
+from typing import TYPE_CHECKING, Protocol
+from unittest.mock import patch
+from uuid import uuid4
+
+import pytest
+from distlib.scripts import ScriptMaker
+from virtualenv import cli_run
+
+from tox.config.cli.parser import Parsed
+from tox.config.main import Config
+from tox.config.source import discover_source
+from tox.tox_env.python.api import PythonInfo, VersionInfo
+from tox.tox_env.python.virtual_env.api import VirtualEnv
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator, Sequence
+
+    from build import DistributionType
+    from pytest_mock import MockerFixture
+
+    from tox.config.loader.api import Override
+
+pytest_plugins = "tox.pytest"
+HERE = Path(__file__).absolute().parent
+
+
+def _strip_broken_namespace_pth_files() -> None:
+    # Legacy setuptools-generated *-nspkg.pth files (from PasteDeploy and repoze.lru, pulled in
+    # transitively by devpi-server) read sys._getframe(1).f_locals['sitedir']. Python 3.13
+    # rewrote site.py as a frozen module and this lookup no longer resolves, so each Python
+    # startup emits a KeyError to stderr that breaks tests asserting on subprocess stderr.
+    # Removing the files is safe: the paste and repoze namespaces still resolve via PEP 420.
+    legacy = b"sys._getframe(1).f_locals['sitedir']"
+    for raw in site.getsitepackages():
+        site_dir = Path(raw)
+        if not site_dir.is_dir():
+            continue
+        for pth in site_dir.glob("*-nspkg.pth"):
+            with contextlib.suppress(OSError):
+                if legacy in pth.read_bytes():
+                    pth.unlink()
+
+
+_strip_broken_namespace_pth_files()
+
+
+@pytest.fixture(scope="session")
+def value_error() -> Callable[[str], str]:
+    def _fmt(msg: str) -> str:
+        return f'ValueError("{msg}"{"," if sys.version_info < (3, 7) else ""})'
+
+    return _fmt
+
+
+collect_ignore = []
+if sys.implementation.name == "pypy":
+    # time-machine causes segfaults on PyPy
+    collect_ignore.append("util/test_spinner.py")
+
+
+class PatchPrevPy(Protocol):
+    def __call__(
+        self, has_prev: bool, free_threaded: bool | None = None, debug: bool | None = None
+    ) -> tuple[str, str, bool]: ...
+
+
+class ToxIniCreator(Protocol):
+    def __call__(self, conf: str, override: Sequence[Override] | None = None) -> Config: ...
+
+
+@pytest.fixture
+def tox_ini_conf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ToxIniCreator:
+    def func(conf: str, override: Sequence[Override] | None = None) -> Config:
+        dest = tmp_path / "c"
+        dest.mkdir()
+        config_file = dest / "tox.ini"
+        config_file.write_bytes(conf.encode("utf-8"))
+        with monkeypatch.context() as context:
+            context.chdir(tmp_path)
+        source = discover_source(config_file, None)
+
+        return Config.make(
+            Parsed(work_dir=dest, override=override or [], config_file=config_file, root_dir=None),
+            pos_args=[],
+            source=source,
+            extra_envs=(),
+        )
+
+    return func
+
+
+@pytest.fixture(scope="session")
+def demo_pkg_setuptools() -> Path:
+    return HERE / "demo_pkg_setuptools"
+
+
+@pytest.fixture(scope="session")
+def demo_pkg_inline() -> Path:
+    return HERE / "demo_pkg_inline"
+
+
+@pytest.fixture
+def patch_prev_py(mocker: MockerFixture) -> PatchPrevPy:
+    def _func(has_prev: bool, free_threaded: bool | None = None, debug: bool | None = None) -> tuple[str, str, bool]:
+        ver = sys.version_info[0:2]
+        prev_ver = "".join(str(i) for i in (ver[0], ver[1] - 1))
+        prev_py = f"py{prev_ver}"
+        impl = sys.implementation.name.lower()
+        is_free_threaded = sysconfig.get_config_var("Py_GIL_DISABLED") == 1 if free_threaded is None else free_threaded
+        is_debug = bool(sysconfig.get_config_var("Py_DEBUG")) if debug is None else debug
+
+        def get_python(self: VirtualEnv, base_python: list[str]) -> PythonInfo | None:  # ruff:ignore[unused-function-argument]
+            if base_python[0] == "py31" or (base_python[0] == prev_py and not has_prev):
+                return None
+            major, minor, micro, release_level, serial = sys.version_info
+            if base_python[0] == prev_py:
+                minor -= 1
+            ver_info = VersionInfo(major, minor, micro, release_level, serial)
+            return PythonInfo(
+                implementation=impl,
+                version_info=ver_info,
+                version="",
+                is_64=True,
+                platform=sys.platform,
+                extra={"executable": Path(sys.executable)},
+                free_threaded=is_free_threaded,
+                debug=is_debug,
+                machine=sysconfig.get_platform().rsplit("-", 1)[-1] or None,
+            )
+
+        mocker.patch.object(VirtualEnv, "_get_python", get_python)
+        return prev_ver, impl, is_free_threaded
+
+    return _func
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    if (worker_id := os.environ.get("PYTEST_XDIST_WORKER")) is not None:  # pragma: no cover
+        # virtualenv locks its app data, so sharing one across xdist workers throws off test timings
+        app_data = mkdtemp(prefix=f"virtualenv-app-{worker_id}-")
+        os.environ["VIRTUALENV_APP_DATA"] = app_data
+        config.add_cleanup(partial(rmtree, app_data, ignore_errors=True))
+    seed_env = mkdtemp(prefix="virtualenv-seed-")
+    config.add_cleanup(partial(rmtree, seed_env, ignore_errors=True))
+    # seeding builds the pip and setuptools wheel images, a compileall over their trees that is slow on Windows CI; pay
+    # it here so it does not land inside the timeout of whichever test happens to create the first environment (the
+    # setuptools image is not built by default on 3.12+, but tox.pytest forces it via VIRTUALENV_SETUPTOOLS=embed)
+    cli_run([seed_env, "--activators", "", "--pip", "embed", "--setuptools", "embed"], setup_logging=False)
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    if sys.platform != "win32":
+        return  # pragma: win32 no cover
+    # integration tests install from PyPI or a local devpi, which on Windows CI regularly overruns even an explicit
+    # 120s budget; pytest-timeout kills the whole worker, so flaky reruns cannot rescue the job
+    for item in items:  # pragma: win32 cover
+        if item.get_closest_marker("integration") is not None:
+            item.add_marker(pytest.mark.timeout(240), append=False)
+
+
+@pytest.fixture(scope="session")
+def fake_exe_on_path(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
+    tmp_path = Path(tmp_path_factory.mktemp("a"))
+    cmd_name = uuid4().hex
+    maker = ScriptMaker(None, str(tmp_path))
+    maker.set_mode = True
+    maker.variants = {""}
+    maker.make(f"{cmd_name} = b:c")
+    with patch.dict(os.environ, {"PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}"}):
+        yield tmp_path / cmd_name
+
+
+@pytest.fixture(scope="session")
+def demo_pkg_inline_wheel(tmp_path_factory: pytest.TempPathFactory, demo_pkg_inline: Path) -> Path:
+    return build_pkg(tmp_path_factory.mktemp("dist"), demo_pkg_inline, ["wheel"])
+
+
+def build_pkg(dist_dir: Path, of: Path, distributions: Sequence[DistributionType], isolation: bool = True) -> Path:
+    from build.__main__ import build_package  # ruff:ignore[import-outside-top-level]
+
+    build_package(str(of), str(dist_dir), distributions=distributions, isolation=isolation)
+    return next(dist_dir.iterdir())
+
+
+@pytest.fixture(scope="session")
+def pkg_builder() -> Callable[[Path, Path, Sequence[DistributionType], bool], Path]:
+    return build_pkg
+
+
+@pytest.fixture(autouse=True)
+def _ensure_demo_pkg_clean() -> Iterator[None]:
+    yield
+    for path in HERE.iterdir():
+        if path.is_dir() and path.name.startswith("demo_pkg_") and (tox_dir := path / ".tox").exists():
+            msg = f"test left behind {tox_dir}, fix the test to not pollute the source tree"
+            raise AssertionError(msg)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def no_default_config_ini(session_mocker: MockerFixture) -> None:
+    filename = str(uuid4())
+    session_mocker.patch("tox.config.cli.ini.DEFAULT_CONFIG_FILE", Path(filename))

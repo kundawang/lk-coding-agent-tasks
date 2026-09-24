@@ -1,0 +1,2034 @@
+.. _howto:
+
+###############
+ How-to Guides
+###############
+
+Practical recipes for common tox tasks. Each section answers a specific "How do I...?" question.
+
+*****************
+ Quick reference
+*****************
+
+Common commands
+===============
+
+- Each tox subcommand has a 1 (or 2) letter shortcut, e.g. ``tox run`` = ``tox r``, ``tox config`` = ``tox c``.
+- Run all default environments: ``tox`` (runs everything in :ref:`env_list`).
+- Run a specific environment: ``tox run -e 3.13``.
+- Run multiple environments: ``tox run -e lint,3.13`` (sequential, in order).
+- Run environments in parallel: ``tox parallel -e 3.13,3.12`` (see :ref:`parallel_mode`).
+- Run all environments matching a label: ``tox run -m test`` (see :ref:`labels`).
+- Run all environments matching a factor: ``tox run -f django`` (runs all envs containing the ``django`` factor).
+- Inspect configuration: ``tox config -e 3.13 -k pass_env``.
+- Force recreation: ``tox run -e 3.13 -r``.
+
+Environment variables
+=====================
+
+- View environment variables: ``tox c -e 3.13 -k set_env pass_env``.
+- Pass through system environment variables: use :ref:`pass_env`.
+- Set environment variables: use :ref:`set_env`.
+- Setup commands: :ref:`commands_pre`. Teardown commands: :ref:`commands_post`.
+- Change working directory: :ref:`change_dir` (affects install commands too if using relative paths).
+
+Logging
+=======
+
+tox logs command invocations inside ``.tox/<env_name>/log``. Environment variables with names containing sensitive words
+(``access``, ``api``, ``auth``, ``client``, ``cred``, ``key``, ``passwd``, ``password``, ``private``, ``pwd``,
+``secret``, ``token``) are logged with their values redacted to prevent accidental secret leaking in CI/CD environments.
+
+.. ------------------------------------------------------------------------------------------
+
+.. Testing & Verification (most common workflows)
+
+.. ------------------------------------------------------------------------------------------
+
+******************
+ Test with pytest
+******************
+
+A typical pytest configuration:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         env_list = ["3.13", "3.12"]
+
+         [env_run_base]
+         deps = ["pytest>=8"]
+         commands = [["pytest", { replace = "posargs", default = ["tests"], extend = true }]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [tox]
+         env_list = 3.13, 3.12
+
+         [testenv]
+         deps = pytest>=8
+         commands = pytest {posargs:tests}
+
+When running tox in parallel mode, ensure each pytest invocation is fully isolated by setting a unique temporary
+directory:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env_run_base]
+         commands = [["pytest", "--basetemp={env_tmp_dir}", { replace = "posargs", default = ["tests"], extend = true }]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv]
+         commands = pytest --basetemp="{env_tmp_dir}" {posargs:tests}
+
+***********************************************
+ Collect coverage across multiple environments
+***********************************************
+
+A common pattern is running tests across several Python versions and combining coverage results. Use :ref:`depends` to
+ensure coverage runs after all test environments:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         env_list = ["3.13", "3.12", "coverage"]
+
+         [env_run_base]
+         deps = ["pytest", "coverage[toml]"]
+         commands = [["coverage", "run", "-p", "-m", "pytest", "tests"]]
+
+         [env.coverage]
+         skip_install = true
+         deps = ["coverage[toml]"]
+         depends = ["3.*"]
+         commands = [
+             ["coverage", "combine"],
+             ["coverage", "report", "--fail-under=80"],
+         ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [tox]
+         env_list = 3.13, 3.12, coverage
+
+         [testenv]
+         deps =
+             pytest
+             coverage[toml]
+         commands = coverage run -p -m pytest tests
+
+         [testenv:coverage]
+         skip_install = true
+         deps = coverage[toml]
+         depends = 3.*
+         commands =
+             coverage combine
+             coverage report --fail-under=80
+
+The ``-p`` flag (parallel mode) creates separate ``.coverage.<hash>`` files per environment. ``coverage combine`` merges
+them before generating the report.
+
+.. _tox-exec:
+
+**********************************
+ Run a one-off command (tox exec)
+**********************************
+
+The ``tox exec`` subcommand runs an arbitrary command inside a tox environment without executing the configured
+``commands``, ``commands_pre``, or ``commands_post``. It also skips package installation. Pass the command after ``--``:
+
+.. code-block:: bash
+
+    # Open a Python shell inside the "3.13" environment
+    tox exec -e 3.13 -- python
+
+    # Check installed packages
+    tox exec -e 3.13 -- pip list
+
+    # Run a script with the environment's Python
+    tox exec -e 3.13 -- python scripts/migrate.py --dry-run
+
+The command must be in the environment's ``PATH`` or listed in :ref:`allowlist_externals`. ``tox exec`` is useful for
+debugging, running one-off scripts, or interactively exploring an environment without modifying your configuration.
+
+.. ------------------------------------------------------------------------------------------
+
+.. Configuration (frequently needed)
+
+.. ------------------------------------------------------------------------------------------
+
+*********************************
+ Override configuration defaults
+*********************************
+
+tox provides several ways to override configuration values without editing the configuration file.
+
+**User-level configuration file**: tox reads a user-level config file whose location is shown in ``tox --help``. The
+location can be changed via the ``TOX_CONFIG_FILE`` environment variable.
+
+**Environment variables**: Any tox setting can be set via an environment variable with the ``TOX_`` prefix:
+
+.. code-block:: bash
+
+    # Use wheel packaging
+    TOX_PACKAGE=wheel tox run -e 3.13
+
+**CLI override**: The ``-x`` (or ``--override``) flag overrides any configuration value:
+
+.. code-block:: bash
+
+    # Force editable install for a specific environment
+    tox run -e 3.13 -x "testenv:3.13.package=editable"
+
+tox substitutes into an override value, so it reaches the same values a configuration file can:
+
+.. code-block:: bash
+
+    # Swap the test command for one run, keeping the positional arguments working
+    tox run -e 3.13 -x 'env_run_base.commands=pytest {posargs:tests}' -- -k slow
+
+.. _howto_out_of_tree_envs:
+
+********************************************
+ Keep environments outside the project tree
+********************************************
+
+By default tox creates its environments in a ``.tox`` directory next to the configuration file. To keep them out of the
+project tree, point :ref:`work_dir` at a location built from the ``{home}`` and ``{tox_root_name}`` substitutions:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        work_dir = "{home}/.local/state/tox/{tox_root_name}"
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [tox]
+        work_dir = {home}/.local/state/tox/{tox_root_name}
+
+With this configuration a project checked out at ``~/src/magic`` keeps its environments in ``~/.local/state/tox/magic``.
+Verify the resolved location with:
+
+.. code-block:: bash
+
+    $ tox config --core -k work_dir
+    [tox]
+    work_dir = /home/user/.local/state/tox/magic
+
+Substitutions resolve in the project configuration file only: the ``--workdir`` CLI flag and the user-level
+configuration file take literal paths, so this setting belongs in ``tox.toml``. Since ``{tox_root_name}`` is the name of
+the project directory, two projects checked out under the same directory name share a work directory; give one of them
+an explicit path if that happens. See :ref:`work-dir-placement` for the trade-offs of moving environments out of the
+tree.
+
+**********************************
+ Use labels to group environments
+**********************************
+
+Labels let you assign tags to environments and run them as a group with ``tox run -m <label>``:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         env_list = ["3.13", "3.12", "lint", "type"]
+
+         [env_run_base]
+         labels = ["test"]
+         commands = [["pytest", "tests"]]
+
+         [env.lint]
+         labels = ["check"]
+         skip_install = true
+         deps = ["ruff"]
+         commands = [["ruff", "check", "."]]
+
+         [env.type]
+         labels = ["check"]
+         deps = ["mypy"]
+         commands = [["mypy", "src"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [tox]
+         env_list = 3.13, 3.12, lint, type
+
+         [testenv]
+         labels = test
+         commands = pytest tests
+
+         [testenv:lint]
+         labels = check
+         skip_install = true
+         deps = ruff
+         commands = ruff check .
+
+         [testenv:type]
+         labels = check
+         deps = mypy
+         commands = mypy src
+
+.. code-block:: bash
+
+    # Run all environments labeled "check"
+    tox run -m check
+
+    # Run all environments labeled "test"
+    tox run -m test
+
+********************************
+ Disallow unlisted environments
+********************************
+
+By default, running ``tox -e <name>`` with an environment name not defined in the configuration still works -- tox
+creates an environment with default settings. This can mask typos.
+
+For example, given:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env.unit]
+         deps = ["pytest"]
+         commands = [["pytest"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv:unit]
+         deps = pytest
+         commands = pytest
+
+Running ``tox -e unt`` or ``tox -e unti`` would succeed without running any tests. An exception is made for environments
+that look like Python version specifiers -- ``tox -e 3.13`` or ``tox -e py313`` would still work as intended.
+
+Note that Python versions can be written with or without dots (``py3.10`` vs ``py310``). If you define ``py310-lint`` in
+your configuration and accidentally run ``tox -e py3.10-lint``, tox will detect the mismatch and suggest the correct
+environment name with a ``did you mean py310-lint?`` message rather than silently falling back to the base test
+environment.
+
+.. _platform-specification:
+
+**************************************
+ Configure platform-specific settings
+**************************************
+
+Platform-dependent commands
+===========================
+
+The current platform (``sys.platform`` value like ``linux``, ``darwin``, ``win32``) is automatically available as an
+implicit factor in all environments, alongside the machine architecture (see :ref:`factors`). Use platform factors to
+run different commands or set different dependencies per platform without encoding the platform name in the environment:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env_list_base]
+         env_list = ["py313"]
+
+         [env_run_base]
+         deps = [
+             "pytest",
+             { replace = "if", condition = "factor.linux or factor.darwin", then = ["platformdirs>=3"], extend = true },
+             { replace = "if", condition = "factor.win32", then = ["platformdirs>=2"], extend = true },
+         ]
+         commands = [
+             { replace = "if", condition = "factor.linux", then = [["python", "-c", "print('Running on Linux')"]], extend = true },
+             { replace = "if", condition = "factor.darwin", then = [["python", "-c", "print('Running on macOS')"]], extend = true },
+             { replace = "if", condition = "factor.win32", then = [["python", "-c", "print('Running on Windows')"]], extend = true },
+             ["python", "-m", "pytest"],
+         ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [tox]
+         env_list = py313
+
+         [testenv]
+         deps =
+             pytest
+             linux,darwin: platformdirs>=3
+             win32: platformdirs>=2
+         commands =
+             linux: python -c 'print("Running on Linux")'
+             darwin: python -c 'print("Running on macOS")'
+             win32: python -c 'print("Running on Windows")'
+             python -m pytest
+
+This allows a single environment like ``py313`` to adapt its behavior based on the execution platform. The platform
+factors work alongside regular factors from the environment name.
+
+Common ``sys.platform`` values:
+
+- ``linux`` - Linux systems
+- ``darwin`` - macOS systems
+- ``win32`` - Windows systems (both 32-bit and 64-bit)
+- ``cygwin`` - Cygwin on Windows
+- ``freebsd13`` - FreeBSD 13.x (version varies)
+- ``openbsd7`` - OpenBSD 7.x (version varies)
+
+Platform factors with environment factors
+=========================================
+
+Platform factors combine with regular environment factors. For example, an environment named ``py313-django50`` has
+factors ``py313``, ``django50``, and the current platform:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        env_list = [
+            { product = [["py312", "py313"], ["django42", "django50"]] },
+        ]
+
+        [env_run_base]
+        deps = [
+            { replace = "if", condition = "factor.django42", then = ["Django>=4.2,<4.3"], extend = true },
+            { replace = "if", condition = "factor.django50", then = ["Django>=5.0,<5.1"], extend = true },
+            { replace = "if", condition = "factor.py312 and factor.linux", then = ["pytest-xdist"], extend = true },
+            { replace = "if", condition = "factor.darwin", then = ["pyobjc-framework-Cocoa"], extend = true },
+        ]
+        commands = [
+            { replace = "if", condition = "factor.win32", then = [["python", "-c", "import winreg"]], extend = true },
+            ["pytest"],
+        ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [tox]
+        env_list = py3{12,13}-django{42,50}
+
+        [testenv]
+        deps =
+            django42: Django>=4.2,<4.3
+            django50: Django>=5.0,<5.1
+            py312,linux: pytest-xdist  # only on Python 3.12 + Linux
+            darwin: pyobjc-framework-Cocoa  # only on macOS
+        commands =
+            win32: python -c 'import winreg'  # only runs on Windows
+            pytest
+
+Negation also works with platform factors:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        [env_run_base]
+        deps = [
+            { replace = "if", condition = "not factor.win32", then = ["uvloop"], extend = true },
+            { replace = "if", condition = "not factor.darwin", then = ["pyinotify"], extend = true },
+        ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [testenv]
+        deps =
+            !win32: uvloop  # install uvloop on non-Windows platforms
+            !darwin: pyinotify  # install pyinotify except on macOS
+
+Platform skipping vs platform factors
+=====================================
+
+There are two ways to handle platform differences:
+
+**Platform factors** (recommended) - Filter individual settings per platform:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        [env_run_base]
+        commands = [
+            { replace = "if", condition = "factor.linux", then = [["pytest", "--numprocesses=auto"]], extend = true },
+            { replace = "if", condition = "factor.darwin or factor.win32", then = [["pytest"]], extend = true },
+        ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [testenv]
+        commands =
+            linux: pytest --numprocesses=auto
+            darwin,win32: pytest
+
+Settings without a platform factor apply to all platforms. This is ideal for most cross-platform projects.
+
+**Platform skipping** - Skip entire environments when platform doesn't match:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        [env_run_base]
+        platform = "linux"
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [testenv]
+        platform = linux
+
+This skips the entire environment on non-Linux systems. Use this only when an environment genuinely cannot run on other
+platforms (e.g., testing Linux-specific kernel features).
+
+.. note::
+
+    Platform factors are supported in both INI and TOML formats. INI uses inline syntax (``linux: command``), while TOML
+    uses ``replace = "if"`` with ``factor.NAME`` conditions (see :ref:`conditional-value-reference`).
+
+.. _howto_architecture:
+
+Targeting a specific CPU architecture
+=====================================
+
+.. versionadded:: 4.46
+
+On machines that support multiple CPU architectures (e.g. Apple Silicon running ``arm64`` natively and ``x86_64`` via
+Rosetta 2, or Linux running ``aarch64`` and ``x86_64`` via ``qemu-user``), you can constrain tox environments to a
+specific architecture by appending the ISA name to :ref:`base_python`.
+
+The architecture is derived from :func:`python:sysconfig.get_platform` (e.g. ``macosx-14.0-arm64``, ``linux-x86_64``)
+and normalized by :pypi:`virtualenv` (``amd64`` → ``x86_64``, ``aarch64`` → ``arm64``).
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        # Run tests on both arm64 and x86_64 interpreters
+        env_list = ["arm64", "x86_64"]
+
+        [env.arm64]
+        base_python = ["cpython3.12-64-arm64"]
+        commands = [["pytest"]]
+
+        [env.x86_64]
+        base_python = ["cpython3.12-64-x86_64"]
+        commands = [["pytest"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [tox]
+        env_list = arm64, x86_64
+
+        [testenv:arm64]
+        base_python = cpython3.12-64-arm64
+        commands = pytest
+
+        [testenv:x86_64]
+        base_python = cpython3.12-64-x86_64
+        commands = pytest
+
+If the discovered interpreter's architecture does not match the requested one, tox raises a failure — just as it does
+for Python version mismatches. The matched architecture is recorded in the tox journal under the ``machine`` key.
+
+Common architecture values (after normalization):
+
+- ``x86_64`` — 64-bit x86 (Intel/AMD)
+- ``arm64`` — 64-bit ARM (Apple Silicon, Graviton, Ampere)
+- ``x86`` — 32-bit x86
+- ``s390x`` — IBM Z mainframe
+- ``ppc64le`` — 64-bit PowerPC little-endian
+
+.. _howto_conditional_values:
+
+*********************************
+ Set values based on a condition
+*********************************
+
+.. versionadded:: 4.40
+
+    Conditional value replacement with ``env.VAR`` lookups.
+
+.. versionchanged:: 4.42
+
+    Added ``factor.NAME`` lookups for environment name factors and platform.
+
+.. versionchanged:: 4.50
+
+    Added ``factor['NAME']``/``env['VAR']`` subscript syntax and ``env_name`` variable.
+
+TOML configurations can conditionally select values based on environment variables and factors using ``replace = "if"``.
+The ``condition`` field accepts expressions with ``env.VAR`` lookups for environment variables, ``factor.NAME`` lookups
+for environment name factors and platform, ``==``/``!=`` comparisons, and ``and``/``or``/``not`` boolean logic.
+
+Set a variable depending on whether you are in CI:
+
+.. code-block:: toml
+
+    [env_run_base]
+    set_env.MATURITY = { replace = "if", condition = "env.CI", then = "release", "else" = "dev" }
+
+Add verbose flags to commands when a ``DEBUG`` variable is set:
+
+.. code-block:: toml
+
+    [env_run_base]
+    commands = [["pytest", { replace = "if", condition = "env.DEBUG", then = ["-vv", "--tb=long"], "else" = [], extend = true }]]
+
+Use different dependencies based on environment factors:
+
+.. code-block:: toml
+
+    [env_run_base]
+    deps = [
+        "pytest",
+        { replace = "if", condition = "factor.django50", then = ["Django>=5.0,<5.1"], "else" = ["Django>=4.2,<4.3"], extend = true },
+    ]
+
+Combine multiple conditions (environment variables and factors):
+
+.. code-block:: toml
+
+    [env.deploy]
+    commands = [["deploy", { replace = "if", condition = "env.CI and env.TAG_NAME != ''", then = ["--production"], "else" = ["--dry-run"], extend = true }]]
+
+    [env_run_base]
+    commands = [["pytest", { replace = "if", condition = "factor.linux and not env.CI", then = ["--numprocesses=auto"], "else" = [], extend = true }]]
+
+Use subscript syntax for version-number factors that aren't valid Python identifiers:
+
+.. code-block:: toml
+
+    [env."test-3.14"]
+    commands = [
+        ["pytest", { replace = "if", condition = "factor['3.14']", then = ["--strict-markers"], "else" = [], extend = true }],
+    ]
+
+Target a specific environment by name with ``env_name``:
+
+.. code-block:: toml
+
+    [env_run_base]
+    set_env.EXTRA = { replace = "if", condition = "env_name == 'test-3.14'", then = "latest", "else" = "" }
+
+For the full expression syntax and more examples, see :ref:`conditional-value-reference`.
+
+*****************************************
+ Handle env names that match subcommands
+*****************************************
+
+tox has built-in subcommands (``run``, ``list``, ``config``, etc.). If you have an environment name that matches a
+subcommand, use the ``run`` subcommand explicitly:
+
+.. code-block:: bash
+
+    # This would be interpreted as "tox list", not "run the list environment"
+    # tox -e list  # does NOT work as expected
+
+    # Use the run subcommand explicitly
+    tox run -e list
+
+    # Or the short alias
+    tox r -e list
+
+.. ------------------------------------------------------------------------------------------
+
+.. Dependencies & Packages
+
+.. ------------------------------------------------------------------------------------------
+
+.. _howto_pep723:
+
+**********************
+ Run a PEP 723 script
+**********************
+
+.. versionadded:: 4.52
+
+If you have a standalone Python script with :PEP:`723` inline metadata:
+
+.. code-block:: python
+
+    # /// script
+    # requires-python = ">=3.12"
+    # dependencies = ["requests>=2.31", "rich"]
+    # ///
+
+    import requests
+    from rich import print
+
+    print(requests.get("https://httpbin.org/get").json())
+
+You can run it through tox without duplicating the dependency list:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        [env.fetch]
+        runner = "virtualenv-pep-723"
+        script = "tools/fetch.py"
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [testenv:fetch]
+        runner = virtualenv-pep-723
+        script = tools/fetch.py
+
+Run it with ``tox r -e fetch``. Positional arguments are forwarded: ``tox r -e fetch -- --verbose``.
+
+To override the default command (which runs the script), set ``commands`` as usual:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        [env.fetch]
+        runner = "virtualenv-pep-723"
+        script = "tools/fetch.py"
+        commands = [["python", "-m", "pytest", "tests/"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [testenv:fetch]
+        runner = virtualenv-pep-723
+        script = tools/fetch.py
+        commands = python -m pytest tests/
+
+See :ref:`pep723-explanation` for how Python version resolution and dependency installation work.
+
+.. _faq_custom_pypi_server:
+
+.. _howto_custom_pypi_server:
+
+**************************
+ Use a custom PyPI server
+**************************
+
+By default tox uses pip to install Python dependencies. To change the index server, configure pip directly via
+environment variables:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env_run_base]
+         set_env = { PIP_INDEX_URL = "https://my.pypi.example/simple" }
+
+    To allow the user to override the index server (e.g. for offline use), use substitution with a default:
+
+    .. code-block:: toml
+
+         [env_run_base]
+         set_env = { PIP_INDEX_URL = { replace = "env", name = "PIP_INDEX_URL", default = "https://my.pypi.example/simple" } }
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv]
+         set_env =
+             PIP_INDEX_URL = https://my.pypi.example/simple
+
+    To allow the user to override the index server (e.g. for offline use), use substitution with a default:
+
+    .. code-block:: ini
+
+         [testenv]
+         set_env =
+             PIP_INDEX_URL = {env:PIP_INDEX_URL:https://my.pypi.example/simple}
+
+***************************
+ Use multiple PyPI servers
+***************************
+
+When not all dependencies are found on a single index, use ``PIP_EXTRA_INDEX_URL``:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env_run_base]
+         set_env.PIP_INDEX_URL = { replace = "env", name = "PIP_INDEX_URL", default = "https://primary.example/simple" }
+         set_env.PIP_EXTRA_INDEX_URL = { replace = "env", name = "PIP_EXTRA_INDEX_URL", default = "https://secondary.example/simple" }
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv]
+         set_env =
+             PIP_INDEX_URL = {env:PIP_INDEX_URL:https://primary.example/simple}
+             PIP_EXTRA_INDEX_URL = {env:PIP_EXTRA_INDEX_URL:https://secondary.example/simple}
+
+If the index defined under ``PIP_INDEX_URL`` does not contain a package, pip will attempt to resolve it from
+``PIP_EXTRA_INDEX_URL``.
+
+.. warning::
+
+    Using an extra PyPI index for installing private packages may cause security issues. If ``package1`` is registered
+    with the default PyPI index, pip will install ``package1`` from the default PyPI index, not from the extra one.
+
+**********************
+ Use constraint files
+**********************
+
+`Constraint files <https://pip.pypa.io/en/stable/user_guide/#constraints-files>`_ define version constraints for
+dependencies without specifying what to install. When creating a test environment, tox invokes pip multiple times:
+
+1. If :ref:`deps` is specified, it installs those dependencies first.
+2. If the environment has a package (not :ref:`package` ``skip`` or :ref:`skip_install` ``true``), it:
+
+   1. Installs the package dependencies.
+   2. Installs the package itself.
+
+When ``constrain_package_deps = true`` is set, ``{env_dir}/constraints.txt`` is generated during ``install_deps`` based
+on the specifications in ``deps``. These constraints are then passed to pip during ``install_package_deps``, raising an
+error when package dependencies conflict with test dependencies.
+
+For stronger guarantees, set ``use_frozen_constraints = true`` to generate constraints from the exact installed versions
+(via ``pip freeze``). This catches incompatibilities with any previously installed dependency.
+
+.. note::
+
+    When :ref:`constraints` is set, ``constrain_package_deps`` and ``use_frozen_constraints`` have no effect. The
+    :ref:`constraints` option already applies to both ``install_deps`` and ``install_package_deps`` phases, so the
+    auto-generated constraints file is not created. If you need to pin specific dependency versions during package
+    installation, add them to your constraints file directly.
+
+.. note::
+
+    Constraint files are a subset of requirement files. You can pass a constraint file wherever a requirement file is
+    accepted.
+
+************
+ Use extras
+************
+
+If your package defines optional dependency groups (extras) in ``pyproject.toml``, you can install them in tox
+environments via the :ref:`extras` configuration:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         # pyproject.toml
+         [project.optional-dependencies]
+         testing = ["pytest>=8", "coverage"]
+         docs = ["sphinx>=7"]
+
+    .. code-block:: toml
+
+         # tox.toml
+         [env_run_base]
+         extras = ["testing"]
+
+         [env.docs]
+         extras = ["docs"]
+         commands = [["sphinx-build", "-W", "docs", "docs/_build/html"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv]
+         extras = testing
+
+         [testenv:docs]
+         extras = docs
+         commands = sphinx-build -W docs docs/_build/html
+
+This installs your package together with the specified extras, avoiding the need to duplicate dependency lists in both
+``pyproject.toml`` and your tox configuration.
+
+************************************
+ Install extras without the package
+************************************
+
+Sometimes you need the package's dependencies (including extras) without installing the package itself. For example,
+coverage combining, documentation builds, or linting environments that share the same dependency set. Use ``package =
+"deps-only"`` instead of ``skip_install = true`` combined with manually duplicated ``deps``:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         # pyproject.toml
+         [project]
+         name = "myproject"
+         dependencies = ["httpx>=0.27"]
+
+         [project.optional-dependencies]
+         docs = ["sphinx>=7", "furo"]
+
+    .. code-block:: toml
+
+         # tox.toml
+         [env.docs]
+         package = "deps-only"
+         extras = ["docs"]
+         commands = [["sphinx-build", "-W", "docs", "docs/_build/html"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv:docs]
+         package = deps-only
+         extras = docs
+         commands = sphinx-build -W docs docs/_build/html
+
+This reads your ``pyproject.toml`` directly (no build step) and installs ``httpx``, ``sphinx``, and ``furo`` into the
+environment. If your dependencies are dynamic, tox falls back to using the packaging environment to extract metadata.
+
+**********************************************
+ Install locked dependencies from pylock.toml
+**********************************************
+
+If your project maintains :PEP:`751` lock files (``pylock.toml``), you can install those locked dependencies directly
+via the :ref:`pylock` configuration. The :ref:`pylock` setting is mutually exclusive with :ref:`deps` — use one or the
+other. Each package in the lock file is installed as a pinned requirement (``name==version``) with ``--no-deps`` (since
+the lock file already contains all transitive dependencies), and tox automatically recreates the environment when the
+lock file changes.
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         # tox.toml
+         [env_run_base]
+         pylock = "pylock.toml"
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv]
+         pylock = pylock.toml
+
+The locked dependencies are installed first, then the project itself is built and installed normally (unless
+``skip_install`` or ``package = "skip"`` is set). When the lock file contains :PEP:`751` extras or dependency groups,
+use the existing :ref:`extras` and :ref:`dependency_groups` settings to select which ones to include. Packages with
+markers like ``'docs' in extras`` or ``'dev' in dependency_groups`` are filtered at install time — only packages
+matching the selected extras/groups (and the target Python's platform markers) are installed:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env.docs]
+         pylock = "pylock.toml"
+         extras = ["docs"]
+
+         [env.dev]
+         pylock = "pylock.toml"
+         dependency_groups = ["dev"]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv:docs]
+         pylock = pylock.toml
+         extras = docs
+
+         [testenv:dev]
+         pylock = pylock.toml
+         dependency_groups = dev
+
+.. ------------------------------------------------------------------------------------------
+
+.. Environment Customization
+
+.. ------------------------------------------------------------------------------------------
+
+*******************************
+ Customize virtualenv creation
+*******************************
+
+tox uses :pypi:`virtualenv` to create Python virtual environments. Customize virtualenv behavior through environment
+variables:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env_run_base]
+         set_env.VIRTUALENV_PIP = "22.1"
+         set_env.VIRTUALENV_SYSTEM_SITE_PACKAGES = "true"
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv]
+         set_env =
+             VIRTUALENV_PIP = 22.1
+             VIRTUALENV_SYSTEM_SITE_PACKAGES = true
+
+Any CLI flag for virtualenv can be set as an environment variable with the ``VIRTUALENV_`` prefix (in uppercase).
+Consult the :pypi:`virtualenv` documentation for supported values.
+
+.. _howto_clean_caches:
+
+*****************************************
+ Clean external caches during recreation
+*****************************************
+
+Tools like :pypi:`pre-commit` maintain their own caches outside the tox environment directory. When you recreate an
+environment with ``tox run -r``, those external caches are left behind. Use :ref:`recreate_commands` to run cleanup
+commands inside the old environment before it is removed:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env_run_base]
+         deps = ["pre-commit"]
+         recreate_commands = [["{env_python}", "-Im", "pre_commit", "clean"]]
+         commands = [["pre-commit", "run", "--all-files"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv]
+         deps = pre-commit
+         recreate_commands = {env_python} -Im pre_commit clean
+         commands = pre-commit run --all-files
+
+These commands only run during recreation -- they are skipped on first creation and on normal re-runs. Failures are
+logged as warnings and never block the recreation itself.
+
+*****************************************
+ Test across old and new Python versions
+*****************************************
+
+When a project must support both very old (e.g. Python 3.6) and very new (e.g. Python 3.15) interpreters, no single
+virtualenv release covers both. tox handles this automatically -- each environment whose target Python the installed
+virtualenv can no longer create transparently bootstraps a compatible older virtualenv (see :ref:`virtualenv_spec`):
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         env_list = ["3.6", "3.15", "3.13"]
+
+         [env_run_base]
+         deps = ["pytest"]
+         commands = [["pytest"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [tox]
+         env_list = 3.6, 3.15, 3.13
+
+         [testenv]
+         deps = pytest
+         commands = pytest
+
+The ``3.6`` environment automatically uses an older virtualenv that still supports Python 3.6, while the others use the
+default (imported) virtualenv. The first run bootstraps the pinned version; subsequent runs reuse the cached bootstrap.
+Set :ref:`virtualenv_spec` on an environment to override the version tox picks.
+
+.. _howto_generate_matrix:
+
+***************************************
+ Generate environment matrices in TOML
+***************************************
+
+TOML ``env_list`` composes environments from structured dicts: string literals, bare range dicts (``{ prefix, start,
+stop }``), labeled dicts, and ``product`` dicts. TOML never interprets curly braces inside strings — every axis is
+expressed as an explicit structured item. For a single axis use the bare range dict:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         env_list = [
+             "lint",
+             { prefix = "3.", start = 12, stop = 14 },
+         ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [tox]
+         env_list = lint, 3.{12-14}
+
+For multi-dimensional matrices, use a ``product`` dict whose items are arrays of strings or range/labeled dicts.
+Combinations are joined with ``-``:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         env_list = [
+             "lint",
+             { product = [
+                 { prefix = "3.", start = 12, stop = 14 },
+                 ["django42", "django50"],
+             ] },
+         ]
+
+         [env_run_base]
+         package = "skip"
+         deps = [
+             "pytest",
+             { replace = "if", condition = "factor.django42", then = ["Django>=4.2,<4.3"], extend = true },
+             { replace = "if", condition = "factor.django50", then = ["Django>=5.0,<5.1"], extend = true },
+         ]
+         commands = [["pytest"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [tox]
+         env_list = py3{12-14}-django{42,50}
+
+         [testenv]
+         package = skip
+         deps =
+             pytest
+             django42: Django>=4.2,<4.3
+             django50: Django>=5.0,<5.1
+         commands = pytest
+
+This generates ``lint``, ``py312-django42``, ``py312-django50``, ``py313-django42``, ``py313-django50``,
+``py314-django42``, ``py314-django50``.
+
+To skip incompatible combinations, add ``exclude`` -- this is only available in TOML:
+
+.. code-block:: toml
+
+    env_list = [
+        { product = [["py312", "py313"], ["django42", "django50"]], exclude = ["py312-django50"] },
+    ]
+
+.. _howto_env_base_matrix:
+
+***********************************************
+ Test a matrix of configurations with env_base
+***********************************************
+
+When multiple environments share the same deps, commands, and other settings but differ only by factors, use
+``env_base`` templates instead of repeating configuration across ``[env.X]`` sections. The ``factors`` key defines the
+Cartesian product of factor groups, and each generated environment inherits all other settings from the template:
+
+.. code-block:: toml
+
+    [env_base.django]
+    factors = [
+        { prefix = "py3", start = 13, stop = 14 },
+        ["django42", "django50"],
+    ]
+    package = "skip"
+    deps = [
+        "pytest",
+        { replace = "if", condition = "factor.django42", then = ["Django>=4.2,<4.3"], extend = true },
+        { replace = "if", condition = "factor.django50", then = ["Django>=5.0,<5.1"], extend = true },
+    ]
+    commands = [["pytest"]]
+
+This generates ``django-py313-django42``, ``django-py313-django50``, ``django-py314-django42``,
+``django-py314-django50``. Each environment resolves factor conditions independently -- ``django-py313-django42`` gets
+``Django>=4.2,<4.3`` while ``django-py314-django50`` gets ``Django>=5.0,<5.1``.
+
+To override a specific generated environment, add an explicit ``[env.NAME]`` section:
+
+.. code-block:: toml
+
+    [env.django-py314-django50]
+    description = "bleeding edge"
+
+The inheritance chain is: ``[env.{name}]`` > ``[env_base.{template}]`` > ``[env_run_base]``.
+
+Nest a group under a name to label it, so ``{factor:label}`` resolves to the value in the current environment name. Both
+lists and range dicts take a label:
+
+.. code-block:: toml
+
+    [env_base.django]
+    factors = [
+        { py_version = { prefix = "py3", start = 13, stop = 14 } },
+        { django_version = ["django42", "django50"] },
+    ]
+    description = "Test {factor:django_version} on {factor:py_version}"
+
+To try a version the matrix does not list, set ``TOX_FACTOR_<label>`` for that run:
+
+.. code-block:: console
+
+    $ env TOX_FACTOR_django_version=django61 tox run -e django-py314-django50
+
+See :ref:`env-base-templates` for the full reference.
+
+***************************
+ Ignore command exit codes
+***************************
+
+When multiple commands are defined in :ref:`commands`, tox runs them sequentially and stops at the first failure
+(non-zero exit code). To ignore the exit code of a specific command, prefix it with ``-``:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env_run_base]
+         commands = [
+             ["-", "python", "-c", "import sys; sys.exit(1)"],
+             ["python", "--version"],
+         ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv]
+         commands =
+             - python -c 'import sys; sys.exit(1)'
+             python --version
+
+To invert the exit code (fail if the command returns 0, succeed otherwise), use the ``!`` prefix:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env_run_base]
+         commands = [
+             ["!", "python", "-c", "import sys; sys.exit(1)"],
+             ["python", "--version"],
+         ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv]
+         commands =
+             ! python -c 'import sys; sys.exit(1)'
+             python --version
+
+*****************************
+ Clean up after an interrupt
+*****************************
+
+Pressing :kbd:`Ctrl-C` stops the environment at once, leaving a started container running and a fixture database in
+place. Set :ref:`interrupt_post_commands` to run :ref:`commands_post` before tox exits:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env.integration]
+         interrupt_post_commands = true
+         commands_pre = [["docker", "compose", "up", "--detach"]]
+         commands = [["pytest", "tests/integration"]]
+         commands_post = [["docker", "compose", "down"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv:integration]
+         interrupt_post_commands = true
+         commands_pre = docker compose up --detach
+         commands = pytest tests/integration
+         commands_post = docker compose down
+
+Press :kbd:`Ctrl-C` a second time to give up on the teardown as well.
+
+**********************
+ Retry flaky commands
+**********************
+
+Commands that fail due to transient errors (network timeouts, flaky tests) can be automatically retried using
+:ref:`commands_retry`. The value specifies how many times to retry a failed command -- a value of ``2`` means each
+command is attempted up to 3 times total. Retries apply to :ref:`commands_pre`, :ref:`commands`, and
+:ref:`commands_post`. Commands prefixed with ``-`` (ignore exit code) are never retried.
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env.integration]
+         description = "run integration tests with retries for flaky network calls"
+         commands_retry = 2
+         commands = [["pytest", "tests/integration"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv:integration]
+         description = run integration tests with retries for flaky network calls
+         commands_retry = 2
+         commands = pytest tests/integration
+
+**********************
+ Control color output
+**********************
+
+tox uses colored output by default. To disable it, use any of these methods:
+
+.. code-block:: bash
+
+    # Via environment variable
+    NO_COLOR=1 tox run
+
+    # Via TERM
+    TERM=dumb tox run
+
+    # Via CLI flag
+    tox run --colored no
+
+.. ------------------------------------------------------------------------------------------
+
+.. CI/CD & Automation
+
+.. ------------------------------------------------------------------------------------------
+
+.. _howto-ci:
+
+****************************
+ Use tox in CI/CD pipelines
+****************************
+
+tox works well in continuous integration systems. We recommend installing tox via `uv <https://docs.astral.sh/uv/>`__
+for significantly faster setup times. Adding :pypi:`tox-uv` also replaces pip with uv inside tox environments, speeding
+up dependency installation.
+
+**GitHub Actions**:
+
+.. code-block:: yaml
+
+    # .github/workflows/tests.yml
+    name: tests
+    on: [push, pull_request]
+    jobs:
+      test:
+        runs-on: ubuntu-latest
+        strategy:
+          matrix:
+            python-version: ["3.12", "3.13", "3.14"]
+        steps:
+          - uses: actions/checkout@v4
+          - uses: actions/setup-python@v5
+            with:
+              python-version: ${{ matrix.python-version }}
+          - uses: astral-sh/setup-uv@v5
+          - run: uv tool install tox --with tox-uv
+          - run: tox run -e ${{ matrix.python-version }}
+
+**GitLab CI**:
+
+.. code-block:: yaml
+
+    # .gitlab-ci.yml
+    test:
+      image: python:3.13
+      before_script:
+        - curl -LsSf https://astral.sh/uv/install.sh | sh
+        - uv tool install tox --with tox-uv
+      script:
+        - tox run -e 3.13
+
+.. _howto-docker:
+
+***********************************
+ Run tox inside a Docker container
+***********************************
+
+Build a lightweight Docker image that contains tox and your target Python versions. Using `uv
+<https://docs.astral.sh/uv/>`__ keeps the image small and installation fast:
+
+.. code-block:: Dockerfile
+
+    FROM python:3.13-slim
+
+    # Install build tools commonly needed by C-extension packages
+    RUN set -eux; \
+        apt-get update; \
+        apt-get install -y --no-install-recommends gcc make; \
+        rm -rf /var/lib/apt/lists/*
+
+    # Install tox (with tox-uv for faster dependency resolution)
+    COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+    RUN uv tool install tox --with tox-uv
+
+    ENV PATH="/root/.local/bin:$PATH"
+    WORKDIR /app
+
+Mount your project directory and run tox:
+
+.. code-block:: shell
+
+    docker build -t tox-runner .
+    docker run --rm -v "$(pwd)":/app tox-runner tox run -e 3.13
+
+To test against multiple Python versions in the same image, start from a base image and add the versions you need:
+
+.. code-block:: Dockerfile
+
+    FROM python:3.13-slim
+
+    RUN set -eux; \
+        apt-get update; \
+        apt-get install -y --no-install-recommends gcc make; \
+        rm -rf /var/lib/apt/lists/*
+
+    COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+    # Install additional Python versions via uv
+    RUN uv python install 3.12 3.11
+
+    RUN uv tool install tox --with tox-uv
+    ENV PATH="/root/.local/bin:$PATH"
+    WORKDIR /app
+
+.. code-block:: shell
+
+    docker run --rm -v "$(pwd)":/app tox-runner tox run -e 3.13,3.12,3.11
+
+.. note::
+
+    The previously recommended `31z4/tox <https://hub.docker.com/r/31z4/tox>`_ Docker image has been `archived
+    <https://github.com/31z4/tox-docker>`_ and is no longer maintained. The image is still available on Docker Hub but
+    may not receive updates. Building your own image as shown above is the recommended approach.
+
+.. ------------------------------------------------------------------------------------------
+
+.. Documentation
+
+.. ------------------------------------------------------------------------------------------
+
+*********************************
+ Build documentation with Sphinx
+*********************************
+
+Orchestrate Sphinx documentation builds with tox to integrate them into CI:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env.docs]
+         description = "build documentation"
+         deps = ["sphinx>=7"]
+         commands = [
+             ["sphinx-build", "-d", "{env_tmp_dir}/doctree", "docs", "{work_dir}/docs_out", "--color", "-b", "html"],
+             ["python", "-c", "print(f'documentation available under file://{work_dir}/docs_out/index.html')"],
+         ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv:docs]
+         description = build documentation
+         deps =
+             sphinx>=7
+         commands =
+             sphinx-build -d "{envtmpdir}{/}doctree" docs "{toxworkdir}{/}docs_out" --color -b html
+             python -c 'print(r"documentation available under file://{toxworkdir}{/}docs_out{/}index.html")'
+
+This approach avoids the platform-specific Makefile generated by Sphinx and works cross-platform.
+
+*********************************
+ Build documentation with mkdocs
+*********************************
+
+Define separate environments for developing and deploying mkdocs documentation:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         [env.docs]
+         description = "run a development server for documentation"
+         deps = [
+             "mkdocs>=1.3",
+             "mkdocs-material",
+         ]
+         commands = [
+             ["mkdocs", "build", "--clean"],
+             ["python", "-c", "print('###### Starting local server. Press Control+C to stop ######')"],
+             ["mkdocs", "serve", "-a", "localhost:8080"],
+         ]
+
+         [env.docs-deploy]
+         description = "build and deploy documentation"
+         deps = [
+             "mkdocs>=1.3",
+             "mkdocs-material",
+         ]
+         commands = [["mkdocs", "gh-deploy", "--clean"]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [testenv:docs]
+         description = Run a development server for working on documentation
+         deps =
+             mkdocs>=1.3
+             mkdocs-material
+         commands =
+             mkdocs build --clean
+             python -c 'print("###### Starting local server. Press Control+C to stop server ######")'
+             mkdocs serve -a localhost:8080
+
+         [testenv:docs-deploy]
+         description = built fresh docs and deploy them
+         deps = {[testenv:docs]deps}
+         commands = mkdocs gh-deploy --clean
+
+.. ------------------------------------------------------------------------------------------
+
+.. Troubleshooting & Debugging
+
+.. ------------------------------------------------------------------------------------------
+
+*********************************
+ Debug a failing tox environment
+*********************************
+
+When an environment fails, use these techniques to investigate:
+
+1. **Increase verbosity** to see detailed command output:
+
+   .. code-block:: bash
+
+       tox run -e 3.13 -vv
+
+2. **Inspect resolved configuration** to verify settings are what you expect:
+
+   .. code-block:: bash
+
+       # Show all configuration for an environment
+       tox config -e 3.13
+
+       # Show specific keys
+       tox config -e 3.13 -k deps commands pass_env set_env
+
+3. **Check log files** in ``.tox/<env_name>/log/`` for full command output with timestamps.
+4. **Run a command interactively** inside the environment:
+
+   .. code-block:: bash
+
+       tox exec -e 3.13 -- python
+       tox exec -e 3.13 -- pip list
+
+5. **Force recreation** if you suspect a stale environment:
+
+   .. code-block:: bash
+
+       tox run -e 3.13 -r
+
+6. **Check for misplaced config keys**. Options in the wrong section are silently ignored. Use ``-v`` to surface
+   warnings about unrecognized keys, or run ``tox config`` to see ``# !!! unused:`` markers:
+
+   .. code-block:: bash
+
+       tox run -v
+       tox config -e 3.13
+
+7. **Extract configuration in different formats.** Use ``--format`` to choose between ``ini`` (default), ``json``, or
+   ``toml``. Write to a file with ``-o`` instead of stdout:
+
+   .. code-block:: bash
+
+       tox config -e py -k deps commands                          # INI (default)
+       tox config -e py -k deps commands --format json             # JSON to stdout
+       tox config -e py -k deps commands --format toml -o out.toml # TOML to file
+
+   Given a ``tox.ini`` with ``deps = pytest`` and ``commands = pytest {posargs}``, the output looks like:
+
+   .. tab:: INI (deprecated)
+
+       .. code-block:: ini
+
+           [testenv:py]
+           deps = pytest
+           commands = pytest
+
+   .. tab:: JSON
+
+       .. code-block:: json
+
+           {
+             "env": {
+               "py": {
+                 "deps": [
+                   "pytest"
+                 ],
+                 "commands": [
+                   "pytest"
+                 ]
+               }
+             }
+           }
+
+   .. tab:: TOML
+
+       .. code-block:: toml
+
+           [env.py]
+           deps = ["pytest"]
+           commands = ["pytest"]
+
+   The JSON and TOML formats preserve native types (booleans, integers, floats, arrays, dicts) and use the same key
+   structure as ``tox.toml`` (``env.<name>`` for environments, ``tox`` for core settings). The ``-o`` flag always writes
+   without color codes.
+
+   To get the list of environments programmatically, query ``-k type`` — the ``env`` keys in the output are the
+   environment names:
+
+   .. code-block:: bash
+
+       tox config -k type --format json | python -c "import json,sys; print(*json.load(sys.stdin)['env'])"
+
+.. _skip-env-install:
+
+**************************************
+ Reuse an environment without network
+**************************************
+
+When working offline, on a plane, or in an air-gapped CI environment, tox still attempts to install dependencies and the
+project package on every run. If the environment was previously set up and nothing has changed, you can skip all
+installation steps with ``--skip-env-install``:
+
+.. code-block:: bash
+
+    # First run: installs everything normally
+    tox run -e 3.13
+
+    # Subsequent runs: skip all installation, reuse existing environment
+    tox run -e 3.13 --skip-env-install
+
+This skips:
+
+- Installing ``deps`` and dependency groups
+- Building and installing the project package
+
+The environment must already exist from a previous run. Commands (``commands_pre``, ``commands``, ``commands_post``)
+still execute normally.
+
+``--skip-env-install`` differs from ``--skip-pkg-install`` in scope: ``--skip-pkg-install`` only skips the package build
+and install step, while ``--skip-env-install`` additionally skips dependency installation. Use ``--skip-pkg-install``
+when you want to refresh dependencies but not rebuild the package. Use ``--skip-env-install`` when you want to skip all
+installation entirely.
+
+.. code-block:: bash
+
+    # Skip only package build/install, still install deps
+    tox run -e 3.13 --skip-pkg-install
+
+    # Skip everything: deps + package
+    tox run -e 3.13 --skip-env-install
+
+.. _run-interactive-programs:
+
+**************************
+ Run interactive programs
+**************************
+
+Interactive programs like Python REPL, debuggers, or TUI applications need direct terminal access to handle user input
+and query console properties. By default, tox pipes stdout/stderr to capture output for logging, which breaks terminal
+APIs that require real console handles.
+
+Use ``--no-capture`` (or ``-i``) to disable output capture and give the subprocess direct access to the terminal:
+
+.. code-block:: bash
+
+    # Open a Python REPL with full terminal support
+    tox run -e 3.13 -i -- python
+
+    # Run a debugger interactively
+    tox run -e 3.13 -i -- python -m pdb script.py
+
+    # Use a TUI application
+    tox run -e 3.13 -i -- pytest --pdb
+
+The ``--no-capture`` flag is mutually exclusive with ``--result-json`` (which requires output capture) and parallel mode
+(where multiple environments' output would interleave). When enabled, tox cannot log command output to
+``.tox/<env_name>/log/`` files.
+
+.. note::
+
+    ``tox exec`` always runs in interactive mode without output capture. Use ``tox exec`` for one-off commands that
+    don't need the full environment setup (see :ref:`tox-exec`). Use ``tox run --no-capture`` when you need to run the
+    configured commands interactively.
+
+******************
+ Access full logs
+******************
+
+tox logs command invocations inside ``.tox/<env_name>/log``. Each execution is recorded in a file named
+``<index>-<run_name>.log``, containing the command, environment variables, working directory, exit code, and output.
+
+Environment variables with names containing sensitive words (``access``, ``api``, ``auth``, ``client``, ``cred``,
+``key``, ``passwd``, ``password``, ``private``, ``pwd``, ``secret``, ``token``) are logged with their values redacted to
+prevent accidental secret leaking.
+
+***************************************
+ Understand InvocationError exit codes
+***************************************
+
+When a command executed by tox fails, an ``InvocationError`` is raised:
+
+.. code-block:: shell
+
+    ERROR: InvocationError for command
+           '<command defined in tox config>' (exited with code 1)
+
+Always check the documentation for the command that failed. For example, for :pypi:`pytest`, see the `pytest exit codes
+<https://docs.pytest.org/en/latest/reference/exit-codes.html#exit-codes>`_.
+
+On Unix systems, exit codes larger than 128 indicate a fatal signal. tox provides a hint in these cases:
+
+.. code-block:: shell
+
+    ERROR: InvocationError for command
+           '<command>' (exited with code 139)
+    Note: this might indicate a fatal error signal (139 - 128 = 11: SIGSEGV)
+
+Signal numbers are documented in the `signal man page <https://man7.org/linux/man-pages/man7/signal.7.html>`_.
+
+.. ------------------------------------------------------------------------------------------
+
+.. Advanced & Specialized (niche topics at end)
+
+.. ------------------------------------------------------------------------------------------
+
+.. _pin-default-python:
+
+******************************
+ Pin a default Python version
+******************************
+
+When environments like ``lint`` or ``type`` don't contain a Python factor, tox uses the Python it's installed into. This
+varies across machines -- a contributor on Ubuntu 22.04 gets Python 3.10, while Fedora 37 gives 3.11 -- leading to
+unreproducible results or failures when dependencies don't support the host's Python version.
+
+Set :ref:`default_base_python` to pin a fallback interpreter for all environments without a Python factor:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        [env_run_base]
+        default_base_python = ["3.14", "3.13"]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [testenv]
+        default_base_python = 3.14, 3.13
+
+Environments with a Python factor (e.g. ``3.13``, ``py313``) or an explicit :ref:`base_python` setting are unaffected.
+
+.. ------------------------------------------------------------------------------------------
+
+.. _open-ended-ranges:
+
+**********************************************
+ Future-proof env_list with open-ended ranges
+**********************************************
+
+Instead of updating ``env_list`` every time a new Python version is released, use open-ended ranges:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        env_list = [
+            { prefix = "3.", start = 10 },
+            "lint",
+        ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [tox]
+        env_list = 3.{10-}, lint
+
+This expands up to the latest `supported CPython version <https://devguide.python.org/versions/>`_ known to tox. When
+you upgrade tox after a new Python release, the range automatically includes the new version. The bare range dict is the
+single-axis spelling; wrap it in ``{ product = [...] }`` only when crossing it with another factor group.
+
+To start from the oldest supported version:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        env_list = [
+            { prefix = "3.", stop = 13 },
+            "lint",
+        ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [tox]
+        env_list = 3.{-13}, lint
+
+This expands down from the oldest supported CPython version. Both forms can be mixed with explicit values:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+        env_list = [
+            { prefix = "3.", start = 10 },
+            "3.8",
+            "lint",
+        ]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [tox]
+        env_list = 3.{10-, 8}, lint
+
+See :ref:`generative-environment-list` for the full range syntax reference.
+
+.. ------------------------------------------------------------------------------------------
+
+.. _eol-version-support:
+
+**********************************
+ Test end-of-life Python versions
+**********************************
+
+tox uses :pypi:`virtualenv` under the hood, and newer virtualenv versions drop the ability to create environments for
+older Python interpreters:
+
+- `virtualenv 20.22.0 <https://virtualenv.pypa.io/en/latest/changelog.html#v20-22-0-2023-04-19>`_ dropped Python 3.6 and
+  earlier
+- `virtualenv 21.5.0 <https://virtualenv.pypa.io/en/latest/changelog.html#v21-5-0-2026-06-13>`_ dropped Python 3.8 and
+  earlier
+
+You do not need to configure anything for this: tox inspects the :ref:`base_python` of each environment and, when the
+installed virtualenv can no longer create that interpreter, automatically pins a compatible older virtualenv for that
+environment only (see :ref:`virtualenv_spec`). Environments targeting supported Pythons keep using the installed
+virtualenv, so a single ``tox.toml`` can mix end-of-life and current interpreters:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         env_list = ["py38", "py313"]  # py38 transparently bootstraps an older virtualenv, py313 does not
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [tox]
+         env_list = py38, py313
+
+Set :ref:`virtualenv_spec` explicitly only to override the automatically chosen pin. Prefer it over pinning virtualenv
+through the top-level ``requires``: ``requires`` swaps the virtualenv for the whole tox process, which then cannot
+create the newer interpreters, whereas ``virtualenv_spec`` is resolved per environment.
+
+***************************************
+ Use tox with different build backends
+***************************************
+
+tox works with any :PEP:`517`/:PEP:`518` compliant build backend. Configure the backend in ``pyproject.toml``:
+
+**Hatchling** (``hatch``):
+
+.. code-block:: toml
+
+    [build-system]
+    requires = ["hatchling"]
+    build-backend = "hatchling.build"
+
+**Flit**:
+
+.. code-block:: toml
+
+    [build-system]
+    requires = ["flit_core>=3.4"]
+    build-backend = "flit_core.buildapi"
+
+**PDM**:
+
+.. code-block:: toml
+
+    [build-system]
+    requires = ["pdm-backend"]
+    build-backend = "pdm.backend"
+
+tox automatically detects and uses whatever backend is specified in ``[build-system]``. No additional tox configuration
+is needed. For build backends that need extra configuration during the build, use :ref:`config_settings_build_wheel` and
+related options.
+
+.. _howto-reference-built-package:
+
+**********************************************
+ Reference the built package path in commands
+**********************************************
+
+When tox builds an sdist or wheel for your project it stores the path in the ``TOX_PACKAGE`` environment variable (see
+:ref:`injected-environment-variables`). Reference it in ``commands`` (or any other config value) to run post-build
+checks such as ``twine check``, ``check-wheel-contents``, or ``pkginfo`` against the exact artifact that was just built
+and installed.
+
+.. tab:: TOML
+
+    Use the explicit environment variable reference (see :ref:`pyproject-toml-native`):
+
+    .. code-block:: toml
+
+        [env.check]
+        description = "check the built package"
+        deps = ["twine"]
+        commands = [["twine", "check", { replace = "env", name = "TOX_PACKAGE" }]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+        [testenv:check]
+        description = check the built package
+        deps = twine
+        commands = twine check {env:TOX_PACKAGE}
+
+``TOX_PACKAGE`` is only set in run environments where a package has been built. If there are multiple artifacts (for
+example both an sdist and a wheel), the paths are joined with ``os.pathsep``.
+
+.. tip::
+
+    If you need a glob-based approach instead (e.g. matching files produced outside of tox), use the ``{glob:PATTERN}``
+    substitution — see :ref:`substitution-reference`.
+
+.. _migrate-ini-to-toml:
+
+**********************************
+ Migrate from tox.ini to tox.toml
+**********************************
+
+The INI format is deprecated -- migrate existing projects to TOML. Here is how common INI patterns translate to TOML:
+
+**Basic structure**:
+
+.. tab:: TOML
+
+    .. code-block:: toml
+
+         # tox.toml - values at root level are core settings
+         requires = ["tox>=4.20"]
+         env_list = ["3.13", "3.12", "lint"]
+
+         # base settings for run environments
+         [env_run_base]
+         deps = ["pytest>=8"]
+         commands = [["pytest", "tests"]]
+
+         # environment-specific overrides
+         [env.lint]
+         skip_install = true
+         deps = ["ruff"]
+         commands = [["ruff", "check", "."]]
+
+.. tab:: INI (deprecated)
+
+    .. code-block:: ini
+
+         [tox]
+         requires = tox>=4.20
+         env_list = 3.13, 3.12, lint
+
+         [testenv]
+         deps = pytest>=8
+         commands = pytest tests
+
+         [testenv:lint]
+         skip_install = true
+         deps = ruff
+         commands = ruff check .
+
+**Key differences**:
+
+- Strings must be quoted in TOML: ``description = "run tests"`` vs ``description = run tests``
+- Lists use JSON syntax: ``deps = ["pytest", "ruff"]`` vs multi-line ``deps = \n pytest \n ruff``
+- Commands are list-of-lists: ``commands = [["pytest", "tests"]]`` vs ``commands = pytest tests``
+- Positional arguments use replacement objects: ``{ replace = "posargs", default = ["tests"] }`` vs ``{posargs:tests}``
+- Environment variables in ``set_env`` use ``{ replace = "env", name = "VAR" }`` vs ``{env:VAR}``
+- Section references use ``{ replace = "ref", ... }`` vs ``{[section]key}``
+- Factor conditions use ``{ replace = "if", condition = "factor.NAME", ... }`` vs ``NAME:``
+- Generative environment lists use structured dicts (bare ``{ prefix, start, stop }`` for a single axis, ``{ product =
+  [...] }`` for matrices) vs ``{a,b}-{c,d}`` brace expansion
+
+*************************************
+ Format your tox configuration files
+*************************************
+
+Consistent formatting makes configuration files easier to read and review. The tox-dev organization maintains
+opinionated formatters for both TOML and INI configurations, available as pre-commit hooks or standalone CLI tools.
+
+.. tab:: TOML
+
+    Use :pypi:`tox-toml-fmt` for ``tox.toml`` or TOML-based configuration in ``pyproject.toml``. It standardizes
+    quoting, array formatting, and table organization:
+
+    .. code-block:: yaml
+
+        # .pre-commit-config.yaml
+        - repo: https://github.com/tox-dev/toml-fmt
+          rev: "1.6.0"
+          hooks:
+            - id: tox-toml-fmt
+
+    Also available as a standalone command via ``pipx install tox-toml-fmt``.
+
+.. tab:: INI (deprecated)
+
+    Use :pypi:`tox-ini-fmt` for ``tox.ini`` files. It normalizes boolean fields, orders sections consistently, and
+    formats multi-line values with uniform indentation:
+
+    .. code-block:: yaml
+
+        # .pre-commit-config.yaml
+        - repo: https://github.com/tox-dev/tox-ini-fmt
+          rev: "1.7.1"
+          hooks:
+            - id: tox-ini-fmt
+
+    Also available as a standalone command via ``pipx install tox-ini-fmt``.

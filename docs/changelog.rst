@@ -1,0 +1,3361 @@
+#################
+ Release History
+#################
+
+.. towncrier-draft-entries::
+
+.. towncrier release notes start
+
+**********************
+ v4.62.0 (2026-09-19)
+**********************
+
+Features - 4.62.0
+=================
+
+- Plugins can read a configuration value that may be unset through ``ConfigSet.get_optional``, which verifies the value
+  against its declared type and returns ``None`` when it is not set - by :user:`gaborbernat`. (:issue:`4075`)
+
+Bug fixes - 4.62.0
+==================
+
+- Setting ``TOX_FACTOR_<label>`` to an empty value now resolves ``{factor:<label>}`` to an empty string instead of being
+  ignored - by :user:`gaborbernat`. (:issue:`4073`)
+
+Contributor-facing changes - 4.62.0
+===================================
+
+- Contributors running the type checks get a clean pass again with the latest ``ty`` release, and the checks now cover
+  more: configuration values are read through the type-verified accessors instead of as ``Any``, and every method that
+  overrides a parent is marked with ``@override`` - by :user:`gaborbernat`. (:issue:`4075`)
+
+**********************
+ v4.61.5 (2026-09-17)
+**********************
+
+Bug fixes - 4.61.5
+==================
+
+- An empty ``set_env`` list in TOML no longer fails to load; like an empty table, it clears inherited variables - by
+  :user:`yuefdev`. (:issue:`4065`)
+- A TOML factor range now rejects ``true`` or ``false`` as ``start`` or ``stop`` instead of reading them as ``1`` and
+  ``0`` - by :user:`yuefdev`. (:issue:`4066`)
+- Preserve an explicitly empty ``{factor:label:}`` fallback instead of using the declared factor group default.
+  (:issue:`4072`)
+
+Improved documentation - 4.61.5
+===============================
+
+- ``Loader.build`` documented a ``future`` parameter it no longer takes and left ``factory`` undocumented, so the plugin
+  API reference listed a parameter that does not exist - by :user:`hxperl`. (:issue:`4070`)
+
+Contributor-facing changes - 4.61.5
+===================================
+
+- Restore ``COVERAGE_PROCESS_START`` in the test environments; a mangled key had left it unset since the move to
+  ``tox.toml`` - by :user:`yuefdev`. (:issue:`4067`)
+
+**********************
+ v4.61.4 (2026-09-09)
+**********************
+
+Bug fixes - 4.61.4
+==================
+
+- Shebang parsing now uses ``shlex``, so a quoted interpreter path that contains spaces is kept as one argument when
+  ``TOX_LIMITED_SHEBANG`` rewrites the invocation - by :user:`r3wretrhy`. (:issue:`4064`)
+
+**********************
+ v4.61.3 (2026-09-08)
+**********************
+
+Bug fixes - 4.61.3
+==================
+
+- A ``set_env`` environment file (``file|.env``) is now read as UTF-8 instead of the platform's locale encoding, so
+  non-ASCII values no longer arrive mangled on Windows - by :user:`MohammedAlkindi`. (:issue:`4059`)
+- Preserve UNC and extended-length paths in Windows commands, including quoted paths - by :user:`MohammedAlkindi`.
+  (:issue:`4060`)
+- Normalize project and extra names in dependency-group self-references - by :user:`MohammedAlkindi`. (:issue:`4061`)
+- Register factor labels and defaults for bare labeled dicts in ``env_list`` - by :user:`dylanpulver`. (:issue:`4062`)
+
+**********************
+ v4.61.2 (2026-08-31)
+**********************
+
+Bug fixes - 4.61.2
+==================
+
+- tox now expands a generative digit range only where a factor starts, so an environment such as ``py313-django4-2``
+  keeps its name rather than becoming ``py313-django4``, ``3`` and ``2`` - by :user:`MohammedAlkindi`. (:issue:`4053`)
+
+Improved documentation - 4.61.2
+===============================
+
+- Document how factors work in one place, covering what a factor is, the characters tox accepts in one, the platform and
+  architecture factors that apply to conditions without appearing in a name, and how selecting by factor differs from
+  selecting by name - by :user:`gaborbernat`. (:issue:`4055`)
+- Give a reference entry to the configuration keys that had none. ``interrupt_post_commands`` runs ``commands_post``
+  after an interrupt, and ``config_file_path``, ``host_python``, ``home`` and ``tox_root_name`` are constants a
+  configuration can substitute - by :user:`gaborbernat`. (:issue:`4056`)
+
+Contributor-facing changes - 4.61.2
+===================================
+
+- Declare license metadata per PEP 639, adding ``license-files`` and dropping the license classifier in
+  ``pyproject.toml`` - by :user:`mwtoews`. (:issue:`4052`)
+
+**********************
+ v4.61.1 (2026-08-28)
+**********************
+
+Bug fixes - 4.61.1
+==================
+
+- Publish a JSON Schema that compiles under SchemaStore's validator again, so editors pick up the configuration keys
+  added since 4.56 - by :user:`gaborbernat`. (:issue:`4051`)
+
+Contributor-facing changes - 4.61.1
+===================================
+
+- Check tox's JSON Schema with SchemaStore's own validator on every pull request that changes it, and again before the
+  release sync opens a pull request there - by :user:`gaborbernat`. (:issue:`4051`)
+
+**********************
+ v4.61.0 (2026-08-28)
+**********************
+
+Features - 4.61.0
+=================
+
+- A labeled factor group can now declare a ``default`` for ``{factor:label}`` to fall back on when no factor of that
+  group is active in the environment name. Setting ``TOX_FACTOR_<label>`` resolves that label to a given value for a
+  single run - by :user:`gaborbernat`. (:issue:`4045`)
+- A factor range now takes a label when you nest it under one, as in ``factors = [{ py_version = { prefix = "3.", start
+  = 12, stop = 14 } }]``, which makes ``{factor:py_version}`` available for ranges - by :user:`gaborbernat`.
+  (:issue:`4046`)
+
+Bug fixes - 4.61.0
+==================
+
+- Values passed via ``--override``/``-x`` or ``TOX_OVERRIDE`` now resolve substitutions such as ``{posargs}``,
+  ``{env:VAR}`` and ``{env_name}``, instead of reaching the environment as literal text - by :user:`gaborbernat`.
+  (:issue:`4047`)
+
+Improved documentation - 4.61.0
+===============================
+
+- Point the virtualenv discovery link in the explanation documentation at its current location. (:issue:`4042`)
+
+Contributor-facing changes - 4.61.0
+===================================
+
+- Replace the deprecated ``load_module`` call in the documentation configuration, which Python 3.15 removes - by
+  :user:`gaborbernat`. (:issue:`4043`)
+
+**********************
+ v4.60.1 (2026-08-25)
+**********************
+
+Bug fixes - 4.60.1
+==================
+
+- Report a malformed ``tox.ini`` or ``setup.cfg`` as a handled error during config discovery instead of raising an
+  unhandled :class:`configparser.Error` traceback - by :user:`VXNCXNX` (:issue:`4027`)
+- Report an invalid value in the ini ``[tox]`` core section (such as ``min_version``, ``requires`` or ``env_list``) as a
+  handled error instead of an unhandled traceback, matching the existing TOML loader behavior - by :user:`VXNCXNX`
+  (:issue:`4028`)
+- Report an invalid ``--skip-env``/``TOX_SKIP_ENV`` regular expression as a handled error instead of raising an
+  unhandled ``re.error`` traceback - by :user:`VXNCXNX` (:issue:`4029`)
+- Keep ``;`` inside values read from a ``set_env`` environment file (``file|.env``). Environment file lines are plain
+  ``KEY=VALUE`` pairs and were incorrectly parsed with the PEP-508 marker splitter, which truncated values such as
+  ``DATABASE_URL=postgresql://host/db?opt=1;sslmode=require`` at the first semicolon - by :user:`VXNCXNX`
+  (:issue:`4030`)
+- Report a handled configuration error instead of leaking a traceback when the selected configuration file exists but
+  cannot be read - by :user:`SirHegel`. (:issue:`4031`)
+- Report an empty ``install_command`` or ``list_dependencies_command`` in a TOML configuration as a handled error
+  instead of an unhandled traceback - by :user:`dylanpulver` (:issue:`4041`)
+
+Contributor-facing changes - 4.60.1
+===================================
+
+- Pre-seed the setuptools wheel image alongside pip before the test session and give integration tests a 240s budget on
+  Windows, so pytest-timeout no longer kills Windows CI workers - by :user:`gaborbernat`. (:issue:`4026`)
+
+**********************
+ v4.60.0 (2026-08-13)
+**********************
+
+Features - 4.60.0
+=================
+
+- Add ``{home}`` and ``{tox_root_name}`` substitutions; set :ref:`work_dir` to e.g.
+  ``"{home}/.local/state/tox/{tox_root_name}"`` to keep environments outside of the project tree - by
+  :user:`WhyNotHugo`. (:issue:`4020`)
+
+Bug fixes - 4.60.0
+==================
+
+- Provision the requested tox version before reading ``env_list``, allowing configuration syntax introduced by that
+  version - by :user:`CAOShurong` (:issue:`4021`)
+
+Improved documentation - 4.60.0
+===============================
+
+- Fix nine source-code links in the onboarding guide that pointed at paths which no longer exist, and correct the class
+  names of the TOML configuration sources and loaders they refer to - by :user:`Yusuf-Gadelrab`. (:issue:`4024`)
+
+**********************
+ v4.59.0 (2026-08-10)
+**********************
+
+Features - 4.59.0
+=================
+
+- The plugin and internal APIs now declare their types, and the code base passes ``mypy --strict`` and ``pyrefly`` next
+  to ``ty`` - by :user:`gaborjbernat`.
+
+  - :meth:`ConfigSet.get <tox.config.sets.ConfigSet.get>` returns a configuration value after checking it against its
+    declared type, so plugins can drop ``cast`` around ``conf["key"]`` reads.
+  - The :func:`tox_on_install <tox.plugin.spec.tox_on_install>` hook and :class:`Installer
+    <tox.tox_env.installer.Installer>` type their ``arguments`` as :data:`InstallArguments
+    <tox.tox_env.installer.InstallArguments>`; installer subclasses may narrow it through the new second type parameter.
+  - :class:`Parsed <tox.config.cli.parser.Parsed>` declares the CLI option surface, so ``options.<name>`` reads
+    type-check.
+  - :meth:`ConfigSet.add_config <tox.config.sets.ConfigSet.add_config>` accepts ``default=None`` for optional values and
+    infers the value type from callable defaults.
+  - The journal, the environment cache, and execute metadata hold ``JsonValue`` content; structured ``set_env`` entries
+    match the ``SetEnvEntry`` shape. (:issue:`4014`)
+
+Improved documentation - 4.59.0
+===============================
+
+- Mark the INI configuration format as deprecated throughout the documentation - by :user:`gaborbernat`.
+
+  - The tutorial, the configuration reference, and the migration how-to state that INI keeps working for existing
+    projects but is frozen and receives no new features.
+  - Every INI example tab, the configuration discovery diagram, and the man page carry a deprecation marker.
+  - The tutorial no longer suggests generating a ``tox.ini`` via ``tox quickstart``. (:issue:`4017`)
+
+Contributor-facing changes - 4.59.0
+===================================
+
+- Remove the ``misc`` changelog category, and align the changelog filename check with the categories towncrier accepts -
+  by :user:`gaborbernat`. (:issue:`4012`)
+
+**********************
+ v4.58.0 (2026-07-21)
+**********************
+
+Miscellaneous internal changes - 4.58.0
+=======================================
+
+- Test against Python 3.15 (beta) in CI and declare its classifier - by :user:`gaborbernat`. (:issue:`4001`)
+
+**********************
+ v4.57.2 (2026-07-21)
+**********************
+
+Bug fixes - 4.57.2
+==================
+
+- Fix package environment creation failures being misreported:
+
+  - discard the partially registered configuration on failure, so the real error surfaces instead of a spurious
+    ``duplicate configuration definition``;
+  - report the first creation failure in definition order, not a hash-random one;
+  - build the PEP 517 frontend lazily, so ``tox c`` and ``tox l`` work when ``pyproject.toml`` cannot be read.
+    (:issue:`3987`)
+
+- Fix state corruption in the environment creation machinery:
+
+  - a failed run environment build no longer removes shared package environments other run environments still use;
+  - a run environment registers with its package environment once, not twice with triple-counted usage;
+  - circular ``depends`` reports the cycle as an error instead of a raw traceback;
+  - ``Skip`` raised by a plugin for a package environment marks the run environment package-skipped instead of crashing
+    with ``UnboundLocalError``. (:issue:`3991`)
+
+- Fix two packaging regressions:
+
+  - ``package = editable`` on a build backend without PEP-660 support now falls back to ``editable-legacy`` with a
+    warning instead of crashing, also when the project metadata is static;
+  - editable and wheel environments running after an ``sdist-wheel`` environment build from the project sources again,
+    instead of a stale temporary copy that made source edits invisible. (:issue:`3992`)
+
+- An environment serving as both a run environment and a package environment now behaves predictably:
+
+  - one defined through a ``[testenv:...]``-style section and referenced by ``package_env`` inherits from
+    ``pkgenv``/``env_pkg_base`` as documented, instead of silently keeping run environment defaults;
+  - one listed in ``env_list`` while referenced as a package environment is reported as a configuration conflict up
+    front, instead of failing late with ``cannot run packaging environment`` or silently disappearing from ``tox l``.
+    (:issue:`3993`)
+
+- ``pylock.toml`` installs now match the lock file:
+
+  - a package locked once per Python range installs only the version matching the environment's interpreter;
+  - packages locked to a local directory, VCS repository, or archive install from that source instead of resolving the
+    name against the package index;
+  - locked hashes are verified when every entry carries one;
+  - changing a pip environment variable such as ``PIP_INDEX_URL`` reinstalls, as it already did for ``deps``.
+    (:issue:`3994`)
+
+- Re-running tox no longer rebuilds an environment at random when ``deps`` uses ``--no-binary`` or ``--only-binary``
+  with more than one package name. (:issue:`3995`)
+- A corrupted environment status file (``.tox-info.json``) now always triggers an environment recreation instead of
+  crashing tox with an internal error for some corruption shapes. (:issue:`3996`)
+- PEP 723 scripts saved with a UTF-8 byte order mark now have their inline metadata honored (previously
+  ``requires-python`` and ``dependencies`` were silently ignored), and a script with invalid metadata reports a clear
+  configuration error instead of an internal one. (:issue:`3997`)
+- Fix three command line defects:
+
+  - ``tox c -o FILE`` writes the default (ini) format to the file like the json and toml formats, without color codes;
+  - ``tox devenv -e ALL`` reports that exactly one environment is required instead of crashing;
+  - ``--no-provision FILE`` records the pinned version for a ``tox==X`` requirement instead of an empty string.
+    (:issue:`3998`)
+
+- Restore the documented fail-fast contract and make cleanup resilient:
+
+  - ``--fail-fast`` in parallel mode lets already running environments finish and report their real outcomes, instead of
+    interrupting them after a second and mislabeling them as skipped;
+  - environments canceled by fail fast before starting report as skipped;
+  - the overall exit code under fail fast is the first failed environment's exit code, as documented;
+  - one environment failing to clean up no longer prevents the remaining environments from cleaning up (which could
+    leave tox hanging on exit). (:issue:`3999`)
+
+- Polish four behaviors around the edges of a run:
+
+  - an empty ``[tool.tox]`` stub in ``pyproject.toml`` no longer hides a ``tox.toml`` next to it;
+  - setting ``CI=false`` (or empty) is respected as opting out of CI behavior;
+  - spinner animation frames stay out of redirected output, which now holds plain text only;
+  - the JSON report marks skipped environments with ``"skipped": true`` so they are distinguishable from passes.
+    (:issue:`4000`)
+
+**********************
+ v4.57.1 (2026-07-20)
+**********************
+
+Bug fixes - 4.57.1
+==================
+
+- Stop a lone quote in a ``set_env`` value (e.g. an apostrophe in ``can't``) from swallowing the ``;`` platform marker,
+  which silently set the variable unconditionally with the marker text left in the value - by :user:`chuenchen309`.
+  (:issue:`3988`)
+- Make ``tox run-parallel -p 0`` turn parallelism off and run sequentially, as the ``-p`` help ("zero is turn off") and
+  the legacy command already promise, instead of running at the CPU count - by :user:`chuenchen309`. (:issue:`3989`)
+
+**********************
+ v4.57.0 (2026-07-17)
+**********************
+
+Features - 4.57.0
+=================
+
+- Support debug (``Py_DEBUG``) interpreters the way free-threaded builds are already handled. The ``py313d`` and
+  ``py313td`` factors select a debug build, a ``base_python`` pointing at one matches those factors and conflicts with
+  factors that lack the suffix, and a debug build gets its own ``d``-tagged wheel build environment - by
+  :user:`chuenchen309`. (:issue:`3986`)
+
+Bug fixes - 4.57.0
+==================
+
+- Keep the free-threaded ``t`` suffix when deriving the base python spec from a path, so a ``base_python`` pointing at a
+  free-threaded interpreter matches ``py313t`` factors and conflicts with factors that lack the suffix - by
+  :user:`chuenchen309`. (:issue:`3986`)
+
+**********************
+ v4.56.4 (2026-07-08)
+**********************
+
+Bug fixes - 4.56.4
+==================
+
+- Discover debug (``Py_DEBUG``) interpreters set as ``base_python``, such as Debian's ``python3.13-dbg`` - the spec was
+  misread as a machine named ``dbg`` and no interpreter matched. Requires ``python-discovery>=1.4.4`` - by
+  :user:`gaborbernat`. (:issue:`3977`)
+
+**********************
+ v4.56.3 (2026-07-08)
+**********************
+
+Bug fixes - 4.56.3
+==================
+
+- Stop double-closing the child pty file descriptor when running under a tty, which could race a parallel run that had
+  reused the freed descriptor number and cause intermittent ``Bad file descriptor``/``Input/output error`` failures - by
+  :user:`apoorvdarshan`. (:issue:`3975`)
+
+**********************
+ v4.56.2 (2026-07-07)
+**********************
+
+Bug fixes - 4.56.2
+==================
+
+- Fix a batch of latent defects found in a codebase audit:
+
+  - stop duplicating ``--extra-index-url`` when a merged requirements line repeats an already-seen index;
+  - render ``--no-binary``/``--only-binary`` as comma-joined strings instead of leaking the internal ``set`` into the
+    pip command line;
+  - report a clear error instead of ``IndexError`` for a bare one-argument flag (``-c``, ``-r``, ``-f``, ``-e``) in
+    ``deps`` or constraints;
+  - canonicalize ``optional-dependencies`` keys and self-referential (recursive) extra names so non-canonical spellings
+    no longer silently drop dependencies;
+  - raise a clear error instead of ``KeyError`` when ``dependency_groups`` is requested without a
+    ``[dependency-groups]`` table;
+  - stop a native TOML ``{ replace = "env" }`` reference from leaking its resolution chain into sibling list entries and
+    tripping a spurious ``circular chain`` error;
+  - expand the range that actually matched in a factor expression rather than the first identical digit-range substring;
+  - strip the backslash from an escaped ``\;`` in ``set_env`` values;
+  - skip option values during command auto-detection so an environment named like a subcommand (e.g. ``tox -e list``) is
+    no longer misread;
+  - treat an empty list-typed environment variable (e.g. ``TOX_DISCOVER=``) as an empty list rather than ``[""]``;
+  - report an environment whose name is an empty string as present in ``Config`` membership tests;
+  - fail evaluation gracefully instead of crashing the driver thread when ``tox p -p all`` is run with an empty
+    selection;
+  - avoid rebuilding a throwaway PEP 517 frontend against the previous root when a package environment's ``root`` is
+    reassigned before a frontend exists;
+  - avoid crashing ``create_session_view`` when the package and its session copy share no common path (e.g. different
+    Windows drives);
+  - close the pseudo-terminal file descriptors that leaked on every command run under a tty and on the
+    terminal-attribute inheritance error path;
+  - honor the stop signal in the Windows overlapped-I/O reader while a read is still pending, so shutdown no longer
+    risks hanging on a child that holds its pipe open without producing output. (:issue:`3974`)
+
+**********************
+ v4.56.1 (2026-06-25)
+**********************
+
+Bug fixes - 4.56.1
+==================
+
+- Fix ``{ replace = "if" ... extend = true }`` corrupting the resulting list when ``then`` or ``else`` is a scalar
+  string (e.g. ``then = "-v"``): a non-empty scalar string is now appended as a single element instead of being iterated
+  character-by-character, while a false ``if`` with no ``else`` (yielding ``""``) contributes nothing rather than an
+  empty element, and list/set results are still spread into the parent. (:issue:`3969`)
+
+**********************
+ v4.56.0 (2026-06-23)
+**********************
+
+Features - 4.56.0
+=================
+
+- Derive :ref:`virtualenv_spec` automatically: when an environment targets a Python version the installed
+  :pypi:`virtualenv` can no longer create (e.g. ``py38`` with virtualenv ``21.5+``), tox now pins the newest virtualenv
+  that still supports it and bootstraps it for that environment only. The downgrade happens only when every
+  ``base_python`` candidate is unsupported, so environments targeting current interpreters are unaffected. This fixes
+  ``py38`` (and other end-of-life interpreters) being silently skipped after a virtualenv upgrade - by
+  :user:`gaborbernat`. (:issue:`3965`) (:issue:`3965`)
+
+Bug fixes - 4.56.0
+==================
+
+- The default value of ``skip_missing_interpreters`` changed from ``True`` to ``False`` — missing interpreters now fail
+  the run by default, matching tox 3 behavior. The tox 4 rewrite unintentionally changed this default. To restore the
+  previous (incorrect) behavior, set ``skip_missing_interpreters = true`` in your tox configuration or pass
+  ``--skip-missing-interpreters`` on the command line. (:issue:`3965`)
+
+Improved documentation - 4.56.0
+===============================
+
+- Fix nested list items being rendered with continued numbering instead of as sub-items in ``development.rst``,
+  ``onboarding.rst`` and ``explanation.rst``. (:issue:`3960`)
+- Replace stale ``http://tox.readthedocs.org`` URL with ``https://tox.wiki`` in ``pyproject.toml`` (``Homepage``),
+  ``.github/CONTRIBUTING.md``, and ``.github/PULL_REQUEST_TEMPLATE.md``. (:issue:`3963`)
+
+**********************
+ v4.55.1 (2026-06-03)
+**********************
+
+Bug fixes - 4.55.1
+==================
+
+- ``TOX_OVERRIDE`` (and ``-x``/``--override``) now propagates through configuration references. Previously, overriding a
+  base value that was later referenced via ``{[section]key}`` (ini) or ``{replace = "ref", of = [...]}`` (toml) was
+  ignored because reference resolution read the raw file value, bypassing the override system - by
+  :user:`tales-aparecida`. (:issue:`3950`) (:issue:`3950`)
+
+**********************
+ v4.55.0 (2026-05-28)
+**********************
+
+Features - 4.55.0
+=================
+
+- Automatically pass the TERMINFO environment variable to tox subprocesses if the output is a TTY. This variable is used
+  by Ghostty to communicate terminal capabilities to programs. (:issue:`3946`)
+
+Bug fixes - 4.55.0
+==================
+
+- When the ``constraints`` configuration option is set, ``constrain_package_deps`` and ``use_frozen_constraints`` are
+  now ignored. Previously, both the user-provided constraints file and the auto-generated constraints file were passed
+  to pip during ``install_package_deps``, which could cause resolver conflicts when the same package appeared in both
+  files - by :user:`gaborbernat`. (:issue:`3945`) (:issue:`3945`)
+
+**********************
+ v4.54.0 (2026-05-12)
+**********************
+
+Features - 4.54.0
+=================
+
+- Declare the runtime dependencies of the ``tox.pytest`` plugin (``pytest``, ``devpi-process`` and ``pytest-mock``)
+  under a new ``testing`` extra, so plugin authors can pull them in via ``tox[testing]`` - by :user:`gaborbernat`.
+  (:issue:`3938`, :issue:`3940`)
+
+Bug fixes - 4.54.0
+==================
+
+- Extend the generated TOML schema to cover every ``replace`` table form (``env``, ``ref``, ``posargs``, ``glob``,
+  ``if``), including conditional replacements used inside ``commands``. A guard test asserts the schema stays in sync
+  with the loader implementation so future replace types cannot be added without a corresponding schema entry.
+  (:issue:`3939`)
+
+**********************
+ v4.53.1 (2026-05-02)
+**********************
+
+Bug fixes - 4.53.1
+==================
+
+- Hardening pass on user-facing logging and config parsing:
+
+  - Mask secret-looking ``--key=value`` flag values in command logs (terminal warnings, ``.tox/<env>/log/*.log``, and
+    ``Outcome`` ``__repr__``) using the same keyword regex previously applied to environment variable values.
+  - Resolve PEP 723 ``script`` paths and reject any that escape ``tox_root``; cap the script read at 5 MiB so a symlink
+    to ``/dev/zero`` cannot exhaust memory.
+  - Replace ``eval()`` of a constructed ``Literal[...]`` string in the CLI parser with a direct
+    ``Literal[tuple(action.choices)]`` subscript.
+  - Pass ``timeout=30`` to ``urlopen`` when fetching a remote requirements file so a slow or unresponsive mirror cannot
+    hang ``tox`` indefinitely. (:issue:`3924`)
+
+- Allow the generated TOML schema to validate array values for ``deps``. (:issue:`3929`)
+- Correct type annotations for ``ArgumentParser.parse_args`` and ``parse_known_args`` overrides following `typeshed PR
+  #15613 <https://github.com/python/typeshed/pull/15613>`_, which widened the ``args`` parameter from ``Sequence[str]``
+  to ``Iterable[str]``. The narrower type in tox's overrides violated the Liskov substitution principle and caused
+  ``invalid-method-override`` errors with ``ty`` 0.0.33. Also correct the ``option_spec`` annotation in
+  ``docs/tox_conf.py`` to ``ClassVar[dict[str, Callable[[str], Any]]]`` matching the docutils stubs type.
+  (:issue:`3932`)
+
+**********************
+ v4.53.0 (2026-04-14)
+**********************
+
+Features - 4.53.0
+=================
+
+- TOML ``env_list`` now accepts bare range dicts (``{ prefix = "3.", start = 12, stop = 14 }``) and bare labeled dicts
+  (``{ ecosystem = ["oci", "python"] }``) as top-level items, removing the ``{ product = [...] }`` wrapper when there is
+  only a single factor group - by :user:`gaborbernat`. (:issue:`3923`)
+
+Bug fixes - 4.53.0
+==================
+
+- Nesting a range or labeled dict inside a ``product`` factor-group list now raises a clear error pointing at the
+  un-nesting fix, instead of silently producing a malformed environment name - by :user:`gaborbernat`. (:issue:`3923`)
+
+**********************
+ v4.52.1 (2026-04-09)
+**********************
+
+Bug fixes - 4.52.1
+==================
+
+- Changing a resolution-affecting environment variable via ``set_env`` (e.g. ``PIP_INDEX_URL``) now invalidates the
+  install cache and triggers a reinstall, rather than incorrectly reusing the cached environment - by
+  :user:`gaborbernat`. (:issue:`3917`)
+- Use ``normalize_isa`` from ``python-discovery`` for architecture factor matching, supporting aliases like ``i686`` →
+  ``x86`` and ``aarch64`` → ``arm64`` - by :user:`rahuldevikar`. (:issue:`3919`)
+
+**********************
+ v4.52.0 (2026-03-30)
+**********************
+
+Features - 4.52.0
+=================
+
+- Add ``virtualenv-pep-723`` runner that reads dependencies and Python version from :PEP:`723` inline script metadata —
+  no need to duplicate them in tox config - by :user:`gaborbernat`. (:issue:`3897`)
+- Support escaped dots (``\.``) in ``-x``/``--override`` keys, allowing overrides to target environments with dots in
+  their names such as ``py3.14`` - by :user:`gaborbernat`. (:issue:`3910`)
+
+Bug fixes - 4.52.0
+==================
+
+- Auto-generate the manpage from the CLI argparse parser at wheel build time, fixing broken section headers and
+  documenting all commands and options - by :user:`gaborbernat`. (:issue:`3878`)
+
+Miscellaneous internal changes - 4.52.0
+=======================================
+
+- Remove unsupported ``--remote`` flag from ``gh repo fork`` in the update-schemastore workflow, as recent versions of
+  ``gh`` no longer accept it - by :user:`rahuldevikar`. (:issue:`3908`)
+
+**********************
+ v4.51.0 (2026-03-27)
+**********************
+
+Features - 4.51.0
+=================
+
+- Add ``base_python_file`` configuration option to read the base Python version from a file (e.g. ``.python-version``),
+  similar to GitHub Actions' ``python-version-file`` - by :user:`rahuldevikar` (:issue:`3894`)
+
+Bug fixes - 4.51.0
+==================
+
+- Prevent implicit machine ISA (e.g. ``arm64``, ``x86_64``) from overriding explicit architecture factors in environment
+  names, fixing cross-architecture conflicts in multiline factor conditionals - by :user:`rahuldevikar`. (:issue:`3903`)
+- Nested environment list configuration values are now properly parsed, validated and expanded by the TOML parser. This
+  allows you to use generative environment lists in ``tox-gh`` via the TOML format. Previously this was only possible
+  with the INI format. - by :user:`Daverball` (:issue:`3905`)
+
+Miscellaneous internal changes - 4.51.0
+=======================================
+
+- Enable ``persist-credentials: true`` in the ``actions/checkout`` step of the prepare-release workflow so that git push
+  operations succeed during automated releases - by :user:`rahuldevikar`. (:issue:`3907`)
+
+**********************
+ v4.50.3 (2026-03-20)
+**********************
+
+Bug fixes - 4.50.3
+==================
+
+- Use separate ``.pkg`` environments for free-threaded Python targets by including the ``t`` suffix in the wheel build
+  environment name (e.g., ``.pkg-cpython314t``), preventing wheel tag mismatches when building for ``py314t`` - by
+  :user:`gaborbernat`. (:issue:`3314`)
+
+**********************
+ v4.50.2 (2026-03-19)
+**********************
+
+Bug fixes - 4.50.2
+==================
+
+- Fix the sdist to include the missing ``docs/man/tox.1.rst`` file for building the manpage (:issue:`3889`)
+
+**********************
+ v4.50.1 (2026-03-19)
+**********************
+
+Bug fixes - 4.50.1
+==================
+
+- Detect and suggest normalized environment names when users specify dotted Python versions (e.g., ``py3.10-lint``) that
+  match existing environments with compact notation (e.g., ``py310-lint``), preventing silent fallback to base
+  ``[testenv]`` configuration - by :user:`gaborbernat`. (:issue:`3877`)
+
+**********************
+ v4.50.0 (2026-03-17)
+**********************
+
+Features - 4.50.0
+=================
+
+- Add ``interrupt_post_commands`` option to run cleanup commands even after SIGINT - by :user:`gaborbernat`.
+  (:issue:`3858`)
+- Add ``factor['NAME']`` and ``env['VAR']`` subscript syntax for conditional expressions, enabling checks of factors
+  with non-identifier names like ``factor['3.14']``. Add ``env_name`` variable to check the full environment name in
+  conditions. (:issue:`3880`)
+
+Bug fixes - 4.50.0
+==================
+
+- Fix multiple manpage issues: remove duplicate header/author/copyright sections, set ``project`` in Sphinx config, and
+  compile the manpage to troff format at wheel-build time instead of shipping raw RST source - by :user:`gaborbernat`.
+  (:issue:`3878`)
+
+Improved documentation - 4.50.0
+===============================
+
+- Document how to reference the built package path in commands via ``TOX_PACKAGE`` - by :user:`rahuldevikar`
+  (:issue:`3862`)
+- Fix broken TOML examples missing ``extend = true`` on conditional replacements inside lists, fix incorrect ``ref of``
+  path in raw reference docs, and add a test that validates all doc config examples - by :user:`gaborbernat`
+  (:issue:`3875`)
+
+**********************
+ v4.49.1 (2026-03-09)
+**********************
+
+Bug fixes - 4.49.1
+==================
+
+- Break deadlock in execution interrupt chain that caused ~18 flaky timeout failures across 9 tests on Windows/macOS CI
+  - by :user:`gaborbernat`. (:issue:`3869`)
+
+**********************
+ v4.49.0 (2026-03-06)
+**********************
+
+Features - 4.49.0
+=================
+
+- Add ``{factor:label}`` substitution for TOML configs -- factor groups in ``product`` matrices and ``env_base`` factors
+  can now be labeled with single-key dicts (e.g., ``{ecosystem = ["oci", "python"]}``), enabling ``{factor:ecosystem}``
+  in any string value (descriptions, commands, etc.) to resolve to the active factor. Plain lists automatically get
+  positional labels (``{factor:0}``, ``{factor:1}``, ...) - by :user:`gaborbernat`. (:issue:`3860`) (:issue:`3860`)
+
+Bug fixes - 4.49.0
+==================
+
+- Fix ``--showconfig`` and ``--help-ini`` legacy flags raising ``AttributeError`` after config format options were added
+  - by :user:`rares985` (:issue:`3866`)
+
+**********************
+ v4.48.1 (2026-03-06)
+**********************
+
+Bug fixes - 4.48.1
+==================
+
+- Command-type configuration values like ``list_dependencies_command`` can now be referenced in TOML using the
+  structured ``{replace = "ref"}`` syntax. The reference automatically extracts the command's argument list for
+  compatibility with TOML's ``list[list[str]]`` structure - by :user:`gaborbernat`. (:issue:`3830`)
+
+Improved documentation - 4.48.1
+===============================
+
+- Replace archived ``31z4/tox`` Docker image recommendation with instructions for building your own image using the
+  official Python base image and ``uv`` - by :user:`rahuldevikar`. (:issue:`3855`)
+
+**********************
+ v4.48.0 (2026-03-05)
+**********************
+
+Features - 4.48.0
+=================
+
+- Add ``--format`` flag (``ini``, ``json``, ``toml``) and ``-o``/``--output-file`` to the ``config`` command for
+  machine-readable output with native types. JSON and TOML use the same key structure as ``tox.toml`` (``env.<name>``
+  for environments, ``tox`` for core) and get syntax-highlighted on stdout - by :user:`gaborbernat`. (:issue:`3854`)
+
+Improved documentation - 4.48.0
+===============================
+
+- Add ``fail_fast`` to the configuration reference documentation - by :user:`rahuldevikar`. (:issue:`578`)
+
+**********************
+ v4.47.3 (2026-03-04)
+**********************
+
+Bug fixes - 4.47.3
+==================
+
+- ``ignore_base_python_conflict`` now also suppresses errors when an environment name contains multiple conflicting
+  version-like factors (e.g., ``unit-py3.10-2.16`` where both ``py3.10`` and ``2.16`` are detected as Python versions).
+  Previously this flag only handled conflicts between explicit ``base_python`` settings and the environment name - by
+  :user:`gaborbernat`. (:issue:`3850`)
+
+**********************
+ v4.47.2 (2026-03-03)
+**********************
+
+Bug fixes - 4.47.2
+==================
+
+- Handle ``OSError`` when checking if positional arguments are existing paths in ``pos_args()`` — long arguments (e.g.,
+  pytest ``-k`` expressions exceeding the 255-character filesystem name limit) no longer crash with ``OSError: [Errno
+  36] File name too long`` - by :user:`yarikoptic`. (:issue:`3847`)
+
+**********************
+ v4.47.1 (2026-03-03)
+**********************
+
+Bug fixes - 4.47.1
+==================
+
+- New-style version factors (e.g., ``3.10-tests``) now correctly set ``base_python`` - by :user:`gaborbernat`.
+  (:issue:`3845`)
+
+**********************
+ v4.47.0 (2026-03-01)
+**********************
+
+Features - 4.47.0
+=================
+
+- Show clean error messages instead of stack traces when TOML configuration contains type mismatches (e.g., ``deps =
+  [1]``), wrapping failures in ``HandledError`` with environment and key context - by :user:`gaborbernat`.
+  (:issue:`3831`)
+- Add comprehensive tests asserting full error messages for every configurable field type when TOML config contains type
+  mismatches - by :user:`gaborbernat`. (:issue:`3840`)
+
+Bug fixes - 4.47.0
+==================
+
+- Fix type errors flagged by ``ty`` for ``virtualenv`` API changes (``system_executable`` nullability and
+  ``cached_py_info.PythonInfo`` removal), and correct the CI workflow matrix exclude for ``windows-2025`` - by
+  :user:`gaborbernat`. (:issue:`3837`)
+- ``base_python`` and ``default_base_python`` now accept a string value in TOML configuration (e.g., ``base_python =
+  "python"`` is coerced to ``["python"]``) instead of raising ``TypeError`` - by :user:`gaborbernat`. (:issue:`3839`)
+- Pass stdin through to commands executed via ``tox exec`` so that piped input (e.g., ``echo "foo" | tox exec -- python
+  -c 'import sys; print(sys.stdin.read())'``) reaches the subprocess instead of being discarded - by
+  :user:`gaborbernat`. (:issue:`3841`)
+
+**********************
+ v4.46.3 (2026-02-25)
+**********************
+
+Bug fixes - 4.46.3
+==================
+
+- Fix SchemaStore update workflow creating PRs with merge conflicts by branching from upstream master - by
+  :user:`gaborbernat`. (:issue:`3828`)
+- Fixed the minimum version of virtualenv, to avoid incompatibility. (:issue:`3829`)
+
+**********************
+ v4.46.2 (2026-02-25)
+**********************
+
+Bug fixes - 4.46.2
+==================
+
+- Fix SchemaStore update workflow authentication and PR creation for fork repositories - by :user:`gaborbernat`.
+  (:issue:`3826`)
+
+**********************
+ v4.46.1 (2026-02-25)
+**********************
+
+Bug fixes - 4.46.1
+==================
+
+- Allow glob patterns (``*``, ``?``) in ``depends`` configuration for ini files - by :user:`gaborbernat`.
+  (:issue:`3822`)
+- Fix false positive schema validation errors with tombi by adding ``additionalProperties: true`` to
+  ``partial-tox.json`` on SchemaStore - by :user:`gaborbernat`. (:issue:`3823`)
+
+**********************
+ v4.46.0 (2026-02-24)
+**********************
+
+Features - 4.46.0
+=================
+
+- Add architecture (ISA) awareness to Python discovery. tox now propagates the ``machine`` field (e.g. ``arm64``,
+  ``x86_64``) from :pypi:`virtualenv`'s interpreter info — derived from :func:`python:sysconfig.get_platform` — through
+  the Python specification, validation, and journal. This allows selecting a Python interpreter by CPU architecture via
+  :ref:`base_python` (e.g. ``cpython3.12-64-arm64``) and ensures tox validates the running interpreter's architecture
+  matches the requested one. Requires ``virtualenv >= 20.39`` - by :user:`rahuldevikar`. (:issue:`3069`)
+- Add ``env_base`` TOML sections for named environment templates that generate multiple environments from factor
+  combinations via Cartesian product -- by :user:`gaborbernat`. (:issue:`3817`)
+
+Bug fixes - 4.46.0
+==================
+
+- Drop ``chardet`` dependency and use BOM detection with locale fallback for requirements file decoding, matching pip's
+  own approach - by :user:`gaborbernat`. (:issue:`3818`)
+- Allow ``--help`` to render even when the configuration file is malformed or missing - by :user:`gaborbernat`.
+  (:issue:`3819`)
+
+**********************
+ v4.45.0 (2026-02-23)
+**********************
+
+Features - 4.45.0
+=================
+
+- Enhance ``tox schema`` command: add ``x-taplo`` metadata for IDE integration, product dict support for ``env_list``,
+  handle ``int`` and ``PythonConstraints`` types, fix ``$schema`` draft-07 URI, and add schema freshness test. Add
+  ``tox.toml`` to SchemaStore catalog for automatic IDE validation - by :user:`gaborbernat`. (:issue:`1388`)
+
+Bug fixes - 4.45.0
+==================
+
+- Add redirects for old documentation URLs that broke after the Diataxis restructure (e.g. ``/config.html`` ->
+  ``/reference/config.html``, ``/example/general.html`` -> ``/index.html``) using ``sphinx-reredirects`` - by
+  :user:`gaborbernat`. (:issue:`3806`)
+- Fix cross-section substitution ``{[section]key}`` resolving to a literal unresolved reference instead of empty string
+  when the referenced value contains only factor-conditional lines and no factors match the requesting environment - by
+  :user:`Fridayai700`. (:issue:`3809`)
+- Fix circular dependency in ``environment_variables`` when ``set_env`` references ``{env_site_packages_dir}`` or
+  similar lazy constants, causing ``RecursionError`` silently caught as "could not find python interpreter" - by
+  :user:`gaborbernat`. (:issue:`3816`)
+
+**********************
+ v4.44.0 (2026-02-20)
+**********************
+
+Features - 4.44.0
+=================
+
+- Support PEP 751 ``pylock.toml`` lock files as dependency input via the ``pylock`` configuration option (mutually
+  exclusive with ``deps``). Packages are filtered by extras, dependency groups, and platform markers evaluated against
+  the target Python interpreter, then installed via pip with ``--no-deps`` - by :user:`gaborbernat`. (:issue:`3665`)
+
+Bug fixes - 4.44.0
+==================
+
+- Fix unfactored continuation lines (e.g. ``pytest \``, ``--remote-data \``) being incorrectly skipped when they follow
+  a filtered factor-conditional line ending with ``\`` -- the ``pending_skip`` flag now only drops terminal continuation
+  pieces, preserving shared arguments that are themselves continuations - by :user:`gaborbernat`. (:issue:`3802`)
+
+**********************
+ v4.43.0 (2026-02-20)
+**********************
+
+Features - 4.43.0
+=================
+
+- Add TOML-native generative ``env_list`` via ``product`` dict syntax -- Cartesian product of factor groups with
+  optional range dicts and exclusions - by :user:`gaborbernat`. (:issue:`3797`)
+
+Bug fixes - 4.43.0
+==================
+
+- Pass ``config_settings_build_wheel`` to pip as ``--config-settings`` when installing sdist packages, ensuring the
+  build backend receives config settings during pip's internal wheel build - by :user:`gaborbernat`. (:issue:`3125`)
+- Fix factor-conditional continuation lines (e.g. ``cov: coverage run \`` / ``!cov: python \`` / ``somefile.py``) where
+  different factor prefixes on consecutive continuation lines caused prefixes to be passed as literal command arguments
+  instead of being filtered - by :user:`gaborbernat`. (:issue:`3796`)
+
+Improved documentation - 4.43.0
+===============================
+
+- Integrate ``sphinxcontrib-towncrier`` to render draft changelog entries directly in Sphinx, replacing the manual
+  towncrier draft script - by :user:`gaborbernat`. (:issue:`3201`)
+
+**********************
+ v4.42.0 (2026-02-20)
+**********************
+
+Features - 4.42.0
+=================
+
+- Platform-dependent commands can now be specified using factor syntax without requiring the platform name in the
+  environment name. The current platform (``sys.platform`` value like ``linux``, ``darwin``, ``win32``) is automatically
+  available as an implicit factor, allowing configurations like ``linux: pytest`` in INI or ``factor.linux`` in TOML
+  conditional expressions to work in any environment. Additionally, TOML configurations can now use ``factor.NAME`` in
+  conditional expressions to filter settings based on environment name factors, achieving feature parity with INI's
+  factor system - by :user:`gaborbernat`. (:issue:`2092`)
+- Add ``{env_site_packages_dir_plat}`` / ``{envsitepackagesdir_plat}`` substitution that returns the platform-specific
+  (platlib) site-packages directory. On some Linux distributions (Fedora, RHEL) this resolves to ``lib64`` instead of
+  ``lib``, which is no longer symlinked since virtualenv 20.x - by :user:`gaborbernat`. (:issue:`2302`)
+- External packaging environments (``package = external``) now only run their build commands once per session, reusing
+  the built package for all test environments that depend on them - by :user:`gaborbernat`. (:issue:`2729`)
+- Add ``default_base_python`` configuration key to specify a fallback Python interpreter when no Python factor or
+  explicit ``base_python`` is defined. This allows projects to pin a default Python version for reproducibility across
+  different machines without conflicting with ``pyXY`` factor-named environments - by :user:`gaborbernat`.
+  (:issue:`2846`)
+- CLI options added by plugins listed in ``requires`` are now accepted during provisioning instead of failing with
+  "unrecognized arguments" - by :user:`gaborbernat`. (:issue:`2935`)
+- Warn about unused configuration keys during ``tox run -v`` - by :user:`gaborbernat`. (:issue:`3188`)
+- Improve towncrier changelog structure with more granular categories: ``breaking``, ``deprecation``, ``feature``,
+  ``bugfix``, ``doc``, ``packaging``, ``contrib``, and ``misc`` - by :user:`gaborbernat`. (:issue:`3200`)
+- Add ``--skip-env-install`` CLI flag to skip dependency and package installation, allowing reuse of existing
+  environments when offline or when installation is unnecessary - by :user:`gaborbernat`. (:issue:`3310`)
+- Add ``recreate_commands`` configuration option to run cleanup commands (e.g. clearing external caches like pre-commit)
+  before the environment directory is removed during recreation (``-r``) - by :user:`gaborbernat`. (:issue:`3423`)
+- Environments with unavailable runners (missing plugins) are now gracefully skipped instead of causing a fatal error,
+  shown with status "NOT AVAILABLE". If such an environment is explicitly requested with ``-e``, a clear error message
+  is shown indicating which runner is missing and that the plugin may not be installed. Unavailable environments in the
+  configuration don't cause the overall run to fail - by :user:`gaborbernat`. (:issue:`3504`)
+- Add open-ended range expansion in generative env lists — ``py3{9-}`` expands up to the latest supported CPython minor
+  version and ``py3{-13}`` expands down to the oldest supported one, both hardcoded at release time per the `Python
+  release cycle <https://devguide.python.org/versions/>`_ - by :user:`gaborbernat`. (:issue:`3583`)
+- Add ``--no-capture`` (``-i``) CLI flag to disable output capture, allowing interactive programs like Python REPL to
+  access the terminal directly. When enabled, subprocess inherits parent console handles instead of pipes, fixing issues
+  where terminal APIs (e.g., querying console dimensions) fail on pipe handles. Mutually exclusive with
+  ``--result-json`` and parallel mode - by :user:`gaborjbernat`. Fixes :issue:`3635`. (:issue:`3635`)
+- Add ``virtualenv_spec`` configuration key that allows pinning a specific virtualenv version per environment (e.g.
+  ``virtualenv_spec = "virtualenv<20.22.0"``). When set, tox bootstraps the specified version in an isolated environment
+  and drives it via subprocess, enabling environments targeting Python versions incompatible with the installed
+  virtualenv - by :user:`gaborbernat`. (:issue:`3656`)
+
+Bug fixes - 4.42.0
+==================
+
+- Suppress ``BrokenPipeError`` during backend teardown when interrupted, preventing traceback spam during
+  KeyboardInterrupt - by :user:`gaborjbernat`. Fixes :issue:`2660`. (:issue:`2660`)
+- Factor-specific multiline commands using backslash continuation (``\``) no longer leak continuation lines into
+  environments that don't match the factor - by :user:`gaborbernat`. (:issue:`2912`)
+- ``--list-dependencies`` output is now printed to stdout during parallel runs. Previously, the dependency list was
+  captured in suspended output buffers and only shown on failure - by :user:`gaborbernat`. (:issue:`3322`)
+- Compound factor conditionals (e.g., ``np-cov: coverage``) now correctly allow their individual factors to be used when
+  specifying environments with ``-e``. Previously, running ``tox -e py310-np-cov`` with a factor conditional ``np-cov:
+  coverage`` in the config would fail with "provided environments not found" because the individual factor ``cov`` was
+  not recognized as combinable - by :user:`gaborbernat`. (:issue:`3780`)
+
+Improved documentation - 4.42.0
+===============================
+
+- Document Debian/Ubuntu ``python3-venv`` limitation in known limitations - by :user:`gaborbernat`. (:issue:`3195`)
+
+**********************
+ v4.41.0 (2026-02-19)
+**********************
+
+Features - 4.41.0
+=================
+
+- Add ``package = "deps-only"`` mode that installs the package's dependencies (including extras) without building or
+  installing the package itself. For projects with static :PEP:`621` metadata, dependencies are read directly from
+  ``pyproject.toml`` without creating a packaging environment - by :user:`gaborbernat`. (:issue:`2301`)
+- Prefer TOML-native configuration (``[tool.tox]``) over ``legacy_tox_ini`` when both are present in ``pyproject.toml``,
+  allowing users to include a ``legacy_tox_ini`` section with ``min_version`` for older tox versions while using native
+  TOML config for newer ones - by :user:`rahuldevikar`. (:issue:`3402`)
+
+Bugfixes - 4.41.0
+=================
+
+- Fix PEP 517 backend crash detection to handle both ``ENOENT`` (missing interpreter) and runtime crashes without
+  hanging, and fix flaky ``test_provision_install_pkg_pep517`` integration test by using a pre-built wheel instead of an
+  sdist to avoid devpi mirror dependency on setuptools - by :user:`gaborjbernat`. (:issue:`3774`)
+
+**********************
+ v4.40.0 (2026-02-19)
+**********************
+
+Features - 4.40.0
+=================
+
+- Add ``{glob:PATTERN}`` substitution to expand file system glob/wildcard patterns in configuration values. Supports
+  default values, recursive ``**`` matching, and both INI string syntax and TOML dict syntax (``{ replace = "glob",
+  pattern = "..." }``) - by :user:`gaborbernat`. (:issue:`1571`)
+- Add ``commands_retry`` configuration option to automatically retry failed commands - by :user:`gaborbernat`.
+  (:issue:`1578`)
+- Automatically create a ``.gitignore`` file containing ``*`` in the tox work directory (typically ``.tox/``) and in
+  environment info directories, so that tox-managed files are not tracked by git - by :user:`rahuldevikar`.
+  (:issue:`2530`)
+- Add conditional value selection via ``replace = "if"`` in TOML configuration. Supports a ``condition`` expression with
+  ``env.VAR`` lookups, ``==``/``!=`` comparisons, and ``and``/``or``/``not`` boolean logic to select between ``then``
+  and ``else`` values - by :user:`gaborbernat`. (:issue:`3650`)
+- Add ``sdist-wheel`` package type that builds a wheel from a source distribution, ensuring the sdist is complete and
+  the package can be correctly built from it — by :user:`rahuldevikar`. (:issue:`3687`)
+
+Bugfixes - 4.40.0
+=================
+
+- Use positive exit code (``1``) instead of ``-1`` when reporting failures across multiple environments. On Windows,
+  ``cmd.exe``'s ``IF ERRORLEVEL 1`` only matches exit codes ``>= 1``, so the previous negative exit code was silently
+  treated as success - by :user:`radevika`. Fixes :issue:`2945`. (:issue:`2945`)
+- When ``set_env`` both inherits via cross-section substitution (e.g., ``{[testenv]set_env}``) and explicitly overrides
+  the same variable, the explicit value was incorrectly replaced by the inherited one because ``load()`` moved the key
+  from the raw dict to the materialized dict before the deferred substitution ran, making the protection check
+  ineffective - by :user:`gaborjbernat`. Fixes :issue:`3773`. (:issue:`3773`)
+
+**********************
+ v4.39.0 (2026-02-18)
+**********************
+
+Features - 4.39.0
+=================
+
+- Create a ``CACHEDIR.TAG`` file in the tox work directory (``.tox``) so that backup and archiving tools (e.g., ``tar
+  --exclude-caches``, Borg, restic) can automatically skip it - by :user:`radevika`. (:issue:`3334`)
+
+Bugfixes - 4.39.0
+=================
+
+- On Windows, ANSI color codes from child processes (like pytest, mypy) are now rendered correctly in terminals by
+  enabling VT100 processing mode for subprocess output streams - by :user:`gaborbernat`. (:issue:`2337`)
+- Concurrent tox processes no longer corrupt the provision environment (``.tox``) -- a file lock now serializes
+  provisioning across processes - by :user:`gaborbernat`. (:issue:`2515`)
+- Config files (``tox.ini``, ``setup.cfg``) with unicode characters are now read correctly on Windows when running tox
+  with ``python -m -I`` (isolation mode) - by :user:`gaborbernat`. (:issue:`2692`)
+- ``set_env`` values explicitly defined in a section now take precedence over values inherited via cross-section
+  substitution (e.g., ``{[testenv]set_env}``) - by :user:`gaborbernat`. (:issue:`2831`)
+- The ``-e`` flag now supports brace expansion (e.g. ``tox -e 'py{38,39}-pytest{6.x,7.x}'``) instead of incorrectly
+  splitting on commas inside braces - by :user:`gaborbernat`. (:issue:`2850`)
+- Posargs containing colons no longer crash tox when an inactive environment uses ``{posargs}`` in path-like
+  configuration values such as ``env_dir`` - by :user:`gaborbernat`. (:issue:`2860`)
+- ``set_env`` values from cross-section substitution (e.g., ``{[testenv]set_env}``) now correctly override default
+  environment variables like ``PYTHONHASHSEED`` - by :user:`gaborbernat`. (:issue:`2872`)
+- ``--force-dep`` now applies to package dependencies from project metadata (e.g. ``setup.cfg`` ``install_requires``,
+  ``pyproject.toml`` ``dependencies``), not just tox config ``deps`` - by :user:`gaborbernat`. (:issue:`2943`)
+- Using ``{posargs}`` in ``change_dir`` no longer causes a ``RecursionError`` - by :user:`gaborbernat`. (:issue:`3062`)
+- Cross-section substitution (e.g. ``{[testenv:a]commands}``) now resolves environment-specific variables like
+  ``{envpython}``, ``{envbindir}``, ``{envtmpdir}``, and ``{envsitepackagesdir}`` in the calling environment's context
+  rather than the referenced environment's context - by :user:`gaborbernat`. (:issue:`3075`)
+- Fix ``ValueError`` crash when using posargs on Windows with ``subst`` drive mappings -- ``os.path.relpath`` fails
+  across drive letters, so fall back to absolute paths when the relative path cannot be computed - by
+  :user:`gaborbernat`. (:issue:`3086`)
+- ``TOX_OVERRIDE`` with ``+=`` (append) now works correctly when the override key name differs from the config file key
+  name (e.g., overriding ``pass_env`` when config uses ``passenv``, or vice versa) - by :user:`gaborbernat`.
+  (:issue:`3127`)
+- Fix spurious environment discovery from non-tox sections in ``setup.cfg`` -- ``packages = find:`` in ``[options]`` was
+  incorrectly interpreted as a tox factor marker, creating a phantom ``find`` environment - by :user:`gaborbernat`.
+  (:issue:`3134`)
+- Requirements in ``requires`` with environment markers that evaluate to false (e.g. ``virtualenv<20.22.0;
+  python_version < "3.8"``) are now correctly skipped during provisioning instead of causing an infinite provisioning
+  loop - by :user:`gaborbernat`. (:issue:`3136`)
+- Running environments with ``recreate = true`` no longer destroys shared package environments (e.g. ``.pkg``), which
+  previously caused ``FileNotFoundError`` when a subsequent environment tried to use the already-built wheel - by
+  :user:`gaborbernat`. (:issue:`3146`)
+- Factor-conditional config values (e.g. ``base_python = py312: python3.12``) now correctly fall back to the default
+  when no factors match the current environment, instead of producing an empty value - by :user:`gaborbernat`.
+  (:issue:`3189`)
+- ``TOX_PARALLEL_NO_SPINNER`` / ``--parallel-no-spinner`` no longer forces parallel mode in the legacy command, fixing
+  output suppression for sequential runs in CI - by :user:`gaborbernat`. (:issue:`3193`)
+- Multiple ``-e`` flags are now additive (``tox r -e a -e b`` runs both ``a`` and ``b``), matching tox 3 behavior - by
+  :user:`gaborbernat`. (:issue:`3199`)
+- Environments like ``functional-py312`` no longer incorrectly match when only ``functional{-py310}`` is defined as a
+  testenv section -- factors from section headers are no longer treated as freely combinable with CLI ``-e`` selections
+  - by :user:`gaborbernat`. (:issue:`3219`)
+- On Windows, a trailing path separator (e.g. from ``{/}``) no longer causes the next command argument to be merged into
+  the path - backslash before whitespace is now treated as a literal path separator rather than a space escape - by
+  :user:`gaborbernat`. (:issue:`3222`)
+- Fix ``{envtmpdir}`` and other env variable substitutions not expanding in external package environment commands - by
+  :user:`gaborbernat`. (:issue:`3238`) (:issue:`3238`)
+- On Windows, colored output is now preserved when running provisioned tox by explicitly passing the ``--colored yes``
+  flag to the provisioned subprocess when the parent has colors enabled - by :user:`gaborbernat`. (:issue:`3331`)
+- ``set_env`` values defined after a ``file|`` reference now correctly take precedence over values loaded from the env
+  file - by :user:`gaborbernat`. (:issue:`3335`)
+- The ``base`` configuration key now works correctly in TOML format (``tox.toml`` and ``pyproject.toml``), allowing
+  environments to inherit from arbitrary sections defined under ``[env.*]`` - by :user:`gaborbernat`. (:issue:`3497`)
+- Skip ``toxfile.py`` inline plugin when it uses hooks not available in the current tox version instead of crashing -
+  this allows provisioning to upgrade tox to a version that supports those hooks - by :user:`gaborbernat`.
+  (:issue:`3593`)
+- ``set_env`` substitution referencing ``{envsitepackagesdir}``, ``{envbindir}``, or ``{envpython}`` for environments
+  with missing interpreters now raises ``Skip`` instead of ``RuntimeError``, allowing ``skip_missing_interpreters`` to
+  work correctly - by :user:`gaborbernat`. (:issue:`3597`)
+- A ``setup.cfg`` without a ``[tox:tox]`` section no longer blocks discovery of ``pyproject.toml`` or ``tox.toml``
+  configuration files in the same directory - by :user:`gaborbernat`. (:issue:`3602`)
+- Fix pytest ``INTERNALERROR`` on Python 3.15 caused by Pygments using deprecated ``os.path.commonprefix()`` - by
+  :user:`gaborbernat`. (:issue:`3733`)
+- Fix ``RecursionError`` when TOML ``set_env`` contains substitutions like ``{env_site_packages_dir}`` that trigger
+  config loading cycles -- the TOML loader now defers string substitution in ``set_env`` values, matching the INI
+  loader's lazy resolution behavior - by :user:`gaborbernat`. (:issue:`3758`)
+
+Documentation - 4.39.0
+======================
+
+- Document that interactive terminal programs (e.g., IPython) may not work correctly under tox due to the PTY-based
+  output capture architecture - by :user:`gaborbernat`. (:issue:`2999`)
+
+**********************
+ v4.38.0 (2026-02-17)
+**********************
+
+Features - 4.38.0
+=================
+
+- Scope dependency rejection in PEP-517 package environments to only pure PEP-517 build types (``sdist``, ``wheel``,
+  ``editable``), allowing non-standard package types like ``editable-legacy`` to specify dependencies - by
+  :user:`rahuldevikar`. (:issue:`3731`)
+
+**********************
+ v4.37.0 (2026-02-17)
+**********************
+
+Features - 4.37.0
+=================
+
+- Add ``extra_setup_commands`` configuration option to run commands after dependency and package installation but before
+  test commands, useful with ``--notest`` for separating setup from execution - by :user:`gaborbernat`. (:issue:`1504`)
+
+Bugfixes - 4.37.0
+=================
+
+- Set ``PIP_USER=0`` environment variable when running pip commands in virtualenvs to prevent pip from attempting
+  ``--user`` installs when users have ``pip config --user`` configured globally — by :user:`gaborbernat`.
+  (:issue:`3010`)
+- Fix TOML env_run_base and env_pkg_base deps being clobbered when referenced with additional deps in testenv
+  configuration (:issue:`3393`)
+- Normalize extra names when resolving dependencies so that underscores and hyphens are treated equivalently (e.g.
+  ``extras = snake_case`` now matches ``Provides-Extra: snake-case`` in wheel metadata) - by :user:`Fridayai700`.
+  (:issue:`3433`)
+- Fix ``setenv`` modifications to ``PATH`` being overwritten when tox environment paths are set up - by
+  :user:`Fridayai700` (:issue:`3445`)
+- Fix ``deps`` entries with ``~=`` version specifier being incorrectly treated as local paths instead of being passed
+  through to pip - by :user:`Fridayai700`. (:issue:`3447`)
+- Fix factor selection via ``TOX_FACTORS`` environment variable producing wrong results because ``append`` +
+  ``nargs="+"`` actions need nested list types for proper env var conversion - by :user:`Fridayai700`. (:issue:`3557`)
+- Fix custom ``install_command`` being ignored when specified in TOML configuration (``tox.toml``/``pyproject.toml``) -
+  by :user:`Fridayai700`. (:issue:`3574`)
+- Fix env names containing dots (e.g. ``py3.11``) losing their description in TOML configuration - by
+  :user:`Fridayai700`. (:issue:`3590`)
+- Run pre-commit on changelog.rst after towncrier build to ensure proper formatting before committing the release
+  (:issue:`3717`)
+- Fix type checker CI failure by adding ``completion`` extras to ``type`` and ``type-min`` environments so ``ty`` can
+  resolve the ``argcomplete`` import - by :user:`gaborbernat`. (:issue:`3728`)
+
+Documentation - 4.37.0
+======================
+
+- Restructured documentation using the Diátaxis framework to separate Tutorial, How-to guides, Reference, and
+  Explanation content for better discoverability and user experience. (:issue:`3718`)
+
+**********************
+ v4.36.1 (2026-02-17)
+**********************
+
+Bugfixes - 4.36.1
+=================
+
+- Report TOML parse errors during config discovery instead of silently ignoring them - by :user:`rahuldevikar`.
+  (:issue:`3030`)
+- Adopt CPython's subprocess stream handling to fix deadlocks and improve performance when reading subprocess output
+  (:issue:`3715`)
+
+Documentation - 4.36.1
+======================
+
+- Add Unix man page generation and installation support using sphinx-argparse-cli - by :user:`gaborbernat`.
+  (:issue:`1409`)
+- Document use of Python :mod:`logging` for plugin authors in the how-to guides, covering verbosity levels, coloring,
+  and best practices — by :user:`rahuldevikar`. (:issue:`3449`)
+- Add architecture documentation for new contributors under the development section - by :user:`rahuldevikar`
+  (:issue:`3707`)
+
+**********************
+ v4.36.0 (2026-02-15)
+**********************
+
+Features - 4.36.0
+=================
+
+- Allow ``skip_missing_interpreters`` to be set per environment, overriding the global setting. This enables marking
+  specific environments as optional while keeping others required. (:issue:`435`)
+- Add ``--fail-fast`` CLI flag and ``fail_fast`` per-environment config option to stop executing remaining environments
+  when the first failure occurs - by :user:`gaborbernat`. (:issue:`578`)
+- Add shell completion support for bash, zsh, and fish via :pypi:`argcomplete` - by :user:`gaborbernat` (:issue:`918`)
+- Validate that configured extras exist in package metadata, raising a clear error for unknown extras - by
+  :user:`gaborbernat` (:issue:`1113`)
+- Add glob pattern support in ``depends`` (e.g. ``depends = py3*``) to match environments by wildcard instead of listing
+  them explicitly - by :user:`gaborbernat` (:issue:`1152`)
+- Add ``disallow_pass_env`` configuration option to exclude specific environment variables after ``pass_env`` glob
+  expansion - by :user:`gaborbernat` (:issue:`1387`)
+- Support ``file:`` URIs in ``--installpkg`` (e.g. ``--installpkg file:///path/to/pkg.whl``), including proper handling
+  of percent-encoded characters - by :user:`rahuldevikar`. (:issue:`3498`)
+
+Bugfixes - 4.36.0
+=================
+
+- Raise an error when ``deps`` is configured on a PEP-517 packaging environment (e.g. ``.pkg``), since build
+  dependencies should be specified via the ``[build-system]`` table in ``pyproject.toml`` - by :user:`rahuldevikar`
+  (:issue:`3412`)
+- Follow `FORCE_COLOR <https://force-color.org/>`_ recommendations: any non-empty value now enables color (previously
+  only ``yes``, ``true``, or ``1`` were accepted, and other values caused a crash). Also add support for
+  ``TTY_COMPATIBLE`` (``1`` forces color, ``0`` disables it) — by :user:`rahuldevikar`. (:issue:`3579`)
+- Return non-zero exit code from tox config when configuration exceptions occur. (:issue:`3649`)
+- Fix flaky spinner test assertion caused by timing variations on slower systems. (:issue:`3692`)
+
+Documentation - 4.36.0
+======================
+
+- Document how to provide environments via ``toxfile.py`` inline plugins using ``tox_extend_envs`` and ``MemoryLoader``
+  - by :user:`gaborbernat`. (:issue:`828`)
+- Document shell completion setup for bash, zsh, and fish in the CLI reference - by :user:`gaborbernat` (:issue:`918`)
+- Document negative factor conditions and multi-factor combinations with negation in the INI configuration reference -
+  by :user:`gaborbernat` (:issue:`3276`)
+- Add a substitution quick reference table covering all available ``{...}`` replacement variables - by
+  :user:`gaborbernat` (:issue:`3326`)
+- Add TOML configuration reference with complete examples for ``tox.toml`` and ``pyproject.toml`` formats, and emphasize
+  TOML as the recommended format throughout - by :user:`gaborbernat` (:issue:`3393`)
+- Document the ``tox exec`` subcommand with usage examples in the how-to guides - by :user:`gaborbernat` (:issue:`3403`)
+- Comprehensive documentation improvements: added how-to guides for tox exec, CI/CD, coverage, build backends, labels,
+  migration, debugging, and extras; expanded plugin documentation with all hook examples and packaging guide; added env
+  var handling guide, factor conditions reference, and substitution quick reference; integrated docstrfmt for consistent
+  RST formatting; fixed docstring issues in source code - by :user:`gaborbernat` (:issue:`3475`)
+- Update ``development.rst`` to reflect current standards: replace references to
+  ``flake8``/``black``/``isort``/``pyupgrade`` with ``ruff``, remove outdated Python 2.7 compatibility note, and fix CI
+  config filename - by :user:`rahuldevikar` (:issue:`3483`)
+- Drop ``setup.py`` mentions from the installation page — by :user:`rahuldevikar`. (:issue:`3588`)
+- Restructure documentation following the `Diataxis <https://diataxis.fr/>`_ framework: add a step-by-step tutorial
+  (``getting_started.rst``), consolidate how-to recipes (``howto.rst``), refocus the user guide on conceptual
+  explanation, and move plugin docs into their own ``plugins/`` subdirectory. Remove the obsolete tox 3-to-4 migration
+  guide (``upgrading.rst``) and FAQ, redistributing still-relevant content into the appropriate sections. All
+  configuration examples now show TOML first with INI alongside - by :user:`gaborbernat` (:issue:`3702`)
+
+Miscellaneous - 4.36.0
+======================
+
+- Switch type checker from ``mypy`` to ``ty`` - by :user:`gaborbernat`. (:issue:`3685`)
+- Add GitHub Actions workflow dispatch for release preparation as alternative to local ``tox r -e release`` command - by
+  :user:`gaborbernat` (:issue:`3704`)
+
+**********************
+ v4.35.0 (2026-02-12)
+**********************
+
+Features - 4.35.0
+=================
+
+- Show ``toxfile.py`` inline plugins in ``tox --version`` output, including any ``tox_append_version_info()`` result -
+  by :user:`rahuldevikar`. (:issue:`3508`)
+
+Improved Documentation - 4.35.0
+===============================
+
+- Document injected environment variables (``TOX_ENV_NAME``, ``TOX_WORK_DIR``, ``TOX_ENV_DIR``, ``TOX_PACKAGE``,
+  ``VIRTUAL_ENV``, ``PYTHONIOENCODING``, ``__TOX_ENVIRONMENT_VARIABLE_ORIGINAL_CI``) that tox automatically sets when
+  running commands - by :user:`rahuldevikar`. (:issue:`3514`)
+
+**********************
+ v4.34.1 (2026-01-09)
+**********************
+
+Bugfixes - 4.34.1
+=================
+
+- Fix wheel corruption errors when the build backend updates the file in place - by :user:`gaborbernat`. (:issue:`3667`)
+
+**********************
+ v4.34.0 (2026-01-08)
+**********************
+
+Features - 4.34.0
+=================
+
+- Support installing extras from the current project in dependency groups. -- by :user:`czaki`. (:issue:`3561`)
+
+**********************
+ v4.33.0 (2026-01-02)
+**********************
+
+Features - 4.33.0
+=================
+
+- Add support for conditional ``set_env`` using PEP-496 environment markers. In INI format use ``VAR=value; marker``
+  syntax, in TOML format use ``set_env.VAR = { value = "...", marker = "..." }`` -- by :user:`gaborbernat`.
+  (:issue:`3663`)
+
+Bugfixes - 4.33.0
+=================
+
+- Added 'LocalAppData' to the default passed environment variables on Windows. (:issue:`3639`)
+
+Improved Documentation - 4.33.0
+===============================
+
+- Sphinx is now set up to use :pypi:`sphinx-issues` for referencing GitHub issues and pull requests in the docs -- by
+  :user:`webknjaz`. (:issue:`3202`)
+
+**********************
+ v4.32.0 (2025-10-24)
+**********************
+
+Bugfixes - 4.32.0
+=================
+
+- Expand braced range syntax in all internal sections of ``tox.ini`` (e.g. ``deps``, ``testenv``). Syntax like
+  py3{10-14} can be used in those sections now. - by :user:`marcosboger` (:issue:`3571`)
+
+Improved Documentation - 4.32.0
+===============================
+
+- Add Python 3.14 and 3.14t to config examples - by :user:`cclauss` (:issue:`3626`)
+
+Misc - 4.32.0
+=============
+
+- :issue:`3629`
+
+**********************
+ v4.31.0 (2025-10-09)
+**********************
+
+No significant changes.
+
+**********************
+ v4.30.3 (2025-10-02)
+**********************
+
+Bugfixes - 4.30.3
+=================
+
+- Fix incorrect type annotation in ``PythonPathPackageWithDeps.__init__()`` where ``deps`` was annotated as
+  ``Sequence[Package]`` but should be ``Sequence[Requirement]`` to match actual runtime usage - by
+  :user:`PreistlyPython` (:issue:`3607`)
+- Fix ``None`` appearing as the config filename in error output when the user's default config file is corrupt. - by
+  :user:`kurtmckee` (:issue:`3611`)
+
+**********************
+ v4.30.2 (2025-09-04)
+**********************
+
+Bugfixes - 4.30.2
+=================
+
+- Previously, when tox ran in an automatically provisioned environment, it could hang waiting for a PEP 517 build
+  backend if used in conjunction with the ``--installpkg`` option. This has been fixed by properly tearing down the
+  automatically provisioned environment after the tests. - by :user:`vytas7` (:issue:`3600`)
+
+**********************
+ v4.30.1 (2025-09-03)
+**********************
+
+Bugfixes - 4.30.1
+=================
+
+- Prevent tox from hanging upon exit due to orphaned build threads and subprocesses when the ``--installpkg`` option is
+  used with *sdist*. - by :user:`vytas7` (:issue:`3530`)
+
+**********************
+ v4.30.0 (2025-09-03)
+**********************
+
+Features - 4.30.0
+=================
+
+- Add ``__TOX_ENVIRONMENT_VARIABLE_ORIGINAL_CI``, which passes through the ``CI`` variable if present. This is intended
+  for use by other libraries to detect if tox is running under CI. (:issue:`3442`)
+
+Bugfixes - 4.30.0
+=================
+
+- Makes the error message more clear when pyproject.toml file cannot be loaded or is missing expected keys.
+  (:issue:`3578`)
+- The :func:`tox_extend_envs() hook <tox.plugin.spec.tox_extend_envs>` recently added in :pr:`3591` turned out to not
+  work well with ``tox run``. It was fixed internally, not to exhaust the underlying iterator on the first use.
+
+  -- by :user:`webknjaz` (:issue:`3598`)
+
+**********************
+ v4.29.0 (2025-08-29)
+**********************
+
+Features - 4.29.0
+=================
+
+- A new tox life cycle event is now exposed for use via :doc:`Plugins API </plugin/index>` -- by :user:`webknjaz`.
+
+  The corresponding hook point is :func:`tox_extend_envs <tox.plugin.spec.tox_extend_envs>`. It allows plugin authors to
+  declare ephemeral environments that they can then populate through the in-memory configuration loader interface.
+
+  This patch was made possible thanks to pair programming with :user:`gaborbernat` at PyCon US 2025. (:issue:`3510`,
+  :issue:`3591`)
+
+**********************
+ v4.28.4 (2025-07-31)
+**********************
+
+Features - 4.28.4
+=================
+
+- Pass ssh-agent variables ``SSH_AGENT_PID`` and ``SSH_AUTH_SOCK`` in ``pass_env`` by default. - by :user:`daniilgankov`
+  (:issue:`3572`)
+
+**********************
+ v4.28.3 (2025-07-25)
+**********************
+
+No significant changes.
+
+**********************
+ v4.28.2 (2025-07-25)
+**********************
+
+Bugfixes - 4.28.2
+=================
+
+- Don't pass in the filter argument to tar.extractall on old Python versions - by :user:`gaborbernat`. (:issue:`3568`)
+
+**********************
+ v4.28.1 (2025-07-22)
+**********************
+
+Bugfixes - 4.28.1
+=================
+
+- Use `tarfile.data_filter <https://docs.python.org/3/library/tarfile.html#tarfile.data_filter>`_ with ``extractall``
+  only on supported Python versions:
+
+  - ``>= 3.11.4``
+  - ``>= 3.10.12`` and ``< 3.11``
+  - ``>= 3.9.17`` and ``< 3.10``
+
+  by :user:`gaborbernat`. (:issue:`3565`)
+
+**********************
+ v4.28.0 (2025-07-20)
+**********************
+
+Features - 4.28.0
+=================
+
+- Added ``constraints`` to allow specifying constraints files for all dependencies. (:issue:`3550`)
+- Allow disabling tox plugins via the ``TOX_DISABLED_EXTERNAL_PLUGINS`` environment variable - by :user:`gaborbernat`.
+  (:issue:`3468`)
+
+Improved Documentation - 4.28.0
+===============================
+
+- The ``min_version``/``minversion`` config option is deprecated in favor of the ``requires`` option. (:issue:`3553`)
+
+**********************
+ v4.27.0 (2025-06-17)
+**********************
+
+Features - 4.27.0
+=================
+
+- Add ``free_threaded`` flag to to ``"python"`` entries in json output of ``--result-json``. (:issue:`3534`)
+
+Bugfixes - 4.27.0
+=================
+
+- Fix dependency-group name normalization. (:issue:`3539`)
+- Improves logging of environment variables by sorting them by key and redacting the values for the ones that are likely
+  to contain secrets. (:issue:`3542`)
+
+**********************
+ v4.26.0 (2025-05-13)
+**********************
+
+Features - 4.26.0
+=================
+
+- Add support for free-threaded python builds. Factors like ``py313t`` will only pick builds with the GIL disabled while
+  factors without trailing ``t`` will only pick builds without no-GIL support. (:issue:`3391`)
+- Drop support for EOL Python 3.8. (:issue:`3527`)
+
+Bugfixes - 4.26.0
+=================
+
+- Fix a regression issue related to inability to use ``file|`` substitution option in nested ``set_env`` sections of
+  ``ini`` configurations since tox4 update. (:issue:`2435`)
+- Fix ``TypeError`` for ``HelpFormatter`` with Python 3.14 (:issue:`3523`)
+
+**********************
+ v4.25.0 (2025-03-27)
+**********************
+
+Features - 4.25.0
+=================
+
+- Add support for number ranges in generative environments, more details :ref:`here <generative-environment-list>`. - by
+  :user:`mimre25` (:issue:`3502`)
+
+Bugfixes - 4.25.0
+=================
+
+- Make tox tests pass with Python 3.14.0a6 - by :user:`hroncok` (:issue:`3500`)
+
+**********************
+ v4.24.2 (2025-03-07)
+**********************
+
+Bugfixes - 4.24.2
+=================
+
+- multiple source_type supports for the same filename. Like pyproject.toml can be load by both TomlPyProject &
+  LegacyToml (:issue:`3117`)
+- Support ``set_env = { file = "conf{/}local.env"}`` for TOML format - by :user:`juditnovak`. (:issue:`3474`)
+- fix example on the docs (:issue:`3480`)
+- - ``--parallel-no-spinner`` now respects max CPU set by ``--parallel N`` (:issue:`3495`)
+
+Improved Documentation - 4.24.2
+===============================
+
+- Updates the documentation for ``os.environ['KEY']`` when the variable does not exist - by :user:`jugmac00`.
+  (:issue:`3456`)
+
+**********************
+ v4.24.1 (2025-01-21)
+**********************
+
+Misc - 4.24.1
+=============
+
+- :issue:`3426`
+
+**********************
+ v4.24.0 (2025-01-21)
+**********************
+
+Features - 4.24.0
+=================
+
+- Add a ``schema`` command to produce a JSON Schema for tox and the current plugins.
+
+  - by :user:`henryiii` (:issue:`3446`)
+
+Bugfixes - 4.24.0
+=================
+
+- Log exception name when subprocess execution produces one.
+
+  - by :user:`ssbarnea` (:issue:`3450`)
+
+Improved Documentation - 4.24.0
+===============================
+
+- Fix typo in ``docs/config.rst`` from ``{}`` to ``{:}``.
+
+  - by :user:`wooshaun53` (:issue:`3424`)
+
+- Pass ``NIX_LD`` and ``NIX_LD_LIBRARY_PATH`` variables by default in ``pass_env`` to make generic binaries work under
+  Nix/NixOS.
+
+  - by :user:`albertodonato` (:issue:`3425`)
+
+**********************
+ v4.23.2 (2024-10-22)
+**********************
+
+Misc - 4.23.2
+=============
+
+- :issue:`3415`
+
+**********************
+ v4.23.1 (2024-10-21)
+**********************
+
+Improved Documentation - 4.23.1
+===============================
+
+- Fix bad example in documentation for dependency groups - by :user:`gaborbernat`. (:issue:`3240`)
+
+**********************
+ v4.23.0 (2024-10-16)
+**********************
+
+Features - 4.23.0
+=================
+
+- Add ``NETRC`` to the list of environment variables always passed through. (:issue:`3410`)
+
+Improved Documentation - 4.23.0
+===============================
+
+- replace ``[tool.pyproject]`` and ``[tool.tox.pyproject]`` with ``[tool.tox]`` in config.rst (:issue:`3411`)
+
+**********************
+ v4.22.0 (2024-10-15)
+**********************
+
+Features - 4.22.0
+=================
+
+- Implement dependency group support as defined in :PEP:`735` - see :ref:`dependency_groups` - by :user:`gaborbernat`.
+  (:issue:`3408`)
+
+**********************
+ v4.21.2 (2024-10-03)
+**********************
+
+Bugfixes - 4.21.2
+=================
+
+- Include ``tox.toml`` in sdist archives to fix test failures resulting from its lack. - by :user:`mgorny`
+  (:issue:`3389`)
+
+**********************
+ v4.21.1 (2024-10-02)
+**********************
+
+Bugfixes - 4.21.1
+=================
+
+- Fix error when using ``requires`` within a TOML configuration file - by :user:`gaborbernat`. (:issue:`3386`)
+- Fix error when using ``deps`` within a TOML configuration file - by :user:`gaborbernat`. (:issue:`3387`)
+- Multiple fixes for the TOML configuration by :user:`gaborbernat`.:
+
+  - Do not fail when there is an empty command within ``commands``.
+  - Allow references for ``set_env`` by accepting list of dictionaries for it.
+  - Do not try to be smart about reference unrolling, instead allow the user to control it via the ``extend`` flag,
+    available both for ``posargs`` and ``ref`` replacements.
+  - The ``ref`` replacements ``raw`` key has been renamed to ``of``. (:issue:`3388`)
+
+**********************
+ v4.21.0 (2024-09-30)
+**********************
+
+Features - 4.21.0
+=================
+
+- Native TOML configuration support - by :user:`gaborbernat`. (:issue:`999`)
+
+Improved Documentation - 4.21.0
+===============================
+
+- Update Loader docs - by :user:ziima (:issue:`3352`)
+
+**********************
+ v4.20.0 (2024-09-18)
+**********************
+
+Features - 4.20.0
+=================
+
+- Separate the list dependencies functionality to a separate abstract class allowing code reuse in plugins (such as
+  ``tox-uv``) - by :gaborbernat`. (:issue:`3347`)
+
+**********************
+ v4.19.0 (2024-09-17)
+**********************
+
+Features - 4.19.0
+=================
+
+- Support ``pypy-<major>.<minor>`` environment names for PyPy environments - by :user:`gaborbernat`. (:issue:`3346`)
+
+**********************
+ v4.18.1 (2024-09-07)
+**********************
+
+Bugfixes - 4.18.1
+=================
+
+- Fix and test the string spec for the ``sys.executable`` interpreter (introduced in :pr:`3325`) - by :user:`hroncok`
+  (:issue:`3327`)
+
+Improved Documentation - 4.18.1
+===============================
+
+- Changes the ``tox_env_teardown`` docstring to explain the hook is called after a tox env was teared down.
+  (:issue:`3305`)
+
+**********************
+ v4.18.0 (2024-08-13)
+**********************
+
+Features - 4.18.0
+=================
+
+- Suppress spinner in parallel runs in CI - by :user:`ziima`. (:issue:`3318`)
+
+Bugfixes - 4.18.0
+=================
+
+- Boost temporary directories cleanup in tests - by :user:`ziima`. (:issue:`3278`)
+- Fix absolute base python paths conflicting - by :user:`gaborbernat`. (:issue:`3325`)
+
+**********************
+ v4.17.1 (2024-08-07)
+**********************
+
+Bugfixes - 4.17.1
+=================
+
+- Support for running ``-e <major>.<minor>`` has been lost, fixing it - by :user:`gaborbernat`. (:issue:`2849`)
+- ``base_python`` now accepts absolute paths to interpreter executable - by :user:`paveldikov`. (:issue:`3191`)
+
+**********************
+ v4.17.0 (2024-08-05)
+**********************
+
+Features - 4.17.0
+=================
+
+- Add ``graalpy`` prefix as a supported base python (:issue:`3312`)
+- Add :ref:`on_platform` core configuration holding the tox platform and do not install package when exec an environment
+  - by :user:`gaborbernat`. (:issue:`3315`)
+
+Bugfixes - 4.17.0
+=================
+
+- Add table with default environment variables per OS (:issue:`2753`)
+
+**********************
+ v4.16.0 (2024-07-02)
+**********************
+
+Bugfixes - 4.16.0
+=================
+
+- - Add ``windir`` to the default list of Windows ``pass_env`` environment variables. - by :user:`kurtmckee`
+    (:issue:`3302`)
+
+Improved Documentation - 4.16.0
+===============================
+
+- - Fix typo in configuration example and fix broken link to code style guide. - by :user:`srenfo` (:issue:`3297`)
+
+**********************
+ v4.15.1 (2024-06-05)
+**********************
+
+Features - 4.15.1
+=================
+
+- Fix ``skip_missing_interpreters`` option for ``package = wheel`` (:issue:`3269`)
+
+Bugfixes - 4.15.1
+=================
+
+- Fix section substitution with setenv. (:issue:`3262`)
+- Allow ``ConfigSet.add_config`` to receive parameterized generics for ``of_type``. (:issue:`3288`)
+
+**********************
+ v4.15.0 (2024-04-26)
+**********************
+
+Features - 4.15.0
+=================
+
+- Add support for multiple appending override options (-x, --override) on command line - by :user:`amitschang`.
+  (:issue:`3261`)
+- Add support for inverting exit code success criteria using bang (!) (:issue:`3271`)
+
+Bugfixes - 4.15.0
+=================
+
+- Fix issue that the leading character ``c`` was dropped from packages in constraints files - by :user:`jugmac00`.
+  (:issue:`3247`)
+- Allow appending to ``deps`` with ``--override testenv.deps+=foo`` - by :user:`stefanor`. (:issue:`3256`)
+- Fix non-existing branch ``rewrite`` in the documentation to ``main``. (:issue:`3257`)
+- Update test typing for build 1.2.0, which has an explicit ``Distribution`` type - by :user:`stefanor`. (:issue:`3260`)
+- Fix broken input parsing for ``--discover`` flag. - by :user:`mimre25` (:issue:`3272`)
+
+Improved Documentation - 4.15.0
+===============================
+
+- Rephrase ``--discover`` flag's description to avoid confusion between paths and executables. - by :user:`mimre25`
+  (:issue:`3274`)
+
+**********************
+ v4.14.2 (2024-03-22)
+**********************
+
+Bugfixes - 4.14.2
+=================
+
+- Add provision arguments to ToxParser to fix crash when provisioning new tox environment without list-dependencies by
+  :user:`seyidaniels` (:issue:`3190`)
+
+Improved Documentation - 4.14.2
+===============================
+
+- Removed unused line from the ``fresh_subprocess`` documentation. (:issue:`3241`)
+
+**********************
+ v4.14.1 (2024-03-06)
+**********************
+
+Bugfixes - 4.14.1
+=================
+
+- Fix crash with fresh subprocess, if the build backend is setuptools automatically enable fresh subprocesses for build
+  backend calls - by :user:`gaborbernat`. (:issue:`3235`)
+
+**********************
+ v4.14.0 (2024-03-05)
+**********************
+
+Features - 4.14.0
+=================
+
+- Support enabling fresh subprocess for packaging build backends via :ref:`fresh_subprocess` - by :user:`gaborbernat`.
+  (:issue:`3227`)
+- Allow plugins attaching additional information to ``--version`` via ``tox_append_version_info`` method in the plugin
+  module - by :user:`gaborbernat`. (:issue:`3234`)
+
+**********************
+ v4.13.0 (2024-02-16)
+**********************
+
+Features - 4.13.0
+=================
+
+- Extract virtual environment packaging code to its own base class not tied to ``virtualenv`` - by :user:`gaborbernat`.
+  (:issue:`3221`)
+
+Improved Documentation - 4.13.0
+===============================
+
+- Documented usage of ``pytest`` with ``tox run-parallel`` - by :user:`faph`. (:issue:`3187`)
+- Configuration: state in config directive sections their ini file sections - by :user:`0cjs`. (:issue:`3194`)
+- Development: summarize important points experienced developers need to know - by :user:`0cjs`. (:issue:`3197`)
+
+**********************
+ v4.12.1 (2024-01-16)
+**********************
+
+Bugfixes - 4.12.1
+=================
+
+- Fixed bug where running with --installpkg and multiple envs could not clean up between tests (:issue:`3165`)
+
+**********************
+ v4.12.0 (2024-01-11)
+**********************
+
+Features - 4.12.0
+=================
+
+- Always pass ``FORCE_COLOR`` and ``NO_COLOR`` to the environment (:issue:`3172`)
+
+Bugfixes - 4.12.0
+=================
+
+- ``--parallel-no-spinner`` flag now implies ``--parallel`` (:issue:`3158`)
+
+Improved Documentation - 4.12.0
+===============================
+
+- -Fix ``open an issue`` link in development.rst (:issue:`3179`)
+
+**********************
+ v4.11.4 (2023-11-27)
+**********************
+
+Bugfixes - 4.11.4
+=================
+
+- Fix terminal size of tox subcommands (fixes ipython, ipdb, prompt_toolkit, ...). (:issue:`2999`)
+- Fix ``quickstart`` command from requiring ``root`` positional argument (:issue:`3084`)
+- Added 'AppData' to the default passed environment variables on Windows. (:issue:`3151`)
+
+Improved Documentation - 4.11.4
+===============================
+
+- Fix default value for ``install_command`` - by :user:`hashar`. (:issue:`3126`)
+- Fix default value for ``base_python`` - by :user:`rpatterson`. (:issue:`3156`)
+
+**********************
+ v4.11.3 (2023-09-08)
+**********************
+
+Bugfixes - 4.11.3
+=================
+
+- Handle ``FileNotFoundError`` when the ``base_python`` interpreter doesn't exist (:issue:`3105`)
+
+Improved Documentation - 4.11.3
+===============================
+
+- Explain how plugins are registered and discovered - by :user:`hashar`. (:issue:`3116`)
+
+**********************
+ v4.11.2 (2023-09-07)
+**********************
+
+Bugfixes - 4.11.2
+=================
+
+- Fix bug in ``config.rst`` by removing stray colons left over from (:issue:`3111`) - by :user:`posita`. (:issue:`3118`)
+- Provide example to make CLI help more helpful for ``-x``/``--override`` - by :user:`posita`. (:issue:`3119`)
+
+Improved Documentation - 4.11.2
+===============================
+
+- Fix typos discovered by codespell - by :user:`cclauss`. (:issue:`3113`)
+
+**********************
+ v4.11.1 (2023-09-01)
+**********************
+
+Bugfixes - 4.11.1
+=================
+
+- Allow passing in multiple overrides using the ``;`` character and fix ``,`` being used as splitting values - by
+  :user:`gaborbernat`. (:issue:`3112`)
+
+**********************
+ v4.11.0 (2023-08-29)
+**********************
+
+Features - 4.11.0
+=================
+
+- Add support for setting build backend ``config_settings`` in the configuration file - by :user:`gaborbernat`.
+  (:issue:`3090`)
+
+**********************
+ v4.10.0 (2023-08-21)
+**********************
+
+Features - 4.10.0
+=================
+
+- Change accepted environment name rule: must be made up of factors defined in configuration or match regex
+  ``(pypy|py|cython|)((\d(\.\d+(\.\d+)?)?)|\d+)?``. If an environment name does not match this fail, and if a close
+  match found suggest that to the user. (:issue:`3099`)
+
+Bugfixes - 4.10.0
+=================
+
+- ``--override foo+=bar`` appending syntax will now work correctly when ``foo`` wasn't defined in ``tox.ini``.
+  (:issue:`3100`)
+
+*********************
+ v4.9.0 (2023-08-16)
+*********************
+
+Features - 4.9.0
+================
+
+- Disallow command line environments which are not explicitly specified in the config file - by :user:`tjsmart`.
+  (:issue:`2858`)
+
+*********************
+ v4.8.0 (2023-08-12)
+*********************
+
+Features - 4.8.0
+================
+
+- ``--override`` can now take options in the form of ``foo+=bar`` which will append ``bar`` to the end of an existing
+  list/dict, rather than replacing it. (:issue:`3087`)
+
+*********************
+ v4.7.0 (2023-08-08)
+*********************
+
+Features - 4.7.0
+================
+
+- Make ``--hashseed`` default to ``PYTHONHASHSEED``, if defined - by :user:`paravoid`. The main motivation for this is
+  to able to set the hash seed when building the documentation with ``tox -e docs``, and thus avoid embedding a random
+  value in the tox documentation for --help. This caused documentation builds to fail to build reproducibly.
+  (:issue:`2942`)
+
+Bugfixes - 4.7.0
+================
+
+- Update a regular expression in tests to match the exception message in both Python 3.12 and older. (:issue:`3065`)
+
+Improved Documentation - 4.7.0
+==============================
+
+- Fix broken links - by :user:`gaborbernat`. (:issue:`3072`)
+
+*********************
+ v4.6.4 (2023-07-06)
+*********************
+
+Bugfixes - 4.6.4
+================
+
+- Fix hang and zombie process on interrupt (CTRL-C). (:issue:`3056`)
+
+*********************
+ v4.6.3 (2023-06-19)
+*********************
+
+Bugfixes - 4.6.3
+================
+
+- Ensure that ``get_requires_for_build_wheel`` is called before ``prepare_metadata_for_build_wheel``, and
+  ``get_requires_for_build_editable`` is called before ``prepare_metadata_for_build_editable`` - by :user:`abravalheri`.
+  (:issue:`3043`)
+
+Improved Documentation - 4.6.3
+==============================
+
+- Linked environment variable substitutions docs in ``set_env`` and ``pass_env`` config docs. (:issue:`3039`)
+
+*********************
+ v4.6.2 (2023-06-16)
+*********************
+
+Bugfixes - 4.6.2
+================
+
+- Avoid cache collision between editable wheel build and normal wheel build -- by :user:`f3flight`. (:issue:`3035`)
+
+*********************
+ v4.6.1 (2023-06-15)
+*********************
+
+No significant changes.
+
+*********************
+ v4.6.0 (2023-06-05)
+*********************
+
+Features - 4.6.0
+================
+
+- Added ``--list-dependencies`` and ``--no-list-dependencies`` CLI parameters. If unspecified, defaults to listing when
+  in CI, but not otherwise. (:issue:`3024`)
+
+Misc - 4.6.0
+============
+
+- :issue:`3020`
+
+*********************
+ v4.5.1 (2023-05-25)
+*********************
+
+Bugfixes - 4.5.1
+================
+
+- Fix ``tox --devenv venv`` invocation without ``-e`` - by :user:`asottile`. (:issue:`2925`)
+
+*********************
+ v4.5.0 (2023-04-24)
+*********************
+
+Features - 4.5.0
+================
+
+- When run with verbosity=1, the per-step timing summaries are suppressed at the end of the run. Thanks to
+  :user:`nedbat` at the PyCon 2023 sprints. (:issue:`2891`)
+
+Improved Documentation - 4.5.0
+==============================
+
+- Add FAQ entry on how to test EOL Python versions by :user:`jugmac00`. (:issue:`2989`)
+
+**********************
+ v4.4.12 (2023-04-13)
+**********************
+
+Bugfixes - 4.4.12
+=================
+
+- Avoid race conditions in tests using the ``demo_pkg_inline`` fixture. (:issue:`2985`)
+
+**********************
+ v4.4.11 (2023-04-05)
+**********************
+
+Bugfixes - 4.4.11
+=================
+
+- Fixed an issue where a tox plugin couldn't change the value of ``tox_root``. (:issue:`2966`)
+
+**********************
+ v4.4.10 (2023-04-05)
+**********************
+
+Bugfixes - 4.4.10
+=================
+
+- Fix issue where ``work_dir`` was not correctly including ``tox_root`` for test runs. (:issue:`2933`)
+
+*********************
+ v4.4.9 (2023-04-05)
+*********************
+
+Bugfixes - 4.4.9
+================
+
+- Instead of raising ``UnicodeDecodeError`` when command output includes non-utf-8 bytes, ``tox`` will now use
+  ``surrogateescape`` error handling to convert the unrecognized bytes to escape sequences according to :PEP:`383` - by
+  :user:`masenf`. (:issue:`2969`)
+
+Improved Documentation - 4.4.9
+==============================
+
+- Document running tox within a Docker container. (:issue:`1035`)
+- Added python version 3.11 to ``installation.rst``. (:issue:`2964`)
+
+*********************
+ v4.4.8 (2023-03-26)
+*********************
+
+Bugfixes - 4.4.8
+================
+
+- ``tox.ini`` is now included in source distributions in order to make all tests pass. (:issue:`2939`)
+- Fix ``--index-url`` and ``--find-links`` being used together in ``requirements.txt`` files. (:issue:`2959`)
+
+*********************
+ v4.4.6 (2023-02-21)
+*********************
+
+Bugfixes - 4.4.6
+================
+
+- Plugins are now able to access tox.ini config sections using a custom prefix with the same suffix / name as a tox
+  ``testenv`` - by :user:`masenf` (:issue:`2926`)
+
+*********************
+ v4.4.5 (2023-02-07)
+*********************
+
+Bugfixes - 4.4.5
+================
+
+- Ignore labels when tox will provision a runtime environment (``.tox``) so that environment configurations which depend
+  on provisioned plugins or specific tox versions are not accessed in the outer tox process where the configuration
+  would be invalid - by :user:`masenf`. (:issue:`2916`)
+
+*********************
+ v4.4.4 (2023-01-31)
+*********************
+
+Bugfixes - 4.4.4
+================
+
+- Forward ``HOME`` by default - by :user:`gschaffner`. (:issue:`2702`)
+
+*********************
+ v4.4.3 (2023-01-30)
+*********************
+
+Bugfixes - 4.4.3
+================
+
+- Tox will now expand self-referential extras discovered in package deps to respect local modifications to package
+  metadata. This allows a package extra to explicitly depend on another package extra, which previously only worked with
+  non-static metadata - by :user:`masenf`. (:issue:`2904`)
+
+*********************
+ v4.4.2 (2023-01-25)
+*********************
+
+Bugfixes - 4.4.2
+================
+
+- Allow the user configuration file (default ``<appdir>/tox/config.ini``) to be overridden via the
+  ``TOX_USER_CONFIG_FILE`` environment variable. Previously tox was looking at the ``TOX_CONFIG_FILE`` to override the
+  user configuration, however that environment variable is already used to override the main configuration - by
+  :user:`masenf`. (:issue:`2890`)
+
+*********************
+ v4.4.1 (2023-01-25)
+*********************
+
+Bugfixes - 4.4.1
+================
+
+- In tox 4.4.0 ``constrain_package_deps`` was introduced with a default value of ``True``. This has been changed back to
+  ``False``, which restores the original behavior of tox 4.3.5 - by :user:`masenf`. (:issue:`2897`)
+
+*********************
+ v4.4.0 (2023-01-25)
+*********************
+
+Features - 4.4.0
+================
+
+- Test environments now recognize boolean config keys ``constrain_package_deps`` (default=true) and
+  ``use_frozen_constraints`` (default=false), which control how tox generates and applies constraints files when
+  performing ``install_package_deps``.
+
+  If ``constrain_package_deps`` is true (default), then tox will write out ``{env_dir}{/}constraints.txt`` and pass it
+  to ``pip`` during ``install_package_deps``. If ``use_frozen_constraints`` is false (default), the constraints will be
+  taken from the specifications listed under ``deps`` (and inside any requirements or constraints file referenced in
+  ``deps``). Otherwise, ``list_dependencies_command`` (``pip freeze``) is used to enumerate exact package specifications
+  which will be written to the constraints file.
+
+  In previous releases, conflicting package dependencies would silently override the ``deps`` named in the
+  configuration, resulting in test runs against unexpected dependency versions, particularly when using tox factors to
+  explicitly test with different versions of dependencies - by :user:`masenf`. (:issue:`2386`)
+
+Bugfixes - 4.4.0
+================
+
+- When parsing command lines, use ``shlex(..., posix=True)``, even on windows platforms, since non-POSIX mode does not
+  handle escape characters and quoting like a shell would. This improves cross-platform configurations without hacks or
+  esoteric quoting.
+
+  To make this transition easier, on Windows, the backslash path separator will not treated as an escape character
+  unless it precedes a quote, whitespace, or another backslash character. This allows paths to mostly be written in
+  single or double backslash style.
+
+  Note that **double-backslash will no longer be escaped to a single backslash in substitutions**, instead the double
+  backslash will be consumed as part of command splitting, on either posix or windows platforms.
+
+  In some instances superfluous double or single quote characters may be stripped from arg arrays in ways that do not
+  occur in the default windows ``cmd.exe`` shell - by :user:`masenf`. (:issue:`2635`)
+
+Improved Documentation - 4.4.0
+==============================
+
+- Add information when command from ``list_dependencies_command`` configuration option is used. (:issue:`2883`)
+
+*********************
+ v4.3.5 (2023-01-18)
+*********************
+
+Bugfixes - 4.3.5
+================
+
+- When building a ``wheel`` or ``editable`` package with a PEP 517 backend, no longer pass an empty
+  ``metadata_directory`` to the backend ``build_wheel`` or ``build_editable`` endpoint.
+
+  Some backends, such as PDM and poetry, will not generate package metadata in the presence of a ``metadata_directory``,
+  even if it is empty.
+
+  Prior to this change, attempting to install a wheel created by tox using PDM or poetry would return an error like
+  "There is no item named 'my-package.0.1.dist-info/WHEEL' in the archive" - by :user:`masenf`. (:issue:`2880`)
+
+*********************
+ v4.3.4 (2023-01-17)
+*********************
+
+Bugfixes - 4.3.4
+================
+
+- When executing via the provisioning environment (``.tox`` by default), run ``tox`` in working directory of the parent
+  process.
+
+  Prior to this change (from tox 4.0.0), the provisioned ``tox`` would execute with ``{tox_root}`` as the working
+  directory, which breaks when a relative path is passed to ``-c`` or ``--conf`` and ``tox`` is executed in a working
+  directory other than ``{tox_root}`` - by :user:`masenf`. (:issue:`2876`)
+
+Misc - 4.3.4
+============
+
+- :issue:`2878`
+
+*********************
+ v4.3.3 (2023-01-16)
+*********************
+
+Bugfixes - 4.3.3
+================
+
+- The provision environment (``.tox``) will never inherit from ``testenv``. During provisioning, other test environments
+  are not processed, allowing the use of keys and values that may be registered by later tox version or provisioned
+  plugins - by :user:`masenf`. (:issue:`2862`)
+
+*********************
+ v4.3.2 (2023-01-16)
+*********************
+
+Bugfixes - 4.3.2
+================
+
+- Fix regression introduced in 4.3.0 which occurred when a substitution expression for an environment variable that had
+  previously been substituted appears in the ini file after a substitution expression for a different environment
+  variable. This situation erroneously resulted in an exception about "circular chain between set" of those variables -
+  by :user:`masenf`. (:issue:`2869`)
+
+*********************
+ v4.3.1 (2023-01-15)
+*********************
+
+Bugfixes - 4.3.1
+================
+
+- Fix regression introduced in 4.3.0 by expanding substitution expressions (``{...}``) that result from a previous
+  subsitution's replacement value (up to 100 times). Note that recursive expansion is strictly depth-first; no
+  replacement value will ever affect adjacent characters nor will expansion ever occur over the result of more than one
+  replacement - by :user:`masenf`. (:issue:`2863`)
+
+*********************
+ v4.3.0 (2023-01-15)
+*********************
+
+Features - 4.3.0
+================
+
+- Rewrite substitution replacement parser - by :user:`masenf`
+
+  - ``\`` acts as a proper escape for ``\`` in ini-style substitutions
+  - The resulting value of a substitution is no longer reprocessed in the context of the broader string. (Prior to this
+    change, ini-values were repeatedly re-substituted until the expression no longer had modifications)
+  - Migrate and update "Substitutions" section of Configuration page from v3 docs.
+  - ``find_replace_part`` is removed from ``tox.config.loader.ini.replace``
+  - New names exported from ``tox.config.loader.ini.replace``:
+        - ``find_replace_expr``
+        - ``MatchArg``
+        - ``MatchError``
+        - ``MatchExpression``
+        - Note: the API for ``replace`` itself is unchanged. (:issue:`2732`)
+
+- Improved documentation for factors and test env names - by :user:`stephenfin`. (:issue:`2852`)
+
+*********************
+ v4.2.8 (2023-01-11)
+*********************
+
+Bugfixes - 4.2.8
+================
+
+- Allow using package names with env markers for pip's ``--no-binary`` and ``--only-binary`` options - by :user:`q0w`.
+  (:issue:`2814`)
+
+*********************
+ v4.2.7 (2023-01-11)
+*********************
+
+Bugfixes - 4.2.7
+================
+
+- A testenv with multiple factors, one of which conflicts with a ``base_python`` setting in ``tox.ini``, will now use
+  the correct Python interpreter version - by :user:`stephenfin`. (:issue:`2838`)
+- Explicitly list ``wheel`` as requirement for the tests, as some of the tests error without it. (:issue:`2843`)
+- tox has reverted support for Python factors that include PATCH release info (e.g. ``py3.10.1``), build architecture
+  (e.g. ``pypy3-64``) or do not define a ``py`` prefix or other supported prefix (e.g. ``3.10``). These complex factors
+  were initially supported with the release of tox 4.0 but has proven complicated to support. Instead, the simple
+  factors supported by tox 3 e.g. (``py310``, ``pypy3``) or period-separated equivalent (``py3.10``) introduced in tox 4
+  should be used. Users who wish to specify more specific Python version information should configure the
+  :ref:`base_python` setting - by :user:`stephenfin`. (:issue:`2848`)
+
+*********************
+ v4.2.6 (2023-01-06)
+*********************
+
+Bugfixes - 4.2.6
+================
+
+- Handle properly pip ``--no-binary`` / ``--only-binary`` options in requirements.txt format files. (:issue:`2814`)
+
+*********************
+ v4.2.5 (2023-01-06)
+*********************
+
+Bugfixes - 4.2.5
+================
+
+- The combination of ``usedevelop = true`` and ``--skip-missing-interpreters=false`` will no longer fail for
+  environments that were *not* invoked - by :user:`stephenfin`. (:issue:`2811`)
+- Fix an attribute error when ``use_develop = true`` is set and an unsupported interpreter version is requested - by
+  :user:`stephenfin`. (:issue:`2826`)
+- tox returns a non-zero error code if all envs are skipped. It will now correctly do this if only a single env was
+  requested and this was skipped - by :user:`stephenfin`. (:issue:`2827`)
+
+*********************
+ v4.2.4 (2023-01-05)
+*********************
+
+Bugfixes - 4.2.4
+================
+
+- Setting ``[testenv] basepython = python3`` will no longer override the Python interpreter version requested by a
+  factor, such as ``py311`` - by :user:`stephenfin`. (:issue:`2754`)
+- Also accept tab after colon before factor filter expansion - by :user:`pdecat`. (:issue:`2823`)
+
+*********************
+ v4.2.3 (2023-01-04)
+*********************
+
+Bugfixes - 4.2.3
+================
+
+- ``devenv`` does not respect the specified path when the package is a wheel file - by :user:`gaborbernat`.
+  (:issue:`2815`)
+- Require space after colon before factor filter expansion, unless it is the last character of the line - by
+  :user:`pdecat`. (:issue:`2822`)
+
+*********************
+ v4.2.2 (2023-01-04)
+*********************
+
+Bugfixes - 4.2.2
+================
+
+- Add ``CC``, ``CFLAGS``, ``CCSHARED``, ``CXX``, ``CPPFLAGS``, ``LDFLAGS``, ``PKG_CONFIG`` and
+  ``PKG_CONFIG_SYSROOT_DIR`` to the default passed through environment variables list as these are needed for building
+  various C-extensions - by :user:`gaborbernat`. (:issue:`2818`)
+
+*********************
+ v4.2.1 (2023-01-03)
+*********************
+
+Bugfixes - 4.2.1
+================
+
+- Fix extracting extras from markers with more than 2 extras in an or chain - by :user:`dconathan`. (:issue:`2791`)
+
+*********************
+ v4.2.0 (2023-01-03)
+*********************
+
+Features - 4.2.0
+================
+
+- Packaging environments now inherit from the ``pkgenv`` section, allowing to set all your packaging options in one
+  place, and support the ``deps`` key to set additional dependencies that will be installed after ``pyproject.toml``
+  static ``requires`` but before backends dynamic requires - by :user:`gaborbernat`. (:issue:`2543`)
+
+Improved Documentation - 4.2.0
+==============================
+
+- Document breaking changes with tox 4 and packaging environments - by :user:`gaborbernat`. (:issue:`2543`)
+- Document how to handle environments whose names match ``tox`` subcommands - by :user:`sirosen`. (:issue:`2728`)
+
+*********************
+ v4.1.3 (2023-01-02)
+*********************
+
+Bugfixes - 4.1.3
+================
+
+- Reuse package_env with ``--installpkg`` - by :user:`q0w`. (:issue:`2442`)
+- Fail more gracefully when pip :ref:`install_command` is empty - by :user:`jayaddison`. (:issue:`2695`)
+
+Improved Documentation - 4.1.3
+==============================
+
+- Add breaking-change documentation for empty ``install_command`` values - by :user:`jayaddison`. (:issue:`2695`)
+
+Misc - 4.1.3
+============
+
+- :issue:`2796`, :issue:`2797`
+
+*********************
+ v4.1.2 (2022-12-30)
+*********************
+
+Bugfixes - 4.1.2
+================
+
+- Fix ``--skip-missing-interpreters`` behavior - by :user:`q0w`. (:issue:`2649`)
+- Restore tox 3 behavior of showing the output of pip freeze, however now only active when running inside a CI
+  environment - by :user:`gaborbernat`. (:issue:`2685`)
+- Fix extracting extras from markers with many extras - by :user:`q0w`. (:issue:`2791`)
+
+*********************
+ v4.1.1 (2022-12-29)
+*********************
+
+Bugfixes - 4.1.1
+================
+
+- Fix logging error with emoji in git branch name. (:issue:`2768`)
+
+Improved Documentation - 4.1.1
+==============================
+
+- Add faq entry about reuse of environments - by :user:`jugmac00`. (:issue:`2788`)
+
+*********************
+ v4.1.0 (2022-12-29)
+*********************
+
+Features - 4.1.0
+================
+
+- ``-f`` can be used multiple times and on hyphenated factors (e.g. ``-f py311-django -f py39``) - by :user:`sirosen`.
+  (:issue:`2766`)
+
+Improved Documentation - 4.1.0
+==============================
+
+- Fix a grammatical typo in docs/user_guide.rst. (:issue:`2787`)
+
+**********************
+ v4.0.19 (2022-12-28)
+**********************
+
+Bugfixes - 4.0.19
+=================
+
+- Create temp_dir if not exists - by :user:`q0w`. (:issue:`2770`)
+
+**********************
+ v4.0.18 (2022-12-26)
+**********************
+
+Bugfixes - 4.0.18
+=================
+
+- Strip leading and trailing whitespace when parsing elements in requirement files - by :user:`gaborbernat`.
+  (:issue:`2773`)
+
+**********************
+ v4.0.17 (2022-12-25)
+**********************
+
+Features - 4.0.17
+=================
+
+- Suppress a report output when verbosity = 0. (:issue:`2697`)
+
+Bugfixes - 4.0.17
+=================
+
+- Fix ``--sdistonly`` behavior. (:issue:`2653`)
+- Override toxworkdir with --workdir. (:issue:`2654`)
+
+**********************
+ v4.0.16 (2022-12-20)
+**********************
+
+Bugfixes - 4.0.16
+=================
+
+- Fix :ref:`change_dir` is relative to current working directory rather than to the :ref:`tox_root` when using the
+  ``-c`` argument to locate the ``tox.ini`` file - by :user:`gaborbernat`. (:issue:`2619`)
+
+**********************
+ v4.0.15 (2022-12-19)
+**********************
+
+Bugfixes - 4.0.15
+=================
+
+- Fix tox auto-provisioning not working and relax :ref:`min_version` default from ``4.0`` to no version constraint - by
+  :user:`gaborbernat`. (:issue:`2634`)
+- Fix assertion in ``test_result_json_sequential`` when interpreter ``_base_executable`` is a hardlink (macOS homebrew)
+  - by :user:`masenf`. (:issue:`2720`)
+- Complex negative factor filters not working - by :user:`gaborbernat`. (:issue:`2747`)
+
+**********************
+ v4.0.14 (2022-12-18)
+**********************
+
+Bugfixes - 4.0.14
+=================
+
+- Do not include non test environment sections or factor filters in INI configuration to factor discovery - by
+  :user:`gaborbernat`. (:issue:`2746`)
+
+**********************
+ v4.0.13 (2022-12-17)
+**********************
+
+Bugfixes - 4.0.13
+=================
+
+- A plain section in INI configuration matching a tox environment name shadowed the laters configuration - by
+  :user:`gaborbernat`. (:issue:`2636`)
+- Fix space not accepted in factor filter expression - by :user:`gaborbernat`. (:issue:`2718`)
+
+**********************
+ v4.0.12 (2022-12-16)
+**********************
+
+Bugfixes - 4.0.12
+=================
+
+- If tox is running in a tty, allocate a pty (pseudo terminal) for commands and copy termios attributes to show colors
+  and improve interactive use - by :user:`masenf`. (:issue:`1773`)
+- Fix python hash seed not being set - by :user:`gaborbernat`. (:issue:`2645`)
+- Fix legacy CLI flags ``--pre``, ``--force-deps``, ``--sitepackages`` and ``--alwayscopy`` not working, and mark them
+  as deprecated - by :user:`gaborbernat`. (:issue:`2690`)
+
+Improved Documentation - 4.0.12
+===============================
+
+- Document user level config. (:issue:`2633`)
+
+**********************
+ v4.0.11 (2022-12-14)
+**********************
+
+Features - 4.0.11
+=================
+
+- Modified handling of ``NO_COLOR`` environment variable, consistent with `de facto conventions
+  <https://no-color.org>`_: any non-empty string will enable ``NO_COLOR`` (disable colorized output); no ``NO_COLOR``
+  variable or ``NO_COLOR`` with an empty string will disable ``NO_COLOR`` (enable colorized output) - by :user:`ptmcg`.
+  (:issue:`2719`)
+
+Bugfixes - 4.0.11
+=================
+
+- ``TOX_SKIP_ENV`` environment variable now works again, and can also be set via the CLI argument ``--skip-env`` for any
+  command where ``-e`` can be set - by :user:`mgedmin`. (:issue:`2698`)
+- ``tox config`` should only show :ref:`env_list` arguments by default instead of ``ALL`` - by :user:`gaborbernat`.
+  (:issue:`2726`)
+
+**********************
+ v4.0.10 (2022-12-14)
+**********************
+
+Features - 4.0.10
+=================
+
+- Add ``py_dot_ver`` and ``py_impl`` constants to environments to show the current Python implementation and dot version
+  (e.g. ``3.11``) for the current environment. These can be also used as substitutions in ``tox.ini`` - by
+  :user:`gaborbernat`. (:issue:`2640`)
+
+Bugfixes - 4.0.10
+=================
+
+- ``--help`` now reports the default verbosity level (which is WARNING) correctly. (:issue:`2707`)
+
+*********************
+ v4.0.9 (2022-12-13)
+*********************
+
+Features - 4.0.9
+================
+
+- Add :meth:`tox_on_install <tox.plugin.spec.tox_on_install>` and :meth:`tox_env_teardown
+  <tox.plugin.spec.tox_env_teardown>` plugin hooks - by :user:`gaborbernat`. (:issue:`2687`)
+- Add ``PKG_CONFIG_PATH`` to the default pass through environment list for python tox environments - by
+  :user:`gaborbernat`. (:issue:`2700`)
+
+*********************
+ v4.0.8 (2022-12-11)
+*********************
+
+Bugfixes - 4.0.8
+================
+
+- Fix multiple substitution on factor filtering in ``tox.ini`` when multiple factor filters match - by
+  :user:`gaborbernat`. (:issue:`2650`)
+- Fix regression in ``requirements.txt`` parsing - by :user:`gaborbernat`. (:issue:`2682`)
+
+*********************
+ v4.0.7 (2022-12-11)
+*********************
+
+Bugfixes - 4.0.7
+================
+
+- Support for ``--no-deps`` flag within the :ref:`deps` - by :user:`gaborbernat`. (:issue:`2674`)
+
+*********************
+ v4.0.6 (2022-12-10)
+*********************
+
+Features - 4.0.6
+================
+
+- Fail on :ref:`pass_env`/:ref:`passenv` entries containing whitespace - by :user:`ericzolf`. (:issue:`2658`)
+
+*********************
+ v4.0.5 (2022-12-09)
+*********************
+
+Bugfixes - 4.0.5
+================
+
+- Normalize extra names passed in (fixes extra groups not being picked up during installation) - by :user:`gaborbernat`.
+  (:issue:`2655`)
+
+*********************
+ v4.0.4 (2022-12-09)
+*********************
+
+Bugfixes - 4.0.4
+================
+
+- Disable logging from ``distlib.util`` and ``filelock`` as these log messages are too verbose - by :user:`gaborbernat`.
+  (:issue:`2655`)
+- Use ``!r`` and ``repr()`` to better display erroneous values in exception from ``StrConverter.to_bool()`` - by
+  :user:`ptmcg`. (:issue:`2665`)
+
+Improved Documentation - 4.0.4
+==============================
+
+- Document that running ``--showconfig`` or ``--help-ini`` with the ``-v`` flag will add interleaved debugging
+  information, whereas tox v3 added extra lines at the start - by :user:`jugmac00`. (:issue:`2622`)
+- Document that tox v4 errors when using ``-U`` when defining dependencies via ``deps`` - by :user:`jugmac00`.
+  (:issue:`2631`)
+
+*********************
+ v4.0.3 (2022-12-08)
+*********************
+
+Bugfixes - 4.0.3
+================
+
+- Always set environment variable ``PYTHONIOENCODING`` to ``utf-8`` to ensure tox works under Windows custom encodings -
+  by :user:`gaborbernat`. (:issue:`2422`)
+- Ensure :ref:`change_dir` is created if does not exist before executing :ref:`commands` - by :user:`gaborbernat`.
+  (:issue:`2620`)
+- Pass through ``NUMBER_OF_PROCESSORS`` on Windows as is needed for ``multiprocessing.cpu_count`` - by
+  :user:`gaborbernat`. (:issue:`2629`)
+- The core tox configuration now contains ``host_python`` key showing the host python executable path - by
+  :user:`gaborbernat`. (:issue:`2630`)
+
+Improved Documentation - 4.0.3
+==============================
+
+- Document that space separator is no longer valid for the :ref:`passenv` and instead one should use comma - by
+  :user:`gaborbernat`. (:issue:`2615`)
+- Document necessity to escape ``#`` within INI configuration - by :user:`jugmac00`. (:issue:`2617`)
+
+*********************
+ v4.0.2 (2022-12-07)
+*********************
+
+Bugfixes - 4.0.2
+================
+
+- Unescaped comma in substitution should not be replaced during INI expansion - by :user:`gaborbernat`. (:issue:`2616`)
+- ``tox --showconfig -e py311`` reports tox section, though it should not - by :user:`gaborbernat`. (:issue:`2624`)
+
+*********************
+ v4.0.1 (2022-12-07)
+*********************
+
+Bugfixes - 4.0.1
+================
+
+- Create session views of the build wheel/sdist into the :ref:`temp_dir` folder - by :user:`gaborbernat`.
+  (:issue:`2612`)
+- Default tox min_version to 4.0 instead of current tox version - by :user:`gaborbernat`. (:issue:`2613`)
+
+*********************
+ v4.0.0 (2022-12-07)
+*********************
+
+Bugfixes - 4.0.0
+================
+
+- The temporary folder within the tox environment was named ``.temp`` instead of ``.tmp`` - by :user:`gaborbernat`.
+  (:issue:`2608`)
+
+Improved Documentation - 4.0.0
+==============================
+
+- Enumerate breaking changes of tox 4 in the FAQ, and also list major new improvements - by :user:`gaborbernat`.
+  (:issue:`2587`)
+- Document in the FAQ that tox 4 will raise a warning when finding conflicting environment names - by
+  :user:`gaborbernat`. (:issue:`2602`)
+
+************************
+ v4.0.0rc4 (2022-12-06)
+************************
+
+Bugfixes - 4.0.0rc4
+===================
+
+- Fix extras not being kept for install dependencies - by :user:`gaborbernat`. (:issue:`2603`)
+
+Deprecations and Removals - 4.0.0rc4
+====================================
+
+- Remove deprecated configuration option ``whitelist_externals`` which was replaced by ``allowlist_externals`` - by
+  :user:`jugmac00`. (:issue:`2599`)
+
+************************
+ v4.0.0rc3 (2022-12-05)
+************************
+
+Features - 4.0.0rc3
+===================
+
+- Add ``--exit-and-dump-after`` flag that allows automatically killing tox if does not finish within the passed seconds,
+  and dump the thread stacks (useful to debug tox when it seemingly hangs) - by :user:`gaborbernat`. (:issue:`2595`)
+
+Bugfixes - 4.0.0rc3
+===================
+
+- Ensure that two parallel tox instance invocations on different tox environment targets will work by holding a file
+  lock onto the packaging operations (e.g., in bash ``tox4 r -e py311 &; tox4 r -e py310``) - by :user:`gaborbernat`.
+  (:issue:`2594`)
+- Fix leaking backend processes when the build backend does not support editable wheels and fix failure when multiple
+  environments exist that have a build backend that does not support editable wheels - by :user:`gaborbernat`.
+  (:issue:`2595`)
+
+************************
+ v4.0.0rc2 (2022-12-04)
+************************
+
+Features - 4.0.0rc2
+===================
+
+- Support for recursive extras in Python package dependencies - by :user:`gaborbernat`. (:issue:`2567`)
+
+Bugfixes - 4.0.0rc2
+===================
+
+- Support in INI files for ignore exit code marker the ``-`` without a subsequent space too - by :user:`gaborbernat`.
+  (:issue:`2561`)
+- Ensure paths constructed by tox are stable by resolving relative paths to fully qualified one, this insures that
+  running tox from a different folder than project root still generates meaningful paths - by :user:`gaborbernat`.
+  (:issue:`2562`)
+- Ensure only on run environment operates at a time on a packaging environment (fixes unexpected failures when running
+  in parallel mode) - by :user:`gaborbernat`. (:issue:`2564`)
+- Fallback to ``editable-legacy`` if package target is ``editable`` but the build backend does not have
+  ``build_editable`` hook - by :user:`gaborbernat`. (:issue:`2567`)
+- Allow reference replacement in INI configuration via keys that contain the ``-`` character - by :user:`gaborbernat`.
+  (:issue:`2569`)
+- Resolve symlinks when saving Python executable path - by :user:`ssbarnea`. (:issue:`2574`)
+- Do not set ``COLUMNS`` or ``LINES`` environment to the current TTY size if already set by the user - by
+  :user:`gaborbernat`. (:issue:`2575`)
+- Add missing :pypi:`build[virtualenv]<build>` test dependency - by :user:`ssbarnea`. (:issue:`2576`)
+
+************************
+ v4.0.0rc1 (2022-11-29)
+************************
+
+Features - 4.0.0rc1
+===================
+
+- Add support for generative section headers - by :user:`gaborbernat`. (:issue:`2362`)
+
+Bugfixes - 4.0.0rc1
+===================
+
+- Allow installing relative paths that go outside tox root folder. - by :user:`ssbarnea`. (:issue:`2366`)
+
+***********************
+ v4.0.0b3 (2022-11-27)
+***********************
+
+Features - 4.0.0b3
+==================
+
+- Improve coloring of logged commands - by :user:`ssbarnea`. (:issue:`2356`)
+- Pass ``PROGRAMDATA``, ``PROGRAMFILES(x86)``, ``PROGRAMFILES`` environments on Windows by default as it is needed for
+  discovering the VS C++ compiler and start testing against 3.11 - by :user:`gaborbernat`. (:issue:`2492`)
+- Support PEP-621 static metadata for getting package dependencies - by :user:`gaborbernat`. (:issue:`2499`)
+- Add support for editable wheels, make it the default development mode and rename ``dev-legacy`` mode to
+  ``editable-legacy`` - by :user:`gaborbernat`. (:issue:`2502`)
+
+Bugfixes - 4.0.0b3
+==================
+
+- Recognize ``TERM=dumb`` or ``NO_COLOR`` environment variables. - by :user:`ssbarnea`. (:issue:`1290`)
+- Allow passing config directory without filename. - by :user:`ssbarnea`. (:issue:`2340`)
+- Avoid ignored explicit argument 're' console message. - by :user:`ssbarnea`. (:issue:`2342`)
+- Display registered plugins with ``tox --version`` - by :user:`mxd4`. (:issue:`2358`)
+- Allow ``--hash`` to be specified in requirements.txt files. - by :user:`masenf`. (:issue:`2373`)
+- Avoid impossible minversion version requirements. - by :user:`ssbarnea`. (:issue:`2414`)
+
+Improved Documentation - 4.0.0b3
+================================
+
+- Add new documentation for tox 4 - by :user:`gaborbernat`. (:issue:`2408`)
+
+***********************
+ v4.0.0b2 (2022-04-11)
+***********************
+
+Features - 4.0.0b2
+==================
+
+- Use ``tox`` console entry point name instead of ``tox4`` - by :user:`gaborbernat`. (:issue:`2344`)
+- Use ``.tox`` as working directory instead of ``.tox/4`` - by :user:`gaborbernat`. (:issue:`2346`)
+- Switch to ``hatchling`` as build backend instead of ``setuptools`` - by :user:`gaborbernat`. (:issue:`2368`)
+
+Bugfixes - 4.0.0b2
+==================
+
+- Fix CLI raises an error for ``-va`` with ``ignored explicit argument 'a'`` - by :user:`gaborbernat`. (:issue:`2343`)
+- Do not interpolate values when parsing ``tox.ini`` configuration files - by :user:`gaborbernat`. (:issue:`2350`)
+
+Improved Documentation - 4.0.0b2
+================================
+
+- Deleted the tox mailing list -- by :user:`jugmac00` (:issue:`2364`)
+
+***********************
+ v4.0.0b1 (2022-02-05)
+***********************
+
+Features - 4.0.0b1
+==================
+
+- Display a hint for unrecognized argument CLI parse failures to use ``--`` separator to pass arguments to commands - by
+  :user:`gaborbernat`. (:issue:`2183`)
+- Do not allow extending the config set beyond setup to ensures that all configuration values are visible via the config
+  sub-command. - by :user:`gaborbernat`. (:issue:`2243`)
+- Print a message when ignoring outcome of commands - by :user:`gaborbernat`. (:issue:`2315`)
+
+Bugfixes - 4.0.0b1
+==================
+
+- Fix type annotation is broken for :meth:`tox.config.sets.ConfigSet.add_config` when adding a container type - by
+  :user:`gaborbernat`. (:issue:`2233`)
+- Insert ``TOX_WORK_DIR``, ``TOX_ENV_NAME``, ``TOX_ENV_DIR`` and ``VIRTUAL_ENV`` into the environment variables for all
+  tox environments to keep contract with tox version 3 - by :user:`gaborbernat`. (:issue:`2259`)
+- Fix plugin initialization order - core plugins first, then 3rd party and finally inline - by :user:`gaborbernat`.
+  (:issue:`2264`)
+- Legacy parallel mode should accept ``-p`` flag without arguments - by :user:`gaborbernat`. (:issue:`2299`)
+- Sequential run fails because the packaging environment is deleted twice for sequential runs with recreate flag on - by
+  :user:`gaborbernat`. (:issue:`2300`)
+- Require Python 3.10 to generate docs - by :user:`jugmac00`. (:issue:`2321`)
+- Environment assignment for output breaks when using ``-rv`` (when we cannot guess upfront the verbosity level from the
+  CLI arguments) - by :user:`gaborbernat`. (:issue:`2324`)
+- ``devenv`` command does not respect specified path - by :user:`gaborbernat`. (:issue:`2325`)
+
+Improved Documentation - 4.0.0b1
+================================
+
+- Enable link check during documentation build - by :user:`gaborbernat`. (:issue:`806`)
+- Document ownership of the ``tox.wiki`` root domain - by :user:`gaborbernat`. (:issue:`2242`)
+- Document :meth:`tox.config.sets.ConfigSet.loaders` - by :user:`gaborbernat`. (:issue:`2287`)
+- Fix CLI documentation is missing and broken documentation references - by :user:`gaborbernat`. (:issue:`2310`)
+
+************************
+ v4.0.0a10 (2022-01-04)
+************************
+
+Features - 4.0.0a10
+===================
+
+- Support for grouping environment values together by applying labels to them either at :ref:`core <labels>` and
+  :ref:`environment <labels-env>` level, and allow selecting them via the :ref:`-m <tox-run--m>` flag from the CLI - by
+  :user:`gaborbernat`. (:issue:`238`)
+- Support for environment files within the :ref:`set_env` configuration via the ``file|`` prefix - by
+  :user:`gaborbernat`. (:issue:`1938`)
+- Support for ``--no-provision`` flag - by :user:`gaborbernat`. (:issue:`1951`)
+- Missing ``pyproject.toml`` or ``setup.py`` file at the tox root folder without the ``--install-pkg`` flag assumes no
+  packaging - by :user:`gaborbernat`. (:issue:`1964`)
+- Add ``external`` package type for :ref:`package` (see :ref:`external-package-builder`), and extract package
+  dependencies for packages passed in via :ref:`--installpkg <tox-run---installpkg>` - by :user:`gaborbernat`.
+  (:issue:`2204`)
+- Add support for rewriting script invocations that have valid shebang lines when the ``TOX_LIMITED_SHEBANG``
+  environment variable is set and not empty - by :user:`gaborbernat`. (:issue:`2208`)
+- Support for the ``--discover`` CLI flag - by :user:`gaborbernat`. (:pr:`2245`)
+- Moved the python packaging logic into a dedicate package :pypi:`pyproject-api` and use it as a dependency - by
+  :user:`gaborbernat`. (:pr:`2274`)
+- Drop python 3.6 support - by :user:`gaborbernat`. (:pr:`2275`)
+- Support for selecting target environments with a given factor via the :ref:`-f <tox-run--f>` CLI environment flag - by
+  :user:`gaborbernat`. (:pr:`2290`)
+
+Bugfixes - 4.0.0a10
+===================
+
+- Fix ``CTRL+C`` is not stopping the process on Windows - by :user:`gaborbernat`. (:issue:`2159`)
+- Fix list/depends commands can create tox package environment as runtime environment and display an error message - by
+  :user:`gaborbernat`. (:pr:`2234`)
+
+Deprecations and Removals - 4.0.0a10
+====================================
+
+- ``tox_add_core_config`` and ``tox_add_env_config`` now take a ``state: State`` argument instead of a configuration
+  one, and ``Config`` not longer provides the ``envs`` property (instead users should migrate to ``State.envs``) - by
+  :user:`gaborbernat`. (:pr:`2275`)
+
+***********************
+ v4.0.0a9 (2021-09-16)
+***********************
+
+Features - 4.0.0a9
+==================
+
+- Expose the parsed CLI arguments on the main configuration object for plugins and allow plugins to define their own
+  configuration section -- by :user:`gaborbernat`. (:pr:`2191`)
+- Let tox run fail when all envs are skipped -- by :user:`jugmac00`. (:issue:`2195`)
+- Expose the configuration loading mechanism to plugins to define and load their own sections. Add
+  :meth:`tox_add_env_config <tox.plugin.spec.tox_add_env_config>` plugin hook called after the configuration environment
+  is created for a tox environment and removed ``tox_configure``. Add the main configuration object as argument to
+  :meth:`tox_add_core_config <tox.plugin.spec.tox_add_core_config>`. Move the environment list method from the state to
+  the main configuration object to allow its use within plugins -- by :user:`gaborbernat`. (:issue:`2200`)
+- Allow running code in plugins before and after commands via :meth:`tox_before_run_commands
+  <tox.plugin.spec.tox_before_run_commands>` and :meth:`tox_after_run_commands <tox.plugin.spec.tox_after_run_commands>`
+  plugin points -- by :user:`gaborbernat`. (:issue:`2201`)
+- Allow plugins to update the :ref:`set_env` and change the :ref:`pass_env` configurations -- by :user:`gaborbernat`.
+  (:issue:`2215`)
+
+Bugfixes - 4.0.0a9
+==================
+
+- Fix env variable substitutions with defaults containing colon (e.g. URL) -- by :user:`comabrewer`. (:issue:`2182`)
+- Do not allow constructing ``ConfigSet`` directly and implement ``__contains__`` for ``Loader`` -- by
+  :user:`gaborbernat`. (:pr:`2209`)
+- Fix old-new value on recreate cache miss-match are swapped -- by :user:`gaborbernat`. (:issue:`2211`)
+- Report fails when report does not support Unicode characters -- by :user:`gaborbernat`. (:issue:`2213`)
+
+Improved Documentation - 4.0.0a9
+================================
+
+- Adopt furo theme, update our state diagram and description in user docs (SVG + light/dark variant), split the Python
+  API into its own page from under the plugin page, and document plugin adoption under the ``tox-dev`` organization - by
+  :user:`gaborbernat`. (:issue:`1881`)
+
+***********************
+ v4.0.0a8 (2021-08-21)
+***********************
+
+Features - 4.0.0a8
+==================
+
+- Add support for :ref:`allowlist_externals`, commands not matching error - by :user:`gaborbernat`. (:issue:`1127`)
+- Add outcome of environments into the result json (:ref:`--result-json <tox-run---result-json>`) under the ``result``
+  key containing ``success`` boolean, ``exit_code`` integer and ``duration`` float value - by :user:`gaborbernat`.
+  (:issue:`1405`)
+- Add ``exec`` subcommand that allows users to run an arbitrary command within the tox environment (without needing to
+  modify their configuration) - by :user:`gaborbernat`. (:issue:`1790`)
+- Add check to validate the base Python names and the environments name do not conflict Python spec wise, when they do
+  raise error if :ref:`ignore_base_python_conflict` is not set or ``False`` - by :user:`gaborbernat`. (:issue:`1840`)
+- Allow any Unix shell-style wildcards expression for :ref:`pass_env` - by :user:`gaborbernat`. (:issue:`2121`)
+- Add support for :ref:`args_are_paths` flag - by :user:`gaborbernat`. (:issue:`2122`)
+- Add support for :ref:`env_log_dir` (compared to tox 3 extend content and keep only last run entries) - by
+  :user:`gaborbernat`. (:issue:`2123`)
+- Add support for ``{:}`` substitution in ini files as placeholder for the OS path separator - by :user:`gaborbernat`.
+  (:issue:`2125`)
+- When cleaning directories (for tox environment, ``env_log_dir``, ``env_tmp_dir`` and packaging metadata folders) do
+  not delete the directory itself and recreate, but instead just delete its content (this allows the user to cd into it
+  and still be in a valid folder after a new run) - by :user:`gaborbernat`. (:pr:`2139`)
+- Changes to help plugin development: simpler tox env creation argument list, expose python creation directly, allow
+  skipping list dependencies install command for pip and executable is only part of the python cache for virtualenv - by
+  :user:`gaborbernat`. (:pr:`2172`)
+
+Bugfixes - 4.0.0a8
+==================
+
+- Support ``#`` character in path for the tox project - by :user:`gaborbernat`. (:issue:`763`)
+- If the command expression fails to parse with shlex fallback to literal pass through of the remaining elements - by
+  :user:`gaborbernat`. (:issue:`1944`)
+- tox config fails on :ref:`--recreate <tox-config---recreate>` flag, and once specified the output does not reflect the
+  impact of the CLI flags - by :user:`gaborbernat`. (:issue:`2037`)
+- Virtual environment creation for Python is always triggered at every run - by :user:`gaborbernat`. (:issue:`2041`)
+- Add support for setting :ref:`suicide_timeout`, :ref:`interrupt_timeout` and :ref:`terminate_timeout` - by
+  :user:`gaborbernat`. (:issue:`2124`)
+- Parallel show output not working when there's a packaging phase in the run - by :user:`gaborbernat`. (:pr:`2161`)
+
+Improved Documentation - 4.0.0a8
+================================
+
+- Note constraint files are a subset of requirement files - by :user:`gaborbernat`. (:issue:`1939`)
+- Add a note about having a package with different Python requirements than tox and not specifying :ref:`base_python` -
+  by :user:`gaborbernat`. (:issue:`1975`)
+- Fix :ref:`--runner <tox---runner>` is missing default value and documentation unclear - by :user:`gaborbernat`.
+  (:issue:`2004`)
+
+***********************
+ v4.0.0a7 (2021-07-28)
+***********************
+
+Features - 4.0.0a7
+==================
+
+- Add support for configuration taken from the ``setup.cfg`` file -by :user:`gaborbernat`. (:issue:`1836`)
+- Add support for configuration taken from the ``pyproject.toml`` file, ``tox`` section ``legacy_tox_ini`` key - by
+  :user:`gaborbernat`. (:issue:`1837`)
+- Add configuration documentation - by :user:`gaborbernat`. (:issue:`1914`)
+- Implemented ``[]`` substitution (alias for ``{posargs}``) - by :user:`hexagonrecursion`. (:issue:`1928`)
+- Implement ``[testenv] ignore_outcome`` - "a failing result of this testenv will not make tox fail" - by
+  :user:`hexagonrecursion`. (:issue:`1947`)
+- Inline plugin support via ``tox_.py``. This is loaded where the tox config source is discovered. It's a Python file
+  that can contain arbitrary Python code, such as definition of a plugin. Eventually we'll add a plugin that allows
+  succinct declaration/generation of new tox environments - by :user:`gaborbernat`. (:pr:`1963`)
+- Introduce the installer concept, and collect pip installation into a ``pip`` package, also attach to this the
+  requirements file parsing which got a major rework - by :user:`gaborbernat`. (:pr:`1991`)
+- Support CPython ``3.10`` -by :user:`gaborbernat`. (:pr:`2014`)
+
+Bugfixes - 4.0.0a7
+==================
+
+- Environments with a platform mismatch are no longer silently skipped, but properly reported - by :user:`jugmac00`.
+  (:issue:`1926`)
+- Port pip requirements file parser to ``tox`` to achieve full equivalency (such as support for the per requirement
+  ``--install-option`` and ``--global-option`` flags) - by :user:`gaborbernat`. (:issue:`1929`)
+- Support for extras with paths for Python deps and requirement files - by :user:`gaborbernat`. (:issue:`1933`)
+- Due to a bug ``\{posargs} {posargs}`` used to expand to literal ``{posargs} {posargs}``. Now the second ``{posargs}``
+  is expanded. ``\{posargs} {posargs}`` expands to ``{posargs} positional arguments here`` - by
+  :user:`hexagonrecursion`. (:issue:`1956`)
+- Enable setting a different ``upstream`` repository for the coverage diff report. This has been hardcoded to
+  ``upstream/rewrite`` until now. by :user:`jugmac00`. (:issue:`1972`)
+- Enable replacements (a.k.a section substitutions) for section names containing a dash in sections without the
+  ``testenv:`` prefix - by :user:`jugmac00`, :user:`obestwalter`, :user:`eumiro`. (:issue:`1985`)
+- Fix legacy list env command for empty/missing envlist - by :user:`jugmac00`. (:issue:`1987`)
+- Requirements and constraints files handling got reimplemented, which should fix all open issues related to this area -
+  by :user:`gaborbernat`. (:pr:`1991`)
+- Use importlib instead of ``__import__`` - by :user:`dmendek`. (:issue:`1995`)
+- Evaluate factor conditions for ``command`` keys - by :user:`jugmac00`. (:issue:`2002`)
+- Prefer f-strings instead of the str.format method - by :user:`eumiro`. (:issue:`2012`)
+- Fix regex validation for SHA 512 hashes - by :user:`jugmac00`. (:issue:`2018`)
+- Actually run all environments when ``ALL`` is provided to the legacy env command - by :user:`jugmac00`.
+  (:issue:`2112`)
+- Move from ``appdirs`` to ``platformdirs`` - by :user:`gaborbernat`. (:pr:`2117`)
+- Move from ``toml`` to ``tomli`` - by :user:`gaborbernat`. (:pr:`2118`)
+
+Improved Documentation - 4.0.0a7
+================================
+
+- Start documenting the plugin interface. Added :meth:`tox_register_tox_env <tox.plugin.spec.tox_register_tox_env>`,
+  :meth:`tox_add_option <tox.plugin.spec.tox_add_option>`, :meth:`tox_add_core_config
+  <tox.plugin.spec.tox_add_core_config>`, ``tox_configure`` - by :user:`gaborbernat`. (:pr:`1991`)
+- Explain how ``-v`` and ``-q`` flags play together to determine CLI verbosity level - by :user:`jugmac00`.
+  (:issue:`2005`)
+- Start polishing the documentation for the upcoming final release - by :user:`jugmac00`. (:pr:`2006`)
+- Update documentation about changelog entries for trivial changes - by :user:`jugmac00`. (:issue:`2007`)
+
+***********************
+ v4.0.0a6 (2021-02-15)
+***********************
+
+Features - 4.0.0a6
+==================
+
+- Add basic quickstart implementation (just use pytest with the current Python version) - by :user:`gaborbernat`.
+  (:issue:`1829`)
+- Support comments via the ``#`` character within the ini configuration (to force a literal ``#`` use ``\#``) - by
+  :user:`gaborbernat`. (:issue:`1831`)
+- Add support for the ``install_command`` settings in the virtual env test environments - by :user:`gaborbernat`.
+  (:issue:`1832`)
+- Add support for the ``package_root`` ``setupdir`` ( Python scoped) configuration that sets the root directory used for
+  packaging (the location of the historical ``setup.py`` and modern ``pyproject.toml``). This can be set at root level,
+  or at tox environment level (the later takes precedence over the former) - by :user:`gaborbernat`. (:issue:`1838`)
+- Implement support for the ``--installpkg`` CLI flag - by :user:`gaborbernat`. (:issue:`1839`)
+- Add support for the ``list_dependencies_command`` settings in the virtual env test environments - by
+  :user:`gaborbernat`. (:issue:`1842`)
+- Add support for the ``ignore_errors`` settings in tox test environments - by :user:`gaborbernat`. (:issue:`1843`)
+- Add support for the ``pip_pre`` settings for virtual environment based tox environments - by :user:`gaborbernat`.
+  (:issue:`1844`)
+- Add support for the ``platform`` settings in tox test environments - by :user:`gaborbernat`. (:issue:`1845`)
+- Add support for the ``recreate`` settings in tox test environments - by :user:`gaborbernat`. (:issue:`1846`)
+- Allow Python test and packaging environments with version 2.7 - by :user:`gaborbernat`. (:pr:`1900`)
+- Do not construct a requirements file for deps in virtualenv, instead pass content as CLI argument to pip - by
+  :user:`gaborbernat`. (:pr:`1906`)
+- Do not display status update environment reports when interrupted or for the final environment ran (because at the
+  final report will be soon printed and makes the status update redundant) - by :user:`gaborbernat`. (:issue:`1909`)
+- The ``_TOX_SHOW_THREAD`` environment variable can be used to print alive threads when tox exists (useful to debug when
+  tox hangs because of some non-finished thread) and also now prints the pid of the local subprocess when reporting the
+  outcome of an execution - by :user:`gaborbernat`. (:pr:`1915`)
+
+Bugfixes - 4.0.0a6
+==================
+
+- Normalize description text to collapse newlines and one or more than whitespace to a single space - by
+  :user:`gaborbernat`. (:issue:`1829`)
+- Support aliases in show config key specification (will print with the primary key) - by :user:`gaborbernat`.
+  (:issue:`1831`)
+- Show config no longer marks as unused keys that are inherited (e.g. if the key is coming from ``testenv`` section and
+  our target is ``testenv:fix``) - by :user:`gaborbernat`. (:issue:`1833`)
+- ``--alwayscopy`` and ``--sitepackages`` legacy only flags do not work - by :user:`gaborbernat`. (:issue:`1839`)
+- Fix handling of ``commands_pre``/``commands``/``commands_post`` to be in line with tox 3 (returned incorrect exit
+  codes and post was not always executed) - by :user:`gaborbernat`. (:issue:`1843`)
+- Support requirement files containing ``--hash`` constraints - by :user:`gaborbernat`. (:issue:`1903`)
+- Fix a bug that caused tox to never finish when pulling configuration from a tox run environment that was never
+  executed - by :user:`gaborbernat`. (:pr:`1915`)
+
+Deprecations and Removals - 4.0.0a6
+===================================
+
+- - Drop support for ``sdistsrc`` flag because introduces a significant complexity and is barely used (5 hits on a
+    github search).
+  - ``--skip-missing-interpreters``, ``--notest``, ``--sdistonly``, ``--installpkg``, ``--develop`` and
+    ``--skip-pkg-install`` CLI flags are no longer available for ``devenv`` (enforce the only sane value for these).
+
+  By :user:`gaborbernat` (:issue:`1839`)
+
+- Remove Jenkins override support: this feature goes against the spirit of tox - blurring the line between the CI and
+  local runs. It also singles out a single CI provider, which opens the door for other CIs wanting similar
+  functionality. Finally, only 54 code file examples came back on a Github search, showing this is a not widely used
+  feature. People who still want Jenkins override support may create a tox plugin to achieve this functionality - by
+  :user:`gaborbernat`. (:issue:`1841`)
+
+***********************
+ v4.0.0a5 (2021-01-23)
+***********************
+
+Features - 4.0.0a5
+==================
+
+- Support the ``system_site_packages``/``sitepackages`` flag for virtual environment based tox environments - by
+  :user:`gaborbernat`. (:issue:`1847`)
+- Support the ``always_copy``/``alwayscopy`` flag for virtual environment based tox environments - by
+  :user:`gaborbernat`. (:issue:`1848`)
+- Support the ``download`` flag for virtual environment based tox environments - by :user:`gaborbernat`. (:issue:`1849`)
+- Recreate virtual environment based tox environments when the ``virtualenv`` version changes - by :user:`gaborbernat`.
+  (:issue:`1865`)
+
+Bugfixes - 4.0.0a5
+==================
+
+- Not all package dependencies are installed when different tox environments in the same run use different set of extras
+  - by :user:`gaborbernat`. (:issue:`1868`)
+- Support ``=`` separator in requirement file flags, directories as requirements and correctly set the root of the
+  requirements file when using the ``--root`` CLI flag to change the root - by :user:`gaborbernat`. (:issue:`1853`)
+- Cleanup local subprocess file handlers when exiting runs (fixes ``ResourceWarning: unclosed file`` errors when running
+  with ``env PYTHONTRACEMALLOC=5 PYTHONDEVMODE=y`` under a Python built with ``--with-pydebug``) - by
+  :user:`gaborbernat`. (:issue:`1857`)
+- Various small bugfixes:
+
+  - honor updating default environment variables set by internal tox via set env (``PIP_DISABLE_PIP_VERSION_CHECK``)
+  - do not multi-wrap ``HandledError`` in the ini file loader,
+  - skipped environments are logged now with their fail message at default verbosity level,
+  - fix an error that made the show configuration command crash when making the string of a config value failed,
+  - support empty-new lines within the set env configurations replacements,
+
+  by :user:`gaborbernat`. (:pr:`1864`)
+
+Improved Documentation - 4.0.0a5
+================================
+
+- Add CLI documentation - by :user:`gaborbernat`. (:pr:`1852`)
+
+***********************
+ v4.0.0a4 (2021-01-16)
+***********************
+
+Features - 4.0.0a4
+==================
+
+- Use ``.tox/4`` instead of ``.tox4`` folder (so ignores for tox 3 works for tox 4 too), reminder we'll rename this to
+  just ``.tox`` before public release, however to encourage testing tox 4 in parallel with tox 3 this is helpful - by
+  :user:`gaborbernat`. (:discussion:`1812`)
+- Colorize the ``config`` command: section headers are yellow, keys are green, values remained white, exceptions are
+  light red and comments are cyan - by :user:`gaborbernat`. (:pr:`1821`)
+
+Bugfixes - 4.0.0a4
+==================
+
+- Support legacy format (``-cconstraint.txt``) of constraint files in ``deps``, and expand constraint files too when
+  viewing inside the ``deps`` or calculating weather our environment is up to date or not - by :user:`gaborbernat`.
+  (:issue:`1788`)
+- When specifying requirements/editable/constraint paths within ``deps`` escape space, unless already escaped to support
+  running specifying transitive requirements files within deps - by :user:`gaborbernat`. (:issue:`1792`)
+- When using a provisioned tox environment requesting ``--recreate`` failed with ``AttributeError`` - by
+  :user:`gaborbernat`. (:issue:`1793`)
+- Fix ``RequirementsFile`` from tox is rendered incorrectly in ``config`` command - by :user:`gaborbernat`.
+  (:issue:`1820`)
+- Fix a bug in the configuration system where referring to the same named key in another env/section causes circular
+  dependency error - by :user:`gaborbernat`. (:pr:`1821`)
+- Raise ``ValueError`` with descriptive message when a requirements file specified does not exist - by
+  :user:`gaborbernat`. (:pr:`1828`)
+- Support all valid requirement file specification without delimiting space in the ``deps`` of the ``tox.ini`` - by
+  :user:`gaborbernat`. (:issue:`1834`)
+
+Improved Documentation - 4.0.0a4
+================================
+
+- Add code style guide for contributors - by :user:`gaborbernat`. (:issue:`1734`)
+
+***********************
+ v4.0.0a3 (2021-01-13)
+***********************
+
+Features - 4.0.0a3
+==================
+
+- Raise exception when set env enters into a circular reference - by :user:`gaborbernat`. (:issue:`1779`)
+- - Raise exception when variable substitution enters into a circle.
+  - Add ``{/}`` as substitution for os specific path separator.
+  - Add ``{env_bin_dir}`` constant substitution.
+  - Implement support for ``--discover`` flag - by :user:`gaborbernat`. (:pr:`1784`)
+
+Bugfixes - 4.0.0a3
+==================
+
+- Entries in the ``set_env`` does not reference environments from ``set_env`` - by :user:`gaborbernat`. (:issue:`1776`)
+- ``env`` substitution does not uses values from ``set_env`` - by :user:`gaborbernat`. (:issue:`1779`)
+- Adopt tox 3 base pass env list, by adding:
+
+  - on all platforms: ``LANG``, ``LANGUAGE``, ``CURL_CA_BUNDLE``, ``SSL_CERT_FILE`` , ``LD_LIBRARY_PATH`` and
+    ``REQUESTS_CA_BUNLDE``,
+  - on Windows: ``SYSTEMDRIVE`` - by :user:`gaborbernat`. (:issue:`1780`)
+
+- Fixed a bug that crashed tox where calling tox with the recreate flag and when multiple environments were reusing the
+  same package - by :user:`gaborbernat`. (:issue:`1782`)
+- - Python version markers are stripped in package dependencies (after wrongfully being detected as an extra marker).
+  - In packaging APIs do not set ``PYTHONPATH`` (to empty string) if ``backend-path`` is empty.
+  - Fix commands parsing on Windows (do not auto-escape ``\`` - instead users should use the new ``{\}``, and on parsed
+    arguments strip both ``'`` and ``"`` quoted outcomes).
+  - Allow windows paths in substitution set/default (the ``:`` character used to separate substitution arguments may
+    also be present in paths on Windows - do not support single capital letter values as substitution arguments) - by
+    :user:`gaborbernat`. (:pr:`1784`)
+- Rework how we handle Python packaging environments:
+
+  - the base packaging environment changed from ``.package`` to ``.pkg``,
+  - merged the ``sdist``, ``wheel`` and ``dev`` separate packaging implementations into one, and internally dynamically
+    pick the one that's needed,
+  - the base packaging environment always uses the same Python environment as tox is installed into,
+  - the base packaging environment is used to get the metadata of the project (via PEP-517) and to build ``sdist`` and
+    ``dev`` packages,
+  - for building wheels introduced a new per env configurable option ``wheel_build_env``, if the target Python
+    major/minor and implementation for the run tox environment and the base package tox environment matches set this to
+    ``.pkg``, otherwise this is ``.pkg-{implementation}{major}{minor}``,
+  - internally now packaging environments can create further packaging environments they are responsible of managing,
+  - updated ``depends`` to use the packaging logic,
+  - add support skip missing interpreters for depends and show config,
+
+  by :user:`gaborbernat`. (:issue:`1804`)
+
+***********************
+ v4.0.0a2 (2021-01-09)
+***********************
+
+Features - 4.0.0a2
+==================
+
+- Add option to disable colored output, and support ``NO_COLOR`` and ``FORCE_COLOR`` environment variables - by
+  :user:`gaborbernat`. (:pr:`1630`)
+
+Bugfixes - 4.0.0a2
+==================
+
+- Fix coverage generation in CI - by :user:`gaborbernat`. (:pr:`1551`)
+- Fix the CI failures:
+
+  - drop Python 3.5 support as it's not expected to get to a release before EOL,
+  - fix test using ``\n`` instead of ``os.linesep``,
+  - Windows Python 3.6 does not contain ``_overlapped.ReadFileInto``
+  - by :user:`gaborbernat`. (:pr:`1556`)
+
+Improved Documentation - 4.0.0a2
+================================
+
+- Add base documentation by merging virtualenv structure with tox 3 - by :user:`gaborbernat`. (:pr:`1551`)
+
+**********
+ v4.0.0a1
+**********
+
+- First version all is brand new.
+
+.. warning::
+
+    The current tox is the second iteration of implementation. From version ``0.5`` all the way to ``3.X`` we numbered
+    the first iteration. Version ``4.0.0a1`` is a complete rewrite of the package, and as such this release history
+    starts from there. The old changelog is still available in the `legacy branch documentation
+    <https://tox.wiki/en/legacy/changelog.html>`_.

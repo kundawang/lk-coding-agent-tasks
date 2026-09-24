@@ -1,0 +1,5 @@
+class Overlapped:
+    def __init__(self, event: int, /) -> None: ...
+    def ReadFile(self, handle: int, size: int, /) -> None: ...  # ruff:ignore[invalid-function-name]
+    def WriteFile(self, handle: int, data: bytes, /) -> None: ...  # ruff:ignore[invalid-function-name]
+    def getresult(self, wait: bool | int = False, /) -> bytes | int: ...  # bytes after ReadFile, count after WriteFile

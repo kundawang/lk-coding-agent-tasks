@@ -1,0 +1,468 @@
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+from contextlib import contextmanager
+from pathlib import Path
+from subprocess import check_call
+from typing import TYPE_CHECKING
+from unittest import mock
+from zipfile import ZipFile
+
+import pytest
+from filelock import FileLock
+from packaging.requirements import Requirement
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator, Sequence
+
+    from build import DistributionType
+    from devpi_process import Index, IndexServer
+
+    from tox.execute.request import ExecuteRequest
+    from tox.pytest import MonkeyPatch, TempPathFactory, ToxProjectCreator
+
+from importlib.metadata import Distribution
+
+ROOT = Path(__file__).parents[1]
+
+
+@contextmanager
+def elapsed(msg: str) -> Iterator[None]:
+    start = time.monotonic()
+    try:
+        yield
+    finally:
+        print(f"done in {time.monotonic() - start}s {msg}")  # ruff:ignore[print]
+
+
+@pytest.fixture(scope="session")
+def tox_wheel(
+    tmp_path_factory: TempPathFactory,
+    worker_id: str,
+    pkg_builder: Callable[[Path, Path, list[str], bool], Path],
+) -> Path:
+    if worker_id == "master":  # if not running under xdist we can just return
+        return _make_tox_wheel(tmp_path_factory, pkg_builder)  # pragma: no cover
+    # otherwise we need to ensure only one worker creates the wheel, and the rest reuses
+    root_tmp_dir = tmp_path_factory.getbasetemp().parent
+    cache_file = root_tmp_dir / "tox_wheel.json"
+    with FileLock(f"{cache_file}.lock"):
+        if cache_file.is_file():
+            data = Path(json.loads(cache_file.read_text()))  # pragma: no cover
+        else:
+            data = _make_tox_wheel(tmp_path_factory, pkg_builder)
+            cache_file.write_text(json.dumps(str(data)))
+    return data
+
+
+def _make_tox_wheel(
+    tmp_path_factory: TempPathFactory,
+    pkg_builder: Callable[[Path, Path, list[str], bool], Path],
+) -> Path:
+    with elapsed("acquire current tox wheel"):  # takes around 3.2s on build
+        into = tmp_path_factory.mktemp("dist")  # pragma: no cover
+        from tox.version import version_tuple  # ruff:ignore[import-outside-top-level]
+
+        patch_version = version_tuple[2]
+        if isinstance(patch_version, str) and patch_version[:3] == "dev":
+            # Version is in the form of 1.23.dev456, we need to increment the 456 part
+            version = f"{version_tuple[0]}.{version_tuple[1]}.dev{int(patch_version[3:]) + 1}"
+        else:
+            version = f"{version_tuple[0]}.{version_tuple[1]}.{int(patch_version) + 1}"
+
+        with mock.patch.dict(os.environ, {"SETUPTOOLS_SCM_PRETEND_VERSION": version}):
+            return pkg_builder(into, Path(__file__).parents[1], ["wheel"], False)  # pragma: no cover
+
+
+@pytest.fixture(scope="session")
+def tox_wheels(tox_wheel: Path, tmp_path_factory: TempPathFactory) -> list[Path]:
+    with elapsed("acquire dependencies for current tox"):  # takes around 1.5s if already cached
+        result: list[Path] = [tox_wheel]
+        info = tmp_path_factory.mktemp("info")
+        with ZipFile(str(tox_wheel), "r") as zip_file:
+            zip_file.extractall(path=info)
+        dist_info = next((i for i in info.iterdir() if i.suffix == ".dist-info"), None)
+        if dist_info is None:  # pragma: no cover
+            msg = f"no tox.dist-info inside {tox_wheel}"
+            raise RuntimeError(msg)
+        distribution = Distribution.at(dist_info)
+        wheel_cache = ROOT / ".wheel_cache" / f"{sys.version_info.major}.{sys.version_info.minor}"
+        wheel_cache.mkdir(parents=True, exist_ok=True)
+        cmd = [sys.executable, "-m", "pip", "download", "-d", str(wheel_cache)]
+        assert distribution.requires is not None
+        for req in distribution.requires:
+            requirement = Requirement(req)
+            if not requirement.extras:  # pragma: no branch # we don't need to install any extras (tests/docs/etc)
+                cmd.append(req)
+        check_call(cmd)
+        result.extend(wheel_cache.iterdir())
+        res = "\n".join(str(i) for i in result)
+        with elapsed(f"acquired dependencies for current tox: {res}"):
+            pass
+        return result
+
+
+@pytest.fixture(scope="session")
+def local_pypi_indexes(
+    pypi_server: IndexServer, tox_wheels: list[Path], demo_pkg_inline_wheel: Path
+) -> tuple[Index, Index]:
+    with elapsed("start devpi and create indexes"):  # takes around 1s
+        pypi_server.create_index("mirror", "type=mirror", "mirror_url=https://pypi.org/simple/")
+        mirrored_index = pypi_server.create_index("magic", f"bases={pypi_server.user}/mirror")
+        self_index = pypi_server.create_index("self", "volatile=False")
+    with elapsed("upload tox and its wheels to devpi"):  # takes around 3.2s on build
+        mirrored_index.upload(*tox_wheels, demo_pkg_inline_wheel)
+        self_index.upload(*tox_wheels, demo_pkg_inline_wheel)
+    return mirrored_index, self_index
+
+
+def _use_pypi_index(pypi_index: Index, monkeypatch: MonkeyPatch) -> None:
+    pypi_index.use()
+    monkeypatch.setenv("PIP_INDEX_URL", pypi_index.url)
+    monkeypatch.setenv("PIP_RETRIES", str(2))
+    monkeypatch.setenv("PIP_TIMEOUT", str(5))
+
+
+@pytest.fixture
+def _pypi_index_mirrored(local_pypi_indexes: tuple[Index, Index], monkeypatch: MonkeyPatch) -> None:
+    pypi_index_mirrored, _ = local_pypi_indexes
+    _use_pypi_index(pypi_index_mirrored, monkeypatch)
+
+
+@pytest.fixture
+def _pypi_index_self(local_pypi_indexes: tuple[Index, Index], monkeypatch: MonkeyPatch) -> None:
+    _, pypi_index_self = local_pypi_indexes
+    _use_pypi_index(pypi_index_self, monkeypatch)
+
+
+def test_provision_requires_nok(tox_project: ToxProjectCreator) -> None:
+    ini = "[tox]\nrequires = pkg-does-not-exist\n setuptools==1\nskipsdist=true\n"
+    outcome = tox_project({"tox.ini": ini}).run("c", "-e", "py")
+    outcome.assert_failed()
+    outcome.assert_out_err(
+        r".*will run in automatically provisioned tox, host .* is missing \[requires \(has\)\]:"
+        r" pkg-does-not-exist, setuptools==1 \(.*\).*",
+        r".*",
+        regex=True,
+    )
+
+
+def test_provision_requires_skips_false_markers(tox_project: ToxProjectCreator) -> None:
+    project = tox_project({
+        "tox.toml": """
+            requires = ['pkg-does-not-exist; python_version < "2.0"']
+
+            [env_run_base]
+            package = "skip"
+        """,
+    })
+    outcome = project.run("c", "-e", "py")
+    outcome.assert_success()
+    assert "provisioned" not in outcome.out
+
+
+def test_provision_requires_checks_true_markers(tox_project: ToxProjectCreator) -> None:
+    project = tox_project({
+        "tox.toml": """
+            requires = ['pkg-does-not-exist; python_version >= "3.0"']
+
+            [env_run_base]
+            package = "skip"
+        """,
+    })
+    outcome = project.run("c", "-e", "py")
+    outcome.assert_failed()
+    assert "pkg-does-not-exist" in outcome.out
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(120)
+@pytest.mark.parametrize("subcommand", ["l", "c"])
+def test_provision_before_loading_env_list(
+    tox_project: ToxProjectCreator,
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    pkg_builder: Callable[[Path, Path, Sequence[DistributionType], bool], Path],
+    subcommand: str,
+) -> None:
+    future_tox = tmp_path / "future-tox"
+    (future_tox / "tox").mkdir(parents=True)
+    (future_tox / "pyproject.toml").write_text(
+        """
+        [build-system]
+        requires = ["hatchling"]
+        build-backend = "hatchling.build"
+
+        [project]
+        name = "tox"
+        version = "999"
+        """,
+        encoding="utf-8",
+    )
+    (future_tox / "tox" / "__init__.py").write_text("", encoding="utf-8")
+    (future_tox / "tox" / "__main__.py").write_text(
+        "import sys\n\n"
+        'command = next(arg for arg in sys.argv[1:] if arg in {"l", "c"})\n'
+        'print(f"future tox ran {command}")\n',
+        encoding="utf-8",
+    )
+    wheel = pkg_builder(tmp_path / "dist", future_tox, ["wheel"], False)
+    monkeypatch.setenv("PIP_FIND_LINKS", str(wheel.parent))
+    monkeypatch.setenv("PIP_NO_INDEX", "1")
+
+    project = tox_project({
+        "tox.toml": """
+            requires = ["tox>=999"]
+            env_list = [1]
+        """,
+    })
+
+    outcome = project.run(subcommand)
+
+    outcome.assert_success()
+    assert "will run in automatically provisioned tox" in outcome.out
+    assert f"future tox ran {subcommand}" in outcome.out
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_pypi_index_self")
+@pytest.mark.timeout(120)
+def test_provision_requires_ok(tox_project: ToxProjectCreator, tmp_path: Path) -> None:
+    proj = tox_project({"tox.ini": "[tox]\nrequires=demo-pkg-inline\n[testenv]\npackage=skip"})
+    log = tmp_path / "out.log"
+
+    # initial run
+    result_first = proj.run("r", "--result-json", str(log), "--no-list-dependencies")
+    result_first.assert_success()
+    prov_msg = (
+        f"ROOT: will run in automatically provisioned tox, host {sys.executable} is missing"
+        f" [requires (has)]: demo-pkg-inline"
+    )
+    assert prov_msg in result_first.out
+
+    with log.open("rt") as file_handler:
+        log_report = json.load(file_handler)
+    assert "py" in log_report["testenvs"]
+
+    # recreate without recreating the provisioned env
+    provision_env = result_first.env_conf(".tox")["env_dir"]
+    result_recreate_no_pr = proj.run("r", "--recreate", "--no-recreate-provision", "--no-list-dependencies")
+    result_recreate_no_pr.assert_success()
+    assert prov_msg in result_recreate_no_pr.out
+    assert f"ROOT: remove tox env folder {provision_env}" not in result_recreate_no_pr.out, result_recreate_no_pr.out
+
+    # recreate with recreating the provisioned env
+    result_recreate = proj.run("r", "--recreate", "--no-list-dependencies")
+    result_recreate.assert_success()
+    assert prov_msg in result_recreate.out
+    assert f"ROOT: remove tox env folder {provision_env}" in result_recreate.out, result_recreate.out
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_pypi_index_self")
+def test_provision_platform_check(tox_project: ToxProjectCreator) -> None:
+    ini = "[tox]\nrequires=demo-pkg-inline\n[testenv]\npackage=skip\n[testenv:.tox]\nplatform=wrong_platform"
+    proj = tox_project({"tox.ini": ini})
+
+    result = proj.run("r")
+    result.assert_failed(-2)
+    msg = f"cannot provision tox environment .tox because platform {sys.platform} does not match wrong_platform"
+    assert msg in result.out
+
+
+def test_provision_no_recreate(tox_project: ToxProjectCreator) -> None:
+    ini = "[tox]\nrequires = p\nskipsdist=true\n"
+    result = tox_project({"tox.ini": ini}).run("c", "-e", "py", "--no-provision")
+    result.assert_failed()
+    assert f"provisioning explicitly disabled within {sys.executable}, but is missing [requires (has)]: p" in result.out
+
+
+def test_provision_no_recreate_json(tox_project: ToxProjectCreator) -> None:
+    ini = "[tox]\nrequires = p\nskipsdist=true\n"
+    project = tox_project({"tox.ini": ini})
+    result = project.run("c", "-e", "py", "--no-provision", "out.json")
+    result.assert_failed()
+    msg = (
+        f"provisioning explicitly disabled within {sys.executable}, "
+        f"but is missing [requires (has)]: p and wrote to out.json"
+    )
+    assert msg in result.out
+    with (project.path / "out.json").open() as file_handler:
+        requires = json.load(file_handler)
+    assert requires == {"minversion": None, "requires": ["p", "tox"]}
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_pypi_index_self")
+@pytest.mark.parametrize("plugin_testenv", ["testenv", "testenv:a"])
+def test_provision_plugin_runner(tox_project: ToxProjectCreator, tmp_path: Path, plugin_testenv: str) -> None:
+    """Ensure that testenv runner doesn't affect the provision env."""
+    log = tmp_path / "out.log"
+    proj = tox_project(
+        {"tox.ini": f"[tox]\nrequires=demo-pkg-inline\nlabels=l=py\n[{plugin_testenv}]\nrunner=example"},
+    )
+    prov_msg = (
+        f"ROOT: will run in automatically provisioned tox, host {sys.executable} is missing"
+        f" [requires (has)]: demo-pkg-inline"
+    )
+
+    result_env = proj.run("r", "-e", "py", "--result-json", str(log))
+    result_env.assert_success()
+    assert prov_msg in result_env.out
+
+    result_label = proj.run("r", "-m", "l", "--result-json", str(log))
+    result_label.assert_success()
+    assert prov_msg in result_label.out
+
+
+@pytest.mark.integration
+def test_provision_plugin_runner_in_provision(tox_project: ToxProjectCreator, tmp_path: Path) -> None:
+    """Ensure that provision environment can be explicitly configured."""
+    log = tmp_path / "out.log"
+    proj = tox_project({"tox.ini": "[tox]\nrequires=somepkg123xyz\n[testenv:.tox]\nrunner=example"})
+    with pytest.raises(KeyError, match="example"):
+        proj.run("r", "-e", "py", "--result-json", str(log))
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_pypi_index_self")
+@pytest.mark.parametrize("relative_path", [True, False], ids=["relative", "absolute"])
+def test_provision_conf_file(tox_project: ToxProjectCreator, tmp_path: Path, relative_path: bool) -> None:
+    ini = "[tox]\nrequires = demo-pkg-inline\nskipsdist=true\n"
+    project = tox_project({"tox.ini": ini}, prj_path=tmp_path / "sub")
+    conf_path = str(Path(project.path.name) / "tox.ini") if relative_path else str(project.path / "tox.ini")
+    result = project.run("c", "--conf", conf_path, "-e", "py", from_cwd=tmp_path)
+    result.assert_success()
+
+
+def test_provision_acquires_file_lock(tox_project: ToxProjectCreator) -> None:
+    lock_held_during_provision: dict[str, bool] = {}
+
+    def _check_lock(request: ExecuteRequest) -> int | None:
+        if request.run_id == "provision":
+            env_dir = request.env.get("TOX_ENV_DIR", "")
+            lock_path = Path(env_dir) / "file.lock"
+            lock_held_during_provision["held"] = lock_path.exists()
+            return 0
+        return 0 if "install" in request.run_id else None
+
+    project = tox_project({"tox.ini": "[tox]\nrequires = tox<4.14\n[testenv]\npackage = skip"})
+    project.patch_execute(_check_lock)
+    project.run("r")
+    assert lock_held_during_provision.get("held") is True
+
+
+def test_provision_unrecognized_args_no_provision(tox_project: ToxProjectCreator) -> None:
+    """When provisioning is not needed, unknown CLI args should still error."""
+    proj = tox_project({
+        "tox.toml": """
+            [env_run_base]
+            package = "skip"
+        """,
+    })
+    result = proj.run("r", "--some-unknown-flag")
+    result.assert_failed()
+    assert "unrecognized arguments: --some-unknown-flag" in result.out
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_pypi_index_self")
+def test_provision_plugin_cli_options(tox_project: ToxProjectCreator, tmp_path: Path) -> None:
+    """Tox should provision before rejecting CLI options from not-yet-installed plugins."""
+    log = tmp_path / "out.log"
+    proj = tox_project({
+        "tox.toml": """
+            requires = ["demo-pkg-inline"]
+            [env_run_base]
+            package = "skip"
+        """,
+    })
+    prov_msg = (
+        f"ROOT: will run in automatically provisioned tox, host {sys.executable} is missing"
+        f" [requires (has)]: demo-pkg-inline"
+    )
+
+    result = proj.run("r", "-e", "py", "--demo-plugin", "--result-json", str(log))
+    result.assert_success()
+    assert prov_msg in result.out
+
+
+@pytest.mark.parametrize("subcommand", ["r", "p", "de", "l", "d", "c", "q", "e", "le"])
+def test_provision_default_arguments_exists(tox_project: ToxProjectCreator, subcommand: str) -> None:
+    ini = r"""
+    [tox]
+    requires =
+        tox<4.14
+    [testenv]
+    package = skip
+    """
+    project = tox_project({"tox.ini": ini})
+    project.patch_execute(lambda r: 0 if "install" in r.run_id else None)
+    outcome = project.run(subcommand)
+    for argument in ["result_json", "hash_seed", "discover", "list_dependencies"]:
+        assert hasattr(outcome.state.conf.options, argument)
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_pypi_index_mirrored")
+@pytest.mark.timeout(120)
+def test_provision_install_pkg_pep517(
+    tmp_path_factory: TempPathFactory,
+    tox_project: ToxProjectCreator,
+    pkg_builder: Callable[[Path, Path, Sequence[DistributionType], bool], Path],
+) -> None:
+    example = tmp_path_factory.mktemp("example")
+    skeleton = """
+    [build-system]
+    requires = ["setuptools"]
+    build-backend = "setuptools.build_meta"
+    [project]
+    name = "skeleton"
+    version = "0.1.1337"
+    """
+    (example / "pyproject.toml").write_text(skeleton)
+    wheel = pkg_builder(example / "dist", example, ["wheel"], False)
+
+    tox_ini = r"""
+    [tox]
+    requires = demo-pkg-inline
+    [testenv]
+    commands = python -c "print(42)"
+    """
+    project = tox_project({"tox.ini": tox_ini}, base=example)
+    result = project.run("r", "-e", "py", "--installpkg", str(wheel), "--notest", "--no-list-dependencies")
+    result.assert_success()
+
+
+def test_provision_colored_passed_to_subprocess(tox_project: ToxProjectCreator) -> None:
+
+    captured_cmd = None
+
+    def handle_provision(request: ExecuteRequest) -> int | None:
+        nonlocal captured_cmd
+        if "provision" in str(request.run_id):
+            captured_cmd = request.cmd
+        return 0
+
+    ini = "[tox]\nrequires = tox>=999\n\n[testenv]\npackage = skip\ncommands = python -c 'pass'"
+    project = tox_project({"tox.ini": ini})
+    project.patch_execute(handle_provision)
+    outcome = project.run("c", "--colored", "yes")
+    outcome.assert_success()
+    assert captured_cmd is not None, "provision command not captured"
+    assert "--colored" in captured_cmd, f"--colored not in command: {captured_cmd}"
+    assert "yes" in captured_cmd, f"'yes' not in command: {captured_cmd}"
+
+
+def test_provision_no_recreate_json_pinned_tox(tox_project: ToxProjectCreator) -> None:
+    """A == pin on tox lands in the report as the version, not an empty string."""
+    project = tox_project({"tox.ini": "[tox]\nrequires = tox==999\nskipsdist=true\n"})
+
+    result = project.run("c", "-e", "py", "--no-provision", "out.json")
+
+    result.assert_failed()
+    requires = json.loads((project.path / "out.json").read_text())
+    assert requires == {"minversion": "999", "requires": ["tox==999", "tox"]}

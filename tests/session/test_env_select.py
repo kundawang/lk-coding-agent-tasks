@@ -1,0 +1,794 @@
+from __future__ import annotations
+
+import sys
+from itertools import count
+from textwrap import dedent
+from typing import TYPE_CHECKING, Final
+
+import pytest
+
+from tox.config.cli.parse import get_options
+from tox.session.env_select import _DYNAMIC_ENV_FACTORS, CliEnv, EnvSelector  # ruff:ignore[import-private-name]
+from tox.session.state import State
+from tox.tox_env.python.virtual_env.package.pyproject import Pep517VenvPackager
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
+
+    from tox.config.sets import EnvConfigSet
+    from tox.pytest import MonkeyPatch, ToxProjectCreator
+
+
+CURRENT_PY_ENV = f"py{sys.version_info[0]}{sys.version_info[1]}"  # e.g. py310
+_TWO_WHEEL_ENVS_INI: Final[str] = "[tox]\nenv_list = a,b\n[testenv]\npackage = wheel\n"
+
+
+@pytest.mark.parametrize(
+    ("user_input", "env_names", "is_all", "is_default"),
+    [
+        (None, (), False, True),
+        ("", (), False, True),
+        ("a1", ("a1",), False, False),
+        ("a1,b2,c3", ("a1", "b2", "c3"), False, False),
+        (" a1, b2 ,  c3  ", ("a1", "b2", "c3"), False, False),
+        #   If the user gives "ALL" as any envname, this becomes an "is_all" and other envnames are ignored.
+        ("ALL", (), True, False),
+        ("a1,ALL,b2", (), True, False),
+        #   Zero-length envnames are ignored as being not present. This is not intentional.
+        (",,a1,,,b2,,", ("a1", "b2"), False, False),
+        (",,", (), False, True),
+        #   Environment names with "invalid" characters are accepted here; the client is expected to deal with this.
+        ("\x01.-@\x02,xxx", ("\x01.-@\x02", "xxx"), False, False),
+        #   Brace expansion produces the cartesian product of factors.
+        (
+            "py{38,39}-pytest{6.x,7.x}",
+            ("py38-pytest6.x", "py38-pytest7.x", "py39-pytest6.x", "py39-pytest7.x"),
+            False,
+            False,
+        ),
+        ("a{1,2},b", ("a1", "a2", "b"), False, False),
+    ],
+)
+def test_clienv(user_input: str, env_names: tuple[str], is_all: bool, is_default: bool) -> None:
+    ce = CliEnv(user_input)
+    assert (ce.is_all, ce.is_default_list, tuple(ce)) == (is_all, is_default, tuple(env_names))
+    assert CliEnv(user_input) == ce
+
+
+@pytest.mark.parametrize(
+    ("user_input", "expected"),
+    [
+        ("", False),
+        ("all", False),
+        ("All", False),
+        ("ALL", True),
+        ("a,ALL,b", True),
+    ],
+)
+def test_clienv_is_all(user_input: str, expected: bool) -> None:
+    assert CliEnv(user_input).is_all is expected
+
+
+def test_clienv_iadd() -> None:
+    cli_env = CliEnv("a,b")
+    cli_env += CliEnv("c,d")
+    assert list(cli_env) == ["a", "b", "c", "d"]
+
+
+def test_clienv_iadd_from_default() -> None:
+    cli_env = CliEnv()
+    cli_env += CliEnv("c")
+    assert list(cli_env) == ["c"]
+
+
+def test_clienv_iadd_noop() -> None:
+    cli_env = CliEnv("a")
+    cli_env += CliEnv()
+    assert list(cli_env) == ["a"]
+
+
+def test_env_select_lazily_looks_at_envs() -> None:
+    state = State(get_options(), [])
+    env_selector = EnvSelector(state)
+    # late-assigning env should be reflected in env_selector
+    state.conf.options.env = CliEnv("py")
+    assert set(env_selector.iter()) == {"py"}
+
+
+def test_label_core_can_define(tox_project: ToxProjectCreator) -> None:
+    ini = """
+        [tox]
+        labels =
+            test = py3{10,9}
+            static = flake8, type
+        """
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("l", "--no-desc")
+    outcome.assert_success()
+    outcome.assert_out_err("py\npy310\npy39\nflake8\ntype\n", "")
+
+
+def test_label_core_select(tox_project: ToxProjectCreator) -> None:
+    ini = """
+        [tox]
+        labels =
+            test = py3{10,9}
+            static = flake8, type
+        """
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("l", "--no-desc", "-m", "test")
+    outcome.assert_success()
+    outcome.assert_out_err("py310\npy39\n", "")
+
+
+def test_label_select_trait(tox_project: ToxProjectCreator) -> None:
+    ini = """
+        [tox]
+        env_list = py310, py39, flake8, type
+        [testenv]
+        labels = test
+        [testenv:flake8]
+        labels = static
+        [testenv:type]
+        labels = static
+        """
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("l", "--no-desc", "-m", "test")
+    outcome.assert_success()
+    outcome.assert_out_err("py310\npy39\n", "")
+
+
+def test_label_core_and_trait(tox_project: ToxProjectCreator) -> None:
+    ini = """
+        [tox]
+        env_list = py310, py39, flake8, type
+        labels =
+            static = flake8, type
+        [testenv]
+        labels = test
+        """
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("l", "--no-desc", "-m", "test", "static")
+    outcome.assert_success()
+    outcome.assert_out_err("py310\npy39\nflake8\ntype\n", "")
+
+
+@pytest.mark.parametrize(
+    ("selection_arguments", "expect_envs"),
+    [
+        (
+            ("-f", "cov", "django20"),
+            ("py310-django20-cov", "py39-django20-cov"),
+        ),
+        (
+            ("-f", "cov-django20"),
+            ("py310-django20-cov", "py39-django20-cov"),
+        ),
+        (
+            ("-f", "py39", "django20", "-f", "py310", "django21"),
+            ("py310-django21-cov", "py310-django21", "py39-django20-cov", "py39-django20"),
+        ),
+    ],
+)
+def test_factor_select(
+    tox_project: ToxProjectCreator,
+    selection_arguments: tuple[str, ...],
+    expect_envs: tuple[str, ...],
+) -> None:
+    ini = """
+        [tox]
+        env_list = py3{10,9}-{django20,django21}{-cov,}
+        """
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("l", "--no-desc", *selection_arguments)
+    outcome.assert_success()
+    outcome.assert_out_err("{}\n".format("\n".join(expect_envs)), "")
+
+
+@pytest.mark.parametrize(
+    ("env_value", "expect_envs"),
+    [
+        ("cov", ("py310-django20-cov", "py310-django21-cov", "py39-django20-cov", "py39-django21-cov")),
+        ("py39,django20", ("py39-django20-cov", "py39-django20")),
+        (
+            "py39;py310",
+            (
+                "py310-django20-cov",
+                "py310-django20",
+                "py310-django21-cov",
+                "py310-django21",
+                "py39-django20-cov",
+                "py39-django20",
+                "py39-django21-cov",
+                "py39-django21",
+            ),
+        ),
+    ],
+)
+def test_factor_select_via_env_var(
+    tox_project: ToxProjectCreator,
+    monkeypatch: MonkeyPatch,
+    env_value: str,
+    expect_envs: tuple[str, ...],
+) -> None:
+    ini = """
+        [tox]
+        env_list = py3{10,9}-{django20,django21}{-cov,}
+        """
+    monkeypatch.setenv("TOX_FACTORS", env_value)
+    project = tox_project({"tox.ini": ini})
+    outcome = project.run("l", "--no-desc")
+    outcome.assert_success()
+    outcome.assert_out_err("{}\n".format("\n".join(expect_envs)), "")
+
+
+def test_tox_skip_env(tox_project: ToxProjectCreator, monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("TOX_SKIP_ENV", "m[y]py")
+    project = tox_project({"tox.ini": "[tox]\nenv_list = py3{10,9},mypy"})
+    outcome = project.run("l", "--no-desc", "-q")
+    outcome.assert_success()
+    outcome.assert_out_err("py310\npy39\n", "")
+
+
+def test_tox_skip_env_cli(tox_project: ToxProjectCreator, monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.delenv("TOX_SKIP_ENV", raising=False)
+    project = tox_project({"tox.ini": "[tox]\nenv_list = py3{10,9},mypy"})
+    outcome = project.run("l", "--no-desc", "-q", "--skip-env", "m[y]py")
+    outcome.assert_success()
+    outcome.assert_out_err("py310\npy39\n", "")
+
+
+def test_tox_skip_env_logs(tox_project: ToxProjectCreator, monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("TOX_SKIP_ENV", "m[y]py")
+    project = tox_project({"tox.ini": "[tox]\nenv_list = py3{10,9},mypy"})
+    outcome = project.run("l", "--no-desc")
+    outcome.assert_success()
+    outcome.assert_out_err("ROOT: skip environment mypy, matches filter 'm[y]py'\npy310\npy39\n", "")
+
+
+@pytest.mark.parametrize("bad_filter", ["[", "(", "*"])
+def test_tox_skip_env_invalid_regex(tox_project: ToxProjectCreator, monkeypatch: MonkeyPatch, bad_filter: str) -> None:
+    monkeypatch.delenv("TOX_SKIP_ENV", raising=False)
+    project = tox_project({"tox.ini": "[tox]\nenv_list = py3{10,9},mypy"})
+
+    outcome = project.run("l", "--no-desc", "--skip-env", bad_filter)
+
+    outcome.assert_failed()
+    assert f"HandledError| invalid environment skip filter {bad_filter!r}" in outcome.out
+
+
+def test_multiple_e_flags_are_additive(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project({"tox.ini": "[tox]\nenv_list=a,b,c"})
+    outcome = proj.run("c", "-e", "a", "-e", "b", "-k", "env_name")
+    outcome.assert_success()
+    assert "[testenv:a]" in outcome.out
+    assert "[testenv:b]" in outcome.out
+    assert "[testenv:c]" not in outcome.out
+
+
+def test_cli_env_can_be_specified_in_default(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project({"tox.ini": "[tox]\nenv_list=exists"})
+    outcome = proj.run("r", "-e", "exists")
+    outcome.assert_success()
+    assert "exists" in outcome.out
+    assert not outcome.err
+
+
+def test_cli_env_can_be_specified_in_additional_environments(tox_project: ToxProjectCreator) -> None:
+    proj = tox_project({"tox.ini": "[testenv:exists]"})
+    outcome = proj.run("r", "-e", "exists")
+    outcome.assert_success()
+    assert "exists" in outcome.out
+    assert not outcome.err
+
+
+@pytest.mark.parametrize("env_name", ["py", CURRENT_PY_ENV, ".pkg"])
+def test_allowed_implicit_cli_envs(env_name: str, tox_project: ToxProjectCreator) -> None:
+    proj = tox_project({"tox.ini": ""})
+    outcome = proj.run("r", "-e", env_name)
+    outcome.assert_success()
+    assert env_name in outcome.out
+    assert not outcome.err
+
+
+@pytest.mark.parametrize("env_name", ["a", "b", "a-b", "b-a"])
+def test_matches_hyphenated_env(env_name: str, tox_project: ToxProjectCreator) -> None:
+    tox_ini = """
+        [tox]
+        env_list=a-b
+        [testenv]
+        package=skip
+        commands_pre =
+            a: python -c 'print("a")'
+            b: python -c 'print("b")'
+        commands=python -c 'print("ok")'
+    """
+    proj = tox_project({"tox.ini": tox_ini})
+    outcome = proj.run("r", "-e", env_name)
+    outcome.assert_success()
+    assert env_name in outcome.out
+    assert not outcome.err
+
+
+_MINOR = sys.version_info.minor
+
+
+@pytest.mark.parametrize(
+    "env_name",
+    [
+        f"3.{_MINOR}",
+        f"3.{_MINOR}-cov",
+        "3-cov",
+        "3",
+        f"py3.{_MINOR}",
+        f"py3{_MINOR}-cov",
+        f"py3.{_MINOR}-cov",
+    ],
+)
+def test_matches_combined_env(env_name: str, tox_project: ToxProjectCreator) -> None:
+    tox_ini = """
+        [testenv]
+        package=skip
+        commands =
+            !cov: python -c 'print("without cov")'
+            cov: python -c 'print("with cov")'
+    """
+    proj = tox_project({"tox.ini": tox_ini})
+    outcome = proj.run("r", "-e", env_name)
+    outcome.assert_success()
+    assert env_name in outcome.out
+    assert not outcome.err
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        "py",
+        "pypy",
+        "pypy3",
+        "pypy3.12",
+        "pypy312",
+        "py3",
+        "py3.12",
+        "py3.12t",
+        "py312",
+        "py312t",
+        "3",
+        "3t",
+        "3.12",
+        "3.12t",
+        "3.12.0",
+        "3.12.0t",
+    ],
+)
+def test_dynamic_env_factors_match(env: str) -> None:
+    assert _DYNAMIC_ENV_FACTORS.fullmatch(env)
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        "cy3",
+        "cov",
+        "py10.1",
+    ],
+)
+def test_dynamic_env_factors_not_match(env: str) -> None:
+    assert not _DYNAMIC_ENV_FACTORS.fullmatch(env)
+
+
+@pytest.mark.parametrize("env_name", ["functional-py312", "functional"])
+def test_partial_section_match_rejected(env_name: str, tox_project: ToxProjectCreator) -> None:
+    tox_ini = "[testenv]\nskip_install = true\ncommands=python -c 'print(1)'\n[testenv:functional{-py310}]\n"
+    proj = tox_project({"tox.ini": tox_ini})
+    outcome = proj.run("r", "-e", env_name)
+    outcome.assert_failed(code=-2)
+    assert "provided environments not found in configuration file" in outcome.out
+
+
+def test_factor_conditional_compound_accepted(tox_project: ToxProjectCreator) -> None:
+    tox_ini = f"""
+        [tox]
+        env_list = py3{{{_MINOR},{_MINOR + 1}}}
+        [testenv]
+        package = skip
+        commands =
+            np: python -c 'print("np")'
+            np-cov: python -c 'print("cov")'
+    """
+    proj = tox_project({"tox.ini": tox_ini})
+    outcome = proj.run("r", "-e", f"py3{_MINOR}-np-cov")
+    outcome.assert_success()
+    assert f"py3{_MINOR}-np-cov" in outcome.out
+
+
+def test_suggest_env(tox_project: ToxProjectCreator) -> None:
+    tox_ini = f"[testenv:release]\n[testenv:py3{_MINOR}]\n[testenv:alpha-py3{_MINOR}]\n"
+    proj = tox_project({"tox.ini": tox_ini})
+    outcome = proj.run("r", "-e", f"releas,p3{_MINOR},magic,alph-p{_MINOR}")
+    outcome.assert_failed(code=-2)
+
+    assert not outcome.err
+    msg = (
+        "ROOT: HandledError| provided environments not found in configuration file:\n"
+        f"releas - did you mean release?\np3{_MINOR} - did you mean py3{_MINOR}?\nmagic\n"
+        f"alph-p{_MINOR} - did you mean alpha-py3{_MINOR}?\n"
+    )
+    assert outcome.out == msg
+
+
+def test_unavailable_runner_in_config_not_explicitly_requested(tox_project: ToxProjectCreator) -> None:
+    """Unavailable runner in config should be marked NOT AVAILABLE if not explicitly requested."""
+    tox_toml = """
+        [tool.tox]
+        env_list = ["available", "unavailable"]
+
+        [tool.tox.env_run_base]
+        skip_install = true
+
+        [tool.tox.env.available]
+        commands = [["python", "-c", "print('available')"]]
+
+        [tool.tox.env.unavailable]
+        runner = "nonexistent-runner"
+        commands = [["python", "-c", "print('unavailable')"]]
+        """
+    proj = tox_project({"pyproject.toml": tox_toml})
+    outcome = proj.run("r", "-e", "available")
+    outcome.assert_success()
+    assert "available: OK" in outcome.out
+    assert "unavailable: NOT AVAILABLE" in outcome.out
+
+
+def test_unavailable_runner_explicitly_requested(tox_project: ToxProjectCreator) -> None:
+    """Explicitly requesting unavailable runner should fail with clear error."""
+    tox_toml = """
+        [tool.tox.env_run_base]
+        skip_install = true
+
+        [tool.tox.env.unavailable]
+        runner = "nonexistent-runner"
+        commands = [["python", "-c", "print('unavailable')"]]
+        """
+    proj = tox_project({"pyproject.toml": tox_toml})
+    outcome = proj.run("r", "-e", "unavailable")
+    outcome.assert_failed()
+    assert "runner 'nonexistent-runner' for environment 'unavailable' is not available" in outcome.out
+
+
+def test_unavailable_runner_in_env_list(tox_project: ToxProjectCreator) -> None:
+    """Unavailable runner in env_list should be shown as NOT AVAILABLE."""
+    tox_toml = """
+        [tool.tox]
+        env_list = ["available", "unavailable"]
+
+        [tool.tox.env_run_base]
+        skip_install = true
+
+        [tool.tox.env.available]
+        commands = [["python", "-c", "print('available')"]]
+
+        [tool.tox.env.unavailable]
+        runner = "nonexistent-runner"
+        commands = [["python", "-c", "print('unavailable')"]]
+        """
+    proj = tox_project({"pyproject.toml": tox_toml})
+    outcome = proj.run("r")
+    outcome.assert_success()
+    assert "available: OK" in outcome.out
+    assert "unavailable: NOT AVAILABLE" in outcome.out
+
+
+def test_multiple_unavailable_runners_implicit(tox_project: ToxProjectCreator) -> None:
+    """Multiple unavailable runners should all be marked NOT AVAILABLE when not explicitly requested."""
+    tox_toml = """
+        [tool.tox]
+        env_list = ["available", "unavailable1", "unavailable2"]
+
+        [tool.tox.env_run_base]
+        skip_install = true
+
+        [tool.tox.env.available]
+        commands = [["python", "-c", "print('available')"]]
+
+        [tool.tox.env.unavailable1]
+        runner = "nonexistent-runner-1"
+        commands = [["python", "-c", "print('unavailable1')"]]
+
+        [tool.tox.env.unavailable2]
+        runner = "nonexistent-runner-2"
+        commands = [["python", "-c", "print('unavailable2')"]]
+        """
+    proj = tox_project({"pyproject.toml": tox_toml})
+    outcome = proj.run("r")
+    outcome.assert_success()
+    assert "available: OK" in outcome.out
+    assert "unavailable1: NOT AVAILABLE" in outcome.out
+    assert "unavailable2: NOT AVAILABLE" in outcome.out
+
+
+@pytest.mark.parametrize(
+    ("env_list", "env_sections", "cli_env", "expected_suggestion"),
+    [
+        pytest.param(
+            '["py310-lint", "py310-test", "py311-lint", "py311-test"]',
+            ['[tool.tox.env."py310-lint"]', '[tool.tox.env."py311-lint"]'],
+            "py3.10-lint",
+            "py310-lint",
+            id="dotted_py_version_with_factor",
+        ),
+        pytest.param(
+            '["py310", "py311"]',
+            ['[tool.tox.env."py310-cov"]', '[tool.tox.env."py311-cov"]'],
+            "py3.10-cov",
+            "py310-cov",
+            id="dotted_py_version_single",
+        ),
+        pytest.param(
+            '["310", "311"]',
+            ['[tool.tox.env."310-lint"]', '[tool.tox.env."311-lint"]'],
+            "3.10-lint",
+            "310-lint",
+            id="explicit_version_format",
+        ),
+    ],
+)
+def test_dotted_env_name_suggests_normalized(
+    tox_project: ToxProjectCreator, env_list: str, env_sections: list[str], cli_env: str, expected_suggestion: str
+) -> None:
+    sections_text = "\n    ".join(f'{sec}\n    commands = [["echo", "specialized"]]' for sec in env_sections)
+    toml = f"""
+    [tool.tox]
+    env_list = {env_list}
+
+    [tool.tox.env_run_base]
+    package = "skip"
+    commands = [["echo", "testenv"]]
+
+    {sections_text}
+    """
+    proj = tox_project({"pyproject.toml": toml})
+    outcome = proj.run("r", "-e", cli_env)
+    outcome.assert_failed(code=-2)
+    assert f"{cli_env} - did you mean {expected_suggestion}?" in outcome.out
+
+
+def test_dotted_env_no_normalized_match_allows_adhoc(tox_project: ToxProjectCreator) -> None:
+    toml = """
+    [tool.tox]
+    env_list = ["lint"]
+
+    [tool.tox.env_run_base]
+    package = "skip"
+    commands = [["python", "-c", "print('adhoc')"]]
+    """
+    proj = tox_project({"pyproject.toml": toml})
+    outcome = proj.run("r", "-e", f"py{sys.version_info[0]}.{sys.version_info[1]}-lint")
+    outcome.assert_success()
+    assert "adhoc" in outcome.out
+
+
+def test_dotted_env_multiple_suggestions(tox_project: ToxProjectCreator) -> None:
+    toml = """
+    [tool.tox]
+    env_list = ["py310-lint", "py311-cov"]
+
+    [tool.tox.env_run_base]
+    package = "skip"
+    commands = [["echo", "testenv"]]
+
+    [tool.tox.env."py310-lint"]
+    commands = [["echo", "lint"]]
+
+    [tool.tox.env."py311-cov"]
+    commands = [["echo", "coverage"]]
+    """
+    proj = tox_project({"pyproject.toml": toml})
+    outcome = proj.run("r", "-e", "py3.10-lint,py3.11-cov")
+    outcome.assert_failed(code=-2)
+    assert "py3.10-lint - did you mean py310-lint?" in outcome.out
+    assert "py3.11-cov - did you mean py311-cov?" in outcome.out
+
+
+def test_pkg_env_creation_failure_is_not_masked(tox_project: ToxProjectCreator, mocker: MockerFixture) -> None:
+    """A package env whose registration fails must surface its error, not a duplicate-config cascade (#3987)."""
+    real_register_config = Pep517VenvPackager.register_config
+
+    def failing_register_config(self: Pep517VenvPackager) -> None:
+        real_register_config(self)
+        msg = "no such device"
+        raise OSError(msg)
+
+    mocker.patch.object(Pep517VenvPackager, "register_config", failing_register_config)
+    project = tox_project({
+        "tox.ini": _TWO_WHEEL_ENVS_INI,
+        "pyproject.toml": "",
+    })
+
+    with pytest.raises(OSError, match="no such device"):
+        project.run("r", "--notest")
+
+
+def test_pkg_env_creation_failure_reports_first_error(tox_project: ToxProjectCreator, mocker: MockerFixture) -> None:
+    """When several environments fail to create, the first failure in definition order is the one reported."""
+    real_register_config = Pep517VenvPackager.register_config
+    attempt = count(1)
+
+    def failing_register_config(self: Pep517VenvPackager) -> None:
+        real_register_config(self)
+        msg = f"creation failure {next(attempt)}"
+        raise OSError(msg)
+
+    mocker.patch.object(Pep517VenvPackager, "register_config", failing_register_config)
+    project = tox_project({
+        "tox.ini": _TWO_WHEEL_ENVS_INI,
+        "pyproject.toml": "",
+    })
+
+    with pytest.raises(OSError, match="creation failure 1"):
+        project.run("r", "--notest")
+
+
+def test_pkg_env_rollback_keeps_shared_env(tox_project: ToxProjectCreator) -> None:
+    """One env's failed build must not destroy a package env other envs already use."""
+    ini = """
+    [tox]
+    skip_missing_interpreters = false
+    [testenv]
+    package = wheel
+    [testenv:a]
+    package = sdist
+    [testenv:b]
+    [testenv:c]
+    wheel_build_env = b
+    [testenv:.pkg]
+    base_python = /nonexistent/python
+    """
+    project = tox_project({"tox.ini": ini, "pyproject.toml": ""})
+
+    outcome = project.run("c", "-e", "a,b,c", "-k", "env_name")
+
+    outcome.assert_success()
+    envs = outcome.state.envs
+    assert envs["a"].package_env is envs[".pkg"]
+
+
+def test_pkg_env_register_run_env_once(tox_project: ToxProjectCreator) -> None:
+    """A run env whose wheel tag matches the package env must register with it exactly once."""
+    project = tox_project({"tox.ini": _TWO_WHEEL_ENVS_INI, "pyproject.toml": ""})
+
+    outcome = project.run("l")
+
+    outcome.assert_success()
+    pkg_env = outcome.state.envs[".pkg"]
+    assert isinstance(pkg_env, Pep517VenvPackager)
+    assert [conf.name for conf in pkg_env.builds["wheel"]] == ["a", "b"]
+
+
+@pytest.mark.plugin_test
+def test_pkg_env_skip_from_plugin_hook(tox_project: ToxProjectCreator) -> None:
+    """A plugin raising Skip for a package env must mark the run env skipped, not crash."""
+
+    def plugin() -> None:  # pragma: no cover # the code is copied to a python file
+        from tox.plugin import impl  # ruff:ignore[import-outside-top-level]
+        from tox.tox_env.errors import Skip  # ruff:ignore[import-outside-top-level]
+
+        @impl
+        def tox_add_env_config(env_conf: EnvConfigSet) -> None:
+            if env_conf.name == ".pkg":
+                msg = "plugin opted out of packaging"
+                raise Skip(msg)
+
+    project = tox_project({
+        "tox.ini": "[tox]\nenv_list = a\n[testenv]\npackage = wheel\n",
+        "pyproject.toml": "",
+        "toxfile.py": plugin,
+    })
+
+    outcome = project.run("l")
+
+    outcome.assert_success()
+
+
+@pytest.mark.parametrize(
+    ("files", "expected_base", "expected_marker"),
+    [
+        pytest.param(
+            {
+                "tox.ini": dedent("""\
+                    [testenv]
+                    package = wheel
+                    package_env = mypkg
+                    set_env = MARKER=from_testenv
+                    [testenv:mypkg]
+                    package = skip
+                    [pkgenv]
+                    set_env = MARKER=from_pkgenv
+                """),
+                "pyproject.toml": "",
+            },
+            ["pkgenv"],
+            "from_pkgenv",
+            id="ini",
+        ),
+        pytest.param(
+            {
+                "tox.toml": dedent("""\
+                    [env_run_base]
+                    package = "wheel"
+                    package_env = "mypkg"
+                    set_env = { MARKER = "from_run_base" }
+                    [env.mypkg]
+                    package = "skip"
+                    [env_pkg_base]
+                    set_env = { MARKER = "from_pkg_base" }
+                """),
+                "pyproject.toml": "",
+            },
+            None,
+            "from_pkg_base",
+            id="toml",
+        ),
+    ],
+)
+def test_pkg_env_redefined_uses_pkg_base(
+    tox_project: ToxProjectCreator,
+    files: dict[str, str],
+    expected_base: list[str] | None,
+    expected_marker: str,
+) -> None:
+    """An env first built as a run env and then redefined as a package env must load the package base chain."""
+    project = tox_project(files)
+
+    outcome = project.run("c", "-e", "mypkg,py", "-k", "set_env", "base")
+
+    outcome.assert_success()
+    pkg_conf = outcome.state.conf.get_env("mypkg")
+    if expected_base is not None:
+        assert pkg_conf["base"] == expected_base
+    assert pkg_conf["set_env"].load("MARKER") == expected_marker
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        pytest.param(
+            {
+                "tox.ini": dedent("""\
+                    [tox]
+                    env_list = mypkg, py
+                    [testenv]
+                    package = wheel
+                    package_env = mypkg
+                    [testenv:mypkg]
+                    package = skip
+                """),
+                "pyproject.toml": "",
+            },
+            id="ini",
+        ),
+        pytest.param(
+            {
+                "tox.toml": dedent("""\
+                    env_list = ["mypkg", "py"]
+                    [env_run_base]
+                    package = "wheel"
+                    package_env = "mypkg"
+                    [env.mypkg]
+                    package = "skip"
+                """),
+                "pyproject.toml": "",
+            },
+            id="toml",
+        ),
+    ],
+)
+def test_pkg_env_in_env_list_fails(tox_project: ToxProjectCreator, files: dict[str, str]) -> None:
+    """An env cannot be asked to run and serve as a package environment; the conflict is reported, not hidden."""
+    project = tox_project(files)
+
+    outcome = project.run("l")
+
+    outcome.assert_failed()
+    msg = "mypkg is listed in env_list but is used as a package environment by py; remove it from env_list or rename"
+    assert msg in outcome.out, outcome.out

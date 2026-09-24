@@ -1,0 +1,588 @@
+from __future__ import annotations
+
+import sys
+import sysconfig
+from textwrap import dedent
+from typing import TYPE_CHECKING
+
+import pytest
+from python_discovery import normalize_isa
+
+from tox.config.loader.ini import IniLoader
+from tox.config.loader.ini.factor import (
+    LATEST_PYTHON_MINOR_MAX,
+    LATEST_PYTHON_MINOR_MIN,
+    expand_ranges,
+    filter_for_env,
+    find_envs,
+)
+from tox.config.source.ini_section import IniSection
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from configparser import ConfigParser
+
+    from tests.conftest import ToxIniCreator
+    from tox.config.main import Config
+
+
+def test_factor_env_discover_empty() -> None:
+    result = list(find_envs("\n\n"))
+    assert result == []
+
+
+@pytest.fixture(scope="session")
+def complex_example() -> str:
+    return dedent(
+        """
+    default
+    lines
+    py: py only
+    !py: not py
+    {py,!pi}-{a,b}{,-dev},c: complex
+    py, d: space
+    extra: extra
+    more-default
+    no:space
+    trailingcolon:
+    tab:\ttab
+    """,
+    )
+
+
+def test_factor_env_discover(complex_example: str) -> None:
+    result = list(find_envs(complex_example))
+    assert result == [
+        "py",
+        "py-a",
+        "py-a-dev",
+        "py-b",
+        "py-b-dev",
+        "pi-a",
+        "pi-a-dev",
+        "pi-b",
+        "pi-b-dev",
+        "c",
+        "d",
+        "extra",
+        "trailingcolon",
+        "tab",
+    ]
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        "py",
+        "py-a",
+        "py-a-dev",
+        "py-b",
+        "py-b-dev",
+        "pi-a",
+        "pi-a-dev",
+        "pi-b",
+        "pi-b-dev",
+        "c",
+        "extra",
+        "trailingcolon",
+        "tab",
+    ],
+)
+def test_factor_env_filter(env: str, complex_example: str) -> None:
+    result = filter_for_env(complex_example, name=env)
+    assert "default" in result
+    assert "lines" in result
+    assert "more-default" in result
+    assert "no:space" in result
+    if "py" in env:
+        assert "py only" in result
+        assert "not py" not in result
+    else:
+        assert "py only" not in result
+        assert "not py" in result
+    if env == "extra":
+        assert "extra" in result
+    else:
+        assert "extra" not in result
+    if env in {"py-a", "py-a-dev", "py-b", "py-b-dev", "c"}:
+        assert "complex" in result
+    else:
+        assert "complex" not in result
+
+
+def test_factor_env_list(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf("[tox]\nenv_list = {py27,py36}-django{ 15, 16 }{,-dev}, docs, flake")
+    result = list(config)
+    assert result == [
+        "py27-django15",
+        "py27-django15-dev",
+        "py27-django16",
+        "py27-django16-dev",
+        "py36-django15",
+        "py36-django15-dev",
+        "py36-django16",
+        "py36-django16-dev",
+        "docs",
+        "flake",
+    ]
+
+
+def test_simple_env_list(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf("[tox]\nenv_list = docs, flake8")
+    assert list(config) == ["docs", "flake8"]
+
+
+def test_factor_config(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf(
+        """
+        [tox]
+        env_list = {py36,py37}-{django15,django16}
+        [testenv]
+        deps-x =
+            pytest
+            django15: Django>=1.5,<1.6
+            django16: Django>=1.6,<1.7
+            py36: unittest2
+            !py37,!django16: negation-or
+            !py37-!django16: negation-and
+        """,
+    )
+    assert list(config) == ["py36-django15", "py36-django16", "py37-django15", "py37-django16"]
+    for env in config.core["env_list"]:
+        env_config = config.get_env(env)
+        env_config.add_config(keys="deps-x", of_type=list[str], default=[], desc="deps")
+        deps = env_config["deps-x"]
+        assert "pytest" in deps
+        if "py36" in env:
+            assert "unittest2" in deps
+            assert "negation-or" in deps
+        if "django15" in env:
+            assert "Django>=1.5,<1.6" in deps
+            assert "negation-or" in deps
+        if "django16" in env:
+            assert "Django>=1.6,<1.7" in deps
+        if env_config.name == "py36-django15":
+            assert "negation-and" in deps
+
+
+def test_factor_config_do_not_replace_unescaped_comma(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf("[tox]\nenv_list = py37-{base,i18n},b")
+    assert list(config) == ["py37-base", "py37-i18n", "b"]
+
+
+def test_factor_config_no_env_list_creates_env(tox_ini_conf: ToxIniCreator) -> None:
+    """If we have a factor that is not specified within the core env-list then that's also an environment"""
+    config = tox_ini_conf(
+        """
+        [tox]
+        env_list = py37-{django15,django16}
+        [testenv]
+        deps =
+            pytest
+            django15: Django>=1.5,<1.6
+            django16: Django>=1.6,<1.7
+            py36: unittest2
+        """,
+    )
+
+    assert list(config) == ["py37-django15", "py37-django16", "py36"]
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        pytest.param("x2-4y-{2-4}", "x2-4y-{2,3,4}", id="literal range text before an identical braced range"),
+        pytest.param("{2-4}", "{2,3,4}", id="braced range only"),
+        pytest.param("a{1-2}-b{1-2}", "a{1,2}-b{1,2}", id="two identical braced ranges"),
+        pytest.param(
+            "py313-django4-2,py313-django5-1",
+            "py313-django4-2,py313-django5-1",
+            id="digit run continuing a factor name is not a range",
+        ),
+        pytest.param(
+            "3.10-2,3.11-2",
+            "3.10-2,3.11-2",
+            id="digit run continuing a dotted version is not a range",
+        ),
+    ],
+)
+def test_expand_ranges_targets_matched_range(value: str, expected: str) -> None:
+    assert expand_ranges(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("env_list", "expected_envs"),
+    [
+        pytest.param("py3{10-13}", ["py310", "py311", "py312", "py313"], id="Expand positive range"),
+        pytest.param("py3{10-11},a", ["py310", "py311", "a"], id="Expand range and add additional env"),
+        pytest.param("py3{10-11},a{1-2}", ["py310", "py311", "a1", "a2"], id="Expand multiple env with ranges"),
+        pytest.param(
+            "py3{10-12,14}",
+            ["py310", "py311", "py312", "py314"],
+            id="Expand ranges, and allow extra parameter in generator",
+        ),
+        pytest.param(
+            "py3{8-10,12,14-16}",
+            ["py38", "py39", "py310", "py312", "py314", "py315", "py316"],
+            id="Expand multiple ranges for one generator",
+        ),
+        pytest.param(
+            "py3{10-11}-django1.{3-5}",
+            [
+                "py310-django1.3",
+                "py310-django1.4",
+                "py310-django1.5",
+                "py311-django1.3",
+                "py311-django1.4",
+                "py311-django1.5",
+            ],
+            id="Expand ranges and factor multiple environment parts",
+        ),
+        pytest.param(
+            "py3{10-11, 13}-django1.{3-4, 6}",
+            [
+                "py310-django1.3",
+                "py310-django1.4",
+                "py310-django1.6",
+                "py311-django1.3",
+                "py311-django1.4",
+                "py311-django1.6",
+                "py313-django1.3",
+                "py313-django1.4",
+                "py313-django1.6",
+            ],
+            id="Expand ranges and parameters and factor multiple environment parts",
+        ),
+        pytest.param(
+            "py3{10-11},a{1-2}-b{3-4}",
+            ["py310", "py311", "a1-b3", "a1-b4", "a2-b3", "a2-b4"],
+            id="Expand ranges and parameters & factor multiple environment parts for multiple generative environments",
+        ),
+        pytest.param("py3{13-11}", ["py313", "py312", "py311"], id="Expand negative ranges"),
+        pytest.param("3.{10-13}", ["3.10", "3.11", "3.12", "3.13"], id="Expand new-style python envs"),
+        pytest.param(
+            "py3{9-}",
+            [f"py3{v}" for v in range(9, LATEST_PYTHON_MINOR_MAX + 1)],
+            id="Expand right-open range to LATEST_PYTHON_MINOR_MAX",
+        ),
+        pytest.param(
+            "3.{10-}",
+            [f"3.{v}" for v in range(10, LATEST_PYTHON_MINOR_MAX + 1)],
+            id="Expand right-open range new-style envs",
+        ),
+        pytest.param(
+            "py3{-13}",
+            [f"py3{v}" for v in range(LATEST_PYTHON_MINOR_MIN, 14)],
+            id="Expand left-open range from LATEST_PYTHON_MINOR_MIN",
+        ),
+        pytest.param(
+            "foo{11-}",
+            [f"foo{v}" for v in range(11, LATEST_PYTHON_MINOR_MAX + 1)],
+            id="Expand right-open numerical range",
+        ),
+        pytest.param(
+            "py3{-11}",
+            [f"py3{v}" for v in range(LATEST_PYTHON_MINOR_MIN, 12)],
+            id="Expand left-open numerical range",
+        ),
+        pytest.param("foo{a-}", ["fooa-"], id="Don't expand right-open range"),
+        pytest.param("foo{-a}", ["foo-a"], id="Don't expand left-open range"),
+        pytest.param("foo{a-11}", ["fooa-11"], id="Don't expand alpha-umerical range"),
+        pytest.param("foo{13-a}", ["foo13-a"], id="Don't expand numerical-alpha range"),
+        pytest.param("foo{a-b}", ["fooa-b"], id="Don't expand non-numerical range"),
+        pytest.param(
+            "py313-django4-2,py313-django5-1",
+            ["py313-django4-2", "py313-django5-1"],
+            id="Don't expand a digit run that continues a factor name",
+        ),
+        pytest.param(
+            "3.10-2,3.11-2",
+            ["3.10-2", "3.11-2"],
+            id="Don't expand a digit run that continues a dotted version",
+        ),
+        pytest.param(
+            "py3{10-11, 13-14}",
+            ["py310", "py311", "py313", "py314"],
+            id="Expand a range that follows a comma and whitespace",
+        ),
+    ],
+)
+def test_env_list_expands_ranges(env_list: str, expected_envs: list[str], tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf(
+        f"""
+        [tox]
+        env_list = {env_list}
+        """
+    )
+
+    assert list(config) == expected_envs
+
+
+@pytest.mark.parametrize(
+    ("env", "result"),
+    [
+        ("py35", "python -m coverage html -d cov"),
+        ("py36", "python -m coverage html -d cov\n--show-contexts"),
+    ],
+)
+def test_ini_loader_raw_with_factors(
+    mk_ini_conf: Callable[[str], ConfigParser],
+    env: str,
+    result: str,
+    empty_config: Config,
+) -> None:
+    commands = "python -m coverage html -d cov \n    !py35: --show-contexts"
+    loader = IniLoader(
+        section=IniSection(None, "testenv"),
+        parser=mk_ini_conf(f"[tox]\nenvlist=py35,py36\n[testenv]\ncommands={commands}"),
+        overrides=[],
+        core_section=IniSection(None, "tox"),
+    )
+    outcome = loader.load_raw(key="commands", conf=empty_config, env_name=env)
+    assert outcome == result
+
+
+@pytest.mark.parametrize(
+    ("env", "result"),
+    [
+        ("foo", "python -c \"print('foo')\"\npython -c \"print('bar')\""),
+        ("bar", "python -c \"print('bar')\""),
+    ],
+)
+def test_ini_loader_factor_multiline_command(
+    mk_ini_conf: Callable[[str], ConfigParser],
+    env: str,
+    result: str,
+    empty_config: Config,
+) -> None:
+    commands = "foo: python -c \"\\\n        print('foo')\"\n    python -c \"print('bar')\""
+    loader = IniLoader(
+        section=IniSection(None, "testenv"),
+        parser=mk_ini_conf(f"[tox]\nenvlist=foo,bar\n[testenv]\ncommands={commands}"),
+        overrides=[],
+        core_section=IniSection(None, "tox"),
+    )
+    outcome = loader.load_raw(key="commands", conf=empty_config, env_name=env)
+    assert outcome == result
+
+
+@pytest.mark.parametrize(
+    ("env", "result"),
+    [
+        ("py-cov", "coverage run somefile.py"),
+        ("py-no_cov", "python somefile.py"),
+    ],
+)
+def test_ini_loader_factor_conditional_continuation(
+    mk_ini_conf: Callable[[str], ConfigParser],
+    env: str,
+    result: str,
+    empty_config: Config,
+) -> None:
+    commands = "cov: coverage run \\\n    !cov: python \\\n        somefile.py"
+    loader = IniLoader(
+        section=IniSection(None, "testenv"),
+        parser=mk_ini_conf(f"[tox]\nenvlist=py-cov,py-no_cov\n[testenv]\ncommands={commands}"),
+        overrides=[],
+        core_section=IniSection(None, "tox"),
+    )
+    outcome = loader.load_raw(key="commands", conf=empty_config, env_name=env)
+    assert outcome == result
+
+
+@pytest.mark.parametrize(
+    ("env", "result"),
+    [
+        ("py312", "pytest --remote-data --durations=10"),
+        ("py312-coverage", "coverage run -m pytest --remote-data --durations=10"),
+    ],
+)
+def test_ini_loader_factor_mixed_continuation(
+    mk_ini_conf: Callable[[str], ConfigParser],
+    env: str,
+    result: str,
+    empty_config: Config,
+) -> None:
+    ini = dedent("""\
+        [tox]
+        envlist = py312,py312-coverage,py312-devdeps,py312-compatibility,py312-mocks3
+        [testenv]
+        commands =
+            coverage: coverage run -m \\
+            pytest \\
+            devdeps: -W some_warning
+            compatibility: integration_tests/ \\
+            mocks3: tests/ \\
+            --remote-data \\
+            --durations=10
+        """)
+    loader = IniLoader(
+        section=IniSection(None, "testenv"),
+        parser=mk_ini_conf(ini),
+        overrides=[],
+        core_section=IniSection(None, "tox"),
+    )
+    outcome = loader.load_raw(key="commands", conf=empty_config, env_name=env)
+    assert outcome == result
+
+
+def test_generative_ranges_in_deps(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf(
+        """
+        [testenv]
+        deps-x =
+            py{310-314}: black
+        """,
+    )
+    assert list(config) == ["py310", "py311", "py312", "py313", "py314"]
+
+
+def test_generative_ranges_in_deps_with_mixed_approach(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf(
+        """
+        [testenv]
+        deps-x =
+            py3{10-14}: black
+        """,
+    )
+    assert list(config) == ["py310", "py311", "py312", "py313", "py314"]
+
+
+def test_generative_ranges_in_setenv(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf(
+        """
+        [testenv]
+        setenv =
+            foo{1,2}: FOO=bar
+            foo{3-5}: FOO=baz
+        """,
+    )
+    assert list(config) == ["foo1", "foo2", "foo3", "foo4", "foo5"]
+
+
+def test_generative_section_name_with_ranges(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf(
+        """
+        [testenv:py3{11-13}-{black,lint}]
+        deps-x =
+            black: black
+            lint: flake8
+        """,
+    )
+    assert list(config) == ["py311-black", "py311-lint", "py312-black", "py312-lint", "py313-black", "py313-lint"]
+
+
+def test_generative_section_name(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf(
+        """
+        [testenv:{py311,py310}-{black,lint}]
+        deps-x =
+            black: black
+            lint: flake8
+        """,
+    )
+    assert list(config) == ["py311-black", "py311-lint", "py310-black", "py310-lint"]
+
+    env_config = config.get_env("py311-black")
+    env_config.add_config(keys="deps-x", of_type=list[str], default=[], desc="deps")
+    deps = env_config["deps-x"]
+    assert deps == ["black"]
+
+    env_config = config.get_env("py311-lint")
+    env_config.add_config(keys="deps-x", of_type=list[str], default=[], desc="deps")
+    deps = env_config["deps-x"]
+    assert deps == ["flake8"]
+
+
+def test_multiple_factor_match(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf("[testenv]\nconf = a{,-b}: x")
+    env_config = config.get_env("a-b")
+    env_config.add_config(keys="conf", of_type=str, default="", desc="conf")
+    deps = env_config["conf"]
+    assert deps == "x"
+
+
+def test_platform_factor_filter_for_env() -> None:
+    value = dedent(
+        """
+        linux: Linux command
+        darwin: Darwin command
+        win32: Windows command
+        default command
+        """,
+    )
+
+    result = filter_for_env(value, name="task")
+    assert "default command" in result
+    if sys.platform == "linux":
+        assert "Linux command" in result
+        assert "Darwin command" not in result
+        assert "Windows command" not in result
+    elif sys.platform == "darwin":
+        assert "Darwin command" in result
+        assert "Linux command" not in result
+        assert "Windows command" not in result
+    elif sys.platform == "win32":
+        assert "Windows command" in result
+        assert "Linux command" not in result
+        assert "Darwin command" not in result
+
+
+def test_platform_factor(tox_ini_conf: ToxIniCreator) -> None:
+    config = tox_ini_conf(
+        """
+        [testenv:task]
+        commands =
+            linux: python -c 'print("Linux")'
+            darwin: python -c 'print("Darwin")'
+            win32: python -c 'print("Windows")'
+            default command
+        """,
+    )
+    env_config = config.get_env("task")
+    env_config.add_config(keys="commands", of_type=list[str], default=[], desc="commands")
+    commands = env_config["commands"]
+
+    assert "default command" in str(commands)
+    if sys.platform == "linux":
+        assert 'print("Linux")' in str(commands)
+        assert 'print("Darwin")' not in str(commands)
+        assert 'print("Windows")' not in str(commands)
+    elif sys.platform == "darwin":
+        assert 'print("Darwin")' in str(commands)
+        assert 'print("Linux")' not in str(commands)
+        assert 'print("Windows")' not in str(commands)
+    elif sys.platform == "win32":
+        assert 'print("Windows")' in str(commands)
+        assert 'print("Linux")' not in str(commands)
+        assert 'print("Darwin")' not in str(commands)
+
+
+def test_machine_isa_does_not_override_explicit_env_factor() -> None:
+    """Regression test for #3903: explicit ISA in env name takes precedence over machine ISA."""
+    parts = sysconfig.get_platform().rsplit("-", 1)
+    if len(parts) < 2:
+        pytest.skip("sysconfig.get_platform() has no machine component")
+    machine = normalize_isa(parts[-1])
+    other_isa = "x86_64" if machine != "x86_64" else "arm64"
+
+    value = f"{other_isa}: {other_isa}_value\n{machine}: {machine}_value"
+    # When the env name explicitly contains an ISA factor different from the machine,
+    # only the env factor's condition should match, not the machine ISA.
+    result = filter_for_env(value, name=f"py39-{other_isa}")
+    assert f"{other_isa}_value" in result
+    assert f"{machine}_value" not in result
+
+
+def test_machine_isa_implicit_when_no_env_isa() -> None:
+    """Machine ISA is added implicitly when no ISA factor is in the env name."""
+    parts = sysconfig.get_platform().rsplit("-", 1)
+    if len(parts) < 2:
+        pytest.skip("sysconfig.get_platform() has no machine component")
+    machine = normalize_isa(parts[-1])
+
+    value = f"{machine}: {machine}_value\nother: other_value"
+    # No ISA in the env name, so machine ISA should be added implicitly.
+    result = filter_for_env(value, name="py39")
+    assert f"{machine}_value" in result
+    assert "other_value" not in result
