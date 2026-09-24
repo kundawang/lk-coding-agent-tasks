@@ -19,6 +19,43 @@ load_renderer(RSTRenderer())
 load_renderer(MarkdownRenderer())
 
 
+class CustomHTMLRenderer(HTMLRenderer):
+    pass
+
+
+class TestHTMLEscape(TestCase):
+    def test_custom_renderer_escape_setting(self):
+        cases = (
+            (False, True, True),
+            (True, False, False),
+            (True, None, True),
+            (False, None, False),
+        )
+        sources = (
+            ("<em>1</em>\n", "<p>&lt;em&gt;1&lt;/em&gt;</p>\n", "<p><em>1</em></p>\n"),
+            (
+                "<div>1</div>\n",
+                "<p>&lt;div&gt;1&lt;/div&gt;</p>\n",
+                "<div>1</div>\n\n",
+            ),
+        )
+
+        for renderer_escape, explicit_escape, effective_escape in cases:
+            renderer = CustomHTMLRenderer(escape=renderer_escape)
+            options = {} if explicit_escape is None else {"escape": explicit_escape}
+            md = create_markdown(renderer=renderer, **options)
+            self.assertEqual(renderer._escape, renderer_escape)
+
+            for source, escaped, unescaped in sources:
+                with self.subTest(
+                    renderer_escape=renderer_escape,
+                    explicit_escape=explicit_escape,
+                    source=source,
+                ):
+                    expected = escaped if effective_escape else unescaped
+                    self.assertEqual(md(source), expected)
+
+
 class TestMarkdownRendererRoundTrip(TestCase):
     """Reformatting valid Markdown must not change its meaning: rendering the
     reformatted source to HTML must match rendering the original source."""
