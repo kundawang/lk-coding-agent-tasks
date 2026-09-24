@@ -50,7 +50,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import javax.inject.Scope;
 
 /**
  * A scanner to process provider methods on Dagger modules.
@@ -58,6 +57,8 @@ import javax.inject.Scope;
  * @author cgruber@google.com (Christian Gruber)
  */
 final class DaggerMethodScanner extends ModuleAnnotatedMethodScanner {
+  private static final ImmutableSet<Class<? extends Annotation>> SCOPES =
+      ImmutableSet.of(javax.inject.Scope.class, jakarta.inject.Scope.class);
 
   static DaggerMethodScanner create(Predicate<Method> predicate) {
     return new DaggerMethodScanner(predicate);
@@ -103,7 +104,7 @@ final class DaggerMethodScanner extends ModuleAnnotatedMethodScanner {
             .bind((Key) processMultibindingAnnotations(binder, method, key))
             .to(parameterKey(method.getParameters()[0]));
 
-    getAnnotatedAnnotation(method, Scope.class)
+    getAnnotatedAnnotation(method, SCOPES)
         .ifPresent(scope -> scopedBindingBuilder.in(scope.annotationType()));
   }
 

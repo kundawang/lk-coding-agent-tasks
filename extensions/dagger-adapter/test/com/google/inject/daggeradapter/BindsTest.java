@@ -22,6 +22,7 @@ import com.google.inject.Binding;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.google.inject.Key;
+import com.google.inject.Scopes;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -118,6 +119,43 @@ public class BindsTest extends TestCase {
         Guice.createInjector(
             DaggerAdapter.from(
                 new CountingMultibindingProviderModule(), ScopedMultibindingBindsModule.class));
+
+    Binding<Set<Object>> binding = injector.getBinding(new Key<Set<Object>>() {});
+    assertThat(binding)
+        .hasProvidedValueThat()
+        .isEqualTo(ImmutableSet.of("multibound-1", "multibound-2"));
+    assertThat(binding)
+        .hasProvidedValueThat()
+        .isEqualTo(ImmutableSet.of("multibound-1", "multibound-2"));
+  }
+
+  @Retention(RetentionPolicy.RUNTIME)
+  @jakarta.inject.Scope
+  @interface JakartaScope {}
+
+  @Module
+  interface JakartaScopedMultibindingBindsModule {
+    @Binds
+    @IntoSet
+    @JakartaScope
+    Object fromString(String string);
+
+    @Binds
+    CharSequence toCharSequence(String string);
+
+    @Binds
+    @IntoSet
+    @JakartaScope
+    Object fromCharSequence(CharSequence charSequence);
+  }
+
+  public void testJakartaScopedMultibindings() {
+    Injector injector =
+        Guice.createInjector(
+            DaggerAdapter.from(
+                new CountingMultibindingProviderModule(),
+                JakartaScopedMultibindingBindsModule.class),
+            binder -> binder.bindScope(JakartaScope.class, Scopes.SINGLETON));
 
     Binding<Set<Object>> binding = injector.getBinding(new Key<Set<Object>>() {});
     assertThat(binding)
