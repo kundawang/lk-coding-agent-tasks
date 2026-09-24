@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-081",
+  "title": "flask-cors 正则匹配优先级反了（真实开源 bug）",
+  "created_at": "2026-09-24T19:02:14",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, flask-cors",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-081/base",
+    "sha": "82d76d7ffb41d7ca517d3ac8b2f3ac754a9ff6e4",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/82d76d7ffb41d7ca517d3ac8b2f3ac754a9ff6e4"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-081/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-081/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
