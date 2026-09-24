@@ -11,6 +11,8 @@ on [Github](https://github.com/PyCQA/isort/releases).
 
 ### Unreleased
 
+   - Fix `--interactive` crashing with an `EOFError` when standard input is closed (e.g. Git Bash): exit with a clear message instead of a traceback
+
 ### 9.0.0 August 26 2026
 
    - Remove logic for deprecated options (#2498) @DanielNoord

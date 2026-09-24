@@ -20,6 +20,17 @@ def test_ask_whether_to_apply_changes_to_file():
             assert isort.format.ask_whether_to_apply_changes_to_file("")
 
 
+def test_ask_whether_to_apply_changes_to_file_without_input(capsys):
+    with patch("builtins.input", MagicMock(side_effect=EOFError)):
+        with pytest.raises(SystemExit) as exc_info:
+            isort.format.ask_whether_to_apply_changes_to_file("some/file.py")
+
+    assert exc_info.value.code == 1
+    out, err = capsys.readouterr()
+    assert out == ""
+    assert "No input received" in err
+
+
 def test_basic_printer(capsys):
     printer = isort.format.create_terminal_printer(
         color=False, success="{success}: {message}", error="{error}: {message}"
