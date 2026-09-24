@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-122",
+  "title": "validators 的 DOI 校验拒绝合法特例（真实开源 bug）",
+  "created_at": "2026-09-24T23:25:09",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, validators",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-122/base",
+    "sha": "cf3fde10256a484311233adfd2f36dd0bf5321db",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/cf3fde10256a484311233adfd2f36dd0bf5321db"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-122/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-122/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
