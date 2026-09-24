@@ -1,0 +1,8 @@
+{
+  "ops": [
+    { "type": "insert", "at": [1, 1], "text": "// 顶部加一行\n" },
+    { "type": "insert", "at": [14, 1], "text": "  const label = 'x';" },
+    { "type": "delete", "start": [5, 3], "end": [5, 9] },
+    { "type": "insert", "at": [20, 1], "text": "  console.log(total);\n" }
+  ]
+}

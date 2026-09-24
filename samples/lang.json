@@ -1,0 +1,8 @@
+{
+  "name": "minijs",
+  "keywords": ["const", "let", "function", "return", "if", "else", "for", "while", "class", "new"],
+  "lineComment": "//",
+  "blockComment": ["/*", "*/"],
+  "strings": ["\"", "'"],
+  "numbers": true
+}
