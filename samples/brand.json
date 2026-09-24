@@ -1,0 +1,7 @@
+{
+  "primaryPick": "mostSaturated",
+  "neutralSteps": 6,
+  "tintSteps": 5,
+  "contrast": { "bodyText": 4.5, "largeText": 3.0, "uiBorder": 1.5 },
+  "output": { "cssVars": true, "json": true, "tailwind": false }
+}
