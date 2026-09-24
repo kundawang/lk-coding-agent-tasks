@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-038",
+  "title": "dragsort 多栏拖拽排序（从 0 实现）",
+  "created_at": "2026-09-24T16:29:47",
+  "task_type": "0-1 代码生成",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, 原生 ES module（无构建、无依赖）",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "无外部依赖",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-038/base",
+    "sha": "8b7190de4f53f523c0a3bdb68c3dc3fe8bc05616",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/8b7190de4f53f523c0a3bdb68c3dc3fe8bc05616"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-038/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-038/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": ""
+}
