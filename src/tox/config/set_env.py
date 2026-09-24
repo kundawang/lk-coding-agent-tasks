@@ -67,28 +67,29 @@ class SetEnv:
                         else:
                             raise
                     else:
-                        self._raw[key] = value
-                        self._defined_keys.add(key)
+                        self._set_raw_value(key, value, marker)
                         keys_after_file.add(key)
-                        if marker:
-                            self._markers[key] = Marker(marker)
 
     def _parse_dict(self, raw: dict[str, str | SetEnvEntry]) -> None:
         keys_after_file: set[str] = set()
         for key, value in raw.items():
             if not isinstance(value, str):
                 if "value" in value:
-                    self._raw[key] = value["value"]
-                    self._defined_keys.add(key)
+                    self._set_raw_value(key, value["value"], value.get("marker", ""))
                     keys_after_file.add(key)
-                    if marker := value.get("marker"):
-                        self._markers[key] = Marker(marker)
             elif key == "file":
                 self._env_files.append((value, keys_after_file := set()))
             else:
-                self._raw[key] = value
-                self._defined_keys.add(key)
+                self._set_raw_value(key, value)
                 keys_after_file.add(key)
+
+    def _set_raw_value(self, key: str, value: str, marker: str = "") -> None:
+        self._raw[key] = value
+        self._defined_keys.add(key)
+        if marker:
+            self._markers[key] = Marker(marker)
+        else:
+            self._markers.pop(key, None)
 
     @staticmethod
     def _is_file_line(line: str) -> bool:
@@ -207,8 +208,10 @@ class SetEnv:
                     key, value, marker = self._extract_key_value_marker(sub_line)
                     if key not in self._raw and key not in self._defined_keys:
                         sub_raw[key] = value
-                    if marker:
-                        self._markers[key] = Marker(marker)
+                        if marker:
+                            self._markers[key] = Marker(marker)
+                        else:
+                            self._markers.pop(key, None)
             self._materialized = {k: v for k, v in self._materialized.items() if k not in sub_raw}
             self._raw.update(sub_raw)
             self.changed = True  # loading while iterating can cause these values to be missed
@@ -220,8 +223,18 @@ class SetEnv:
         for key in param:
             # do not override something already set explicitly
             if override or (key not in self._raw and key not in self._materialized):
-                value = param.load(key) if isinstance(param, SetEnv) else param[key]
+                if isinstance(param, SetEnv):
+                    value = param.load(key)
+                    marker = param._markers.get(key)
+                else:
+                    value = param[key]
+                    marker = None
                 self._materialized[key] = value
+                self._raw.pop(key, None)
+                if marker is None:
+                    self._markers.pop(key, None)
+                else:
+                    self._markers[key] = marker
                 self.changed = True
 
 

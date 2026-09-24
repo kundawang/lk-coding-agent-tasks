@@ -523,3 +523,65 @@ def test_set_env_marker_mixed(eval_set_env: EvalSetEnv) -> None:
     assert "ALWAYS" in keys
     assert "CONDITIONAL" in keys
     assert "NEVER" not in keys
+
+
+def test_set_env_update_unconditional_overrides_previous_marker() -> None:
+    set_env = SetEnv("A=conditional; sys_platform == 'nonexistent'", "set_env", "py", Path())
+    override = SetEnv("A=unconditional", "set_env", "py", Path())
+
+    set_env.update(override, override=True)
+
+    assert list(set_env) == ["A"]
+    assert set_env.load("A") == "unconditional"
+
+
+def test_set_env_mapping_update_unconditional_overrides_previous_marker() -> None:
+    set_env = SetEnv(
+        "A=conditional; sys_platform == 'nonexistent'\nB=conditional; sys_platform == 'nonexistent'",
+        "set_env",
+        "py",
+        Path(),
+    )
+
+    set_env.update({"A": "unconditional"}, override=True)
+
+    assert list(set_env) == ["A"]
+    assert set_env.load("A") == "unconditional"
+
+
+@pytest.mark.parametrize(
+    ("of_type", "config"),
+    [
+        pytest.param(
+            "ini",
+            "[testenv]\n"
+            "package=skip\n"
+            "set_env=\n"
+            "  OVERRIDDEN=conditional; sys_platform == 'nonexistent'\n"
+            "  OVERRIDDEN=unconditional\n"
+            "  REMAIN=conditional; sys_platform == 'nonexistent'",
+            id="ini",
+        ),
+        pytest.param(
+            "toml",
+            '[env_run_base]\n'
+            'package="skip"\n'
+            "set_env = [\n"
+            "  {"
+            "OVERRIDDEN = {value = \"conditional\", marker = \"sys_platform == 'nonexistent'\"}, "
+            "REMAIN = {value = \"conditional\", marker = \"sys_platform == 'nonexistent'\"}"
+            "},\n"
+            '  {OVERRIDDEN = "unconditional"},\n'
+            "]",
+            id="toml",
+        ),
+    ],
+)
+def test_set_env_unconditional_clears_previous_marker(
+    eval_set_env: EvalSetEnv, of_type: ConfigFileFormat, config: str
+) -> None:
+    set_env = eval_set_env(config, of_type=of_type)
+
+    assert "OVERRIDDEN" in set_env
+    assert set_env.load("OVERRIDDEN") == "unconditional"
+    assert "REMAIN" not in set_env
