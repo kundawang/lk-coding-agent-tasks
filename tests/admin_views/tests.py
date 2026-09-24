@@ -1604,6 +1604,81 @@ class AdminViewBasicTest(AdminViewBasicTestCase):
                 self.assertContains(response, "question__expires__month=12")
                 self.assertContains(response, "question__expires__year=2016")
 
+    def test_date_hierarchy_max_year_datetimefield(self):
+        # Drilling down into the maximum supported year (9999) doesn't crash
+        # when computing the upper bound of the date range.
+        q_max = Question.objects.create(
+            question="Why?",
+            expires=datetime.datetime(9999, 12, 31, 12),
+        )
+        Answer2.objects.create(question=q_max, answer="Because.")
+        q_other = Question.objects.create(
+            question="What?",
+            expires=datetime.datetime(2017, 10, 5, 12),
+        )
+        Answer2.objects.create(question=q_other, answer="Other.")
+        for params in (
+            {"question__expires__year": 9999},
+            {"question__expires__year": 9999, "question__expires__month": 12},
+            {
+                "question__expires__year": 9999,
+                "question__expires__month": 12,
+                "question__expires__day": 31,
+            },
+        ):
+            with self.subTest(params=params):
+                response = self.client.get(
+                    reverse("admin:admin_views_answer2_changelist"), params
+                )
+                self.assertContains(response, "Because.")
+                self.assertNotContains(response, "Other.")
+
+    def test_date_hierarchy_max_year_datefield(self):
+        q_max = Question.objects.create(
+            question="Why?", posted=datetime.date(9999, 12, 31)
+        )
+        Answer.objects.create(question=q_max, answer="Because.")
+        q_other = Question.objects.create(
+            question="What?", posted=datetime.date(2017, 10, 5)
+        )
+        Answer.objects.create(question=q_other, answer="Other.")
+        for params in (
+            {"question__posted__year": 9999},
+            {"question__posted__year": 9999, "question__posted__month": 12},
+            {
+                "question__posted__year": 9999,
+                "question__posted__month": 12,
+                "question__posted__day": 31,
+            },
+        ):
+            with self.subTest(params=params):
+                response = self.client.get(
+                    reverse("admin:admin_views_answer_changelist"), params
+                )
+                self.assertContains(response, "Because.")
+                self.assertNotContains(response, "Other.")
+
+    def test_date_hierarchy_year_before_max_keeps_upper_bound(self):
+        # Regular years still apply an exclusive upper bound, so a record
+        # dated in the following year isn't included.
+        q_9998 = Question.objects.create(
+            question="Why?",
+            expires=datetime.datetime(9998, 12, 31, 12),
+        )
+        Answer2.objects.create(question=q_9998, answer="In 9998.")
+        q_9999 = Question.objects.create(
+            question="What?",
+            expires=datetime.datetime(9999, 1, 1, 12),
+        )
+        Answer2.objects.create(question=q_9999, answer="In 9999.")
+        response = self.client.get(
+            reverse("admin:admin_views_answer2_changelist"),
+            {"question__expires__year": 9998},
+        )
+        self.assertContains(response, "In 9998.")
+        self.assertNotContains(response, "In 9999.")
+        self.assertEqual(response.context["cl"].result_count, 1)
+
     def test_sortable_by_columns_subset(self):
         expected_sortable_fields = ("date", "callable_year")
         expected_not_sortable_fields = (

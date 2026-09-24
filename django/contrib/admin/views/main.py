@@ -238,23 +238,25 @@ class ChangeList:
                     )
                 except ValueError as e:
                     raise IncorrectLookupParameters(e) from e
-                if day:
-                    to_date = from_date + timedelta(days=1)
-                elif month:
-                    # In this branch, from_date will always be the first of a
-                    # month, so advancing 32 days gives the next month.
-                    to_date = (from_date + timedelta(days=32)).replace(day=1)
-                else:
-                    to_date = from_date.replace(year=from_date.year + 1)
+                try:
+                    if day:
+                        to_date = from_date + timedelta(days=1)
+                    elif month:
+                        # In this branch, from_date will always be the first of
+                        # a month, so advancing 32 days gives the next month.
+                        to_date = (from_date + timedelta(days=32)).replace(day=1)
+                    else:
+                        to_date = from_date.replace(year=from_date.year + 1)
+                except (OverflowError, ValueError):
+                    # The maximum supported date has no upper bound.
+                    to_date = None
                 if settings.USE_TZ:
                     from_date = make_aware(from_date)
-                    to_date = make_aware(to_date)
-                lookup_params.update(
-                    {
-                        "%s__gte" % self.date_hierarchy: [from_date],
-                        "%s__lt" % self.date_hierarchy: [to_date],
-                    }
-                )
+                    if to_date is not None:
+                        to_date = make_aware(to_date)
+                lookup_params["%s__gte" % self.date_hierarchy] = [from_date]
+                if to_date is not None:
+                    lookup_params["%s__lt" % self.date_hierarchy] = [to_date]
 
         # At this point, all the parameters used by the various ListFilters
         # have been removed from lookup_params, which now only contains other
