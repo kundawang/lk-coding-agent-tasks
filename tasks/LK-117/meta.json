@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-117",
+  "title": "scrapy LocalCache 更新已有 key 时挤掉别的 key（真实开源 bug）",
+  "created_at": "2026-09-24T23:26:14",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, scrapy",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-117/base",
+    "sha": "efd396918c980ff212c4929725f2fe8f6afdc1d7",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/efd396918c980ff212c4929725f2fe8f6afdc1d7"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-117/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-117/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
