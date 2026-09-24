@@ -1,0 +1,12 @@
+{
+  "palettes": [
+    {
+      "name": "内部管理台",
+      "colors": ["#1f2937", "#374151", "#9aa0a6", "#e5e7eb", "#ffffff", "#2563eb", "#16a34a", "#dc2626"]
+    },
+    {
+      "name": "低对比（有问题）",
+      "colors": ["#ffffff", "#f2f2f2", "#dddddd", "#cccccc", "#bbbbbb"]
+    }
+  ]
+}
