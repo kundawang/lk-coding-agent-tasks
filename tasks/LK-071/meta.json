@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-071",
+  "title": "attrs 识别不出字符串前向引用里的 ClassVar（真实开源 bug）",
+  "created_at": "2026-09-24T18:49:05",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, attrs",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-071/base",
+    "sha": "d2d66fbbd6c90e40c9612e785e7e26902a025fde",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/d2d66fbbd6c90e40c9612e785e7e26902a025fde"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-071/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-071/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
