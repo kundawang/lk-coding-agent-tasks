@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-110",
+  "title": "jsoup 解析 template 里的 form 出错（真实开源 bug）",
+  "created_at": "2026-09-24T23:07:45",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Java, jsoup",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-110/base",
+    "sha": "c7b8a2920f809557018395140f4e9fdbe1cb4d8c",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/c7b8a2920f809557018395140f4e9fdbe1cb4d8c"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-110/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-110/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
