@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-073",
+  "title": "alembic autogenerate 漏掉 identity 选项（真实开源 bug）",
+  "created_at": "2026-09-24T18:49:16",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, alembic",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-073/base",
+    "sha": "cec5d009481e2adf7eeefdaa5f058f1d8444f1f3",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/cec5d009481e2adf7eeefdaa5f058f1d8444f1f3"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-073/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-073/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
