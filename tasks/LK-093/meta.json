@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-093",
+  "title": "nbconvert 在共享文件系统上模板检查抛 PermissionError（真实开源 bug）",
+  "created_at": "2026-09-24T19:17:19",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, nbconvert",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-093/base",
+    "sha": "20342a727403a29b7ee9bc62b62a1d33fd617ba7",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/20342a727403a29b7ee9bc62b62a1d33fd617ba7"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-093/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-093/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
