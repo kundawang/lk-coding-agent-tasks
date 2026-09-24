@@ -42,6 +42,11 @@ EXT_LANG = [
     (".php", "PHP", "php", 6),
 ]
 
+# 这些提交做不成「有 bug 的题」：要么只是类型标注/静态检查，要么是加特性、改文档
+SKIP_MSG = re.compile(
+    r"(?i)typing|mypy|pyright|type[- ]check|deprecat|warning|\bci\b|test only|"
+    r"feature|add .* option|support .* option|refactor|cleanup|changelog|bump")
+
 
 def token():
     out = subprocess.run(
@@ -212,6 +217,7 @@ def main():
     ap.add_argument("--show", default="", help="打印已分配题目的材料：如 lk-056,lk-057 或 all")
     ap.add_argument("--drop", default="", help="撤掉几个题号（素材不合适时用），如 lk-054,lk-055")
     ap.add_argument("--only", default="", help="只从这些仓库里取（逗号分隔，按给定顺序）")
+    ap.add_argument("--only-issue", action="store_true", help="只取带 issue 原文的素材")
     args = ap.parse_args()
 
     with open(POOL, encoding="utf-8") as fh:
@@ -288,7 +294,11 @@ def main():
         return 0
 
     used_repos = {v["repo"] for v in state.values()}
-    free = [r for r in pool if r["repo"] not in used_repos and r["repo"] not in skipped]
+    free = [r for r in pool
+            if r["repo"] not in used_repos and r["repo"] not in skipped
+            and not SKIP_MSG.search(r["fix_message"] or "")]
+    if args.only_issue:
+        free = [r for r in free if r.get("issue")]
     if args.only:
         wanted = [s.strip() for s in args.only.split(",") if s.strip()]
         by_repo = {r["repo"]: r for r in free}
