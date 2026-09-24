@@ -1,0 +1,81 @@
+"""Test how SVG definitions are drawn."""
+
+from base64 import b64encode
+
+from ...testing_utils import assert_no_logs
+
+SVG = '''
+<svg width="10px" height="10px" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <rect id="rectangle" width="5" height="2" fill="red" />
+    <symbol id="square">
+      <rect width="2" height="2" fill="blue" />
+    </symbol>
+  </defs>
+  <use href="#rectangle" />
+  <use href="#square" x="3" y="3" />
+  <use href="#rectangle" x="5" y="6" />
+</svg>
+'''
+
+STYLE = '''
+<style>
+  @page { size: 10px }
+  svg, img { display: block }
+</style>
+'''
+
+RESULT = '''
+  RRRRR_____
+  RRRRR_____
+  __________
+  ___BB_____
+  ___BB_____
+  __________
+  _____RRRRR
+  _____RRRRR
+  __________
+  __________
+'''
+
+
+@assert_no_logs
+def test_use(assert_pixels):
+    assert_pixels(RESULT, STYLE + SVG)
+
+
+@assert_no_logs
+def test_use_base64(assert_pixels):
+    base64_svg = b64encode(SVG.encode()).decode()
+    assert_pixels(RESULT, f'{STYLE}<img src="data:image/svg+xml;base64,{base64_svg}"/>')
+
+
+@assert_no_logs
+def test_use_symbol_color(assert_pixels):
+    # Regression test for #2676.
+    svg = SVG.replace('fill="blue"', '')
+    svg = svg.replace('href="#square"', 'href="#square" fill="blue"')
+    assert_pixels(RESULT, STYLE + svg)
+
+
+@assert_no_logs
+def test_use_context_paint(assert_pixels):
+    assert_pixels('''
+        RRBB__GGMM
+        RRBB__GGMM
+    ''', '''
+      <style>
+        @page { size: 10px 2px }
+        svg { display: block }
+      </style>
+      <svg width="10px" height="2px" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <g id="rectangle" stroke="none">
+            <rect width="2" height="2" fill="context-fill" />
+            <rect x="2" width="2" height="2" fill="context-stroke" />
+          </g>
+        </defs>
+        <use href="#rectangle" fill="red" stroke="blue" />
+        <use href="#rectangle" x="6" fill="lime" stroke="magenta" />
+      </svg>
+    ''')

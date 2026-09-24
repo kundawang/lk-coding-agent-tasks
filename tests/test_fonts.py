@@ -1,0 +1,199 @@
+"""Test the fonts features."""
+
+import gc
+
+from weasyprint import CSS
+from weasyprint.pdf.fonts import Font
+from weasyprint.text.ffi import ffi, gobject, pango
+from weasyprint.text.fonts import FontConfiguration
+
+from .testing_utils import BASE_URL, assert_no_logs, render_pages
+
+
+@assert_no_logs
+def test_font_face():
+    page, = render_pages('''
+      <style>
+        body { font-family: weasyprint }
+      </style>
+      <span>abc</span>''')
+    html, = page.children
+    body, = html.children
+    line, = body.children
+    assert line.width == 3 * 16
+
+
+def test_font_face_harfbuzz_face_lifetime():
+    font_config = FontConfiguration()
+    CSS(string='''
+      @font-face {
+        font-family: bug;
+        src: url(weasyprint.otf);
+      }
+    ''',
+    base_url=BASE_URL, font_config=font_config)
+    context = ffi.gc(
+        pango.pango_font_map_create_context(font_config.font_map),
+        gobject.g_object_unref)
+    font_description = ffi.gc(
+        pango.pango_font_description_new(), pango.pango_font_description_free)
+    pango.pango_font_description_set_family(font_description, ffi.new('char[]', b'bug'))
+    pango_font = ffi.gc(
+        pango.pango_font_map_load_font(font_config.font_map, context, font_description),
+        gobject.g_object_unref)
+    font = Font(pango_font, font_description, 10)
+    del context, font_description, pango_font, font_config
+    gc.collect()
+    font.clean({1: 'a', 2: 'b'}, hinting=False)
+
+
+@assert_no_logs
+def test_kerning_default():
+    # Kerning and ligatures are on by default
+    page, = render_pages('''
+      <style>
+        body { font-family: weasyprint }
+      </style>
+      <span>kk</span><span>liga</span>''')
+    html, = page.children
+    body, = html.children
+    line, = body.children
+    span1, span2 = line.children
+    assert span1.width == 1.5 * 16
+    assert span2.width == 1.5 * 16
+
+
+@assert_no_logs
+def test_ligatures_word_space():
+    # Regression test for #1469.
+    # Kerning and ligatures are on for text with increased word spacing.
+    page, = render_pages('''
+      <style>
+        body { font-family: weasyprint; word-spacing: 1em; width: 10em }
+      </style>
+      aa liga aa''')
+    html, = page.children
+    body, = html.children
+    assert len(body.children) == 1
+
+
+@assert_no_logs
+def test_kerning_deactivate():
+    # Deactivate kerning
+    page, = render_pages('''
+      <style>
+        @font-face {
+          src: url(weasyprint.otf);
+          font-family: no-kern;
+          font-feature-settings: 'kern' 0;
+        }
+        @font-face {
+          src: url(weasyprint.otf);
+          font-family: kern;
+        }
+        span:nth-child(1) { font-family: kern }
+        span:nth-child(2) { font-family: no-kern }
+      </style>
+      <span>kk</span><span>kk</span>''')
+    html, = page.children
+    body, = html.children
+    line, = body.children
+    span1, span2 = line.children
+    assert span1.width == 1.5 * 16
+    assert span2.width == 2 * 16
+
+
+@assert_no_logs
+def test_kerning_ligature_deactivate():
+    # Deactivate kerning and ligatures
+    page, = render_pages('''
+      <style>
+        @font-face {
+          src: url(weasyprint.otf);
+          font-family: no-kern-liga;
+          font-feature-settings: 'kern' off;
+          font-variant: no-common-ligatures;
+        }
+        @font-face {
+          src: url(weasyprint.otf);
+          font-family: kern-liga;
+        }
+        span:nth-child(1) { font-family: kern-liga }
+        span:nth-child(2) { font-family: no-kern-liga }
+      </style>
+      <span>kk liga</span><span>kk liga</span>''')
+    html, = page.children
+    body, = html.children
+    line, = body.children
+    span1, span2 = line.children
+    assert span1.width == (1.5 + 1 + 1.5) * 16
+    assert span2.width == (2 + 1 + 4) * 16
+
+
+@assert_no_logs
+def test_font_face_descriptors():
+    page, = render_pages(
+        '''
+        <style>
+          @font-face {
+            src: url(weasyprint.otf);
+            font-family: weasyprint-variant;
+            font-variant: sub
+                          discretionary-ligatures
+                          oldstyle-nums
+                          slashed-zero;
+          }
+          span { font-family: weasyprint-variant }
+        </style>'''
+        '<span>kk</span>'
+        '<span>subs</span>'
+        '<span>dlig</span>'
+        '<span>onum</span>'
+        '<span>zero</span>')
+    html, = page.children
+    body, = html.children
+    line, = body.children
+    kern, subs, dlig, onum, zero = line.children
+    assert kern.width == 1.5 * 16
+    assert subs.width == 1.5 * 16
+    assert dlig.width == 1.5 * 16
+    assert onum.width == 1.5 * 16
+    assert zero.width == 1.5 * 16
+
+
+@assert_no_logs
+def test_woff_simple():
+    page, = render_pages(
+      '''
+      <style>
+        @font-face {
+          src: url(weasyprint.otf);
+          font-family: weasyprint-otf;
+        }
+        @font-face {
+          src: url(weasyprint.woff);
+          font-family: weasyprint-woff;
+        }
+        @font-face {
+          src: url(weasyprint.woff);
+          font-family: weasyprint-woff-cached;
+        }
+        span:nth-child(1) { font-family: weasyprint-otf }
+        span:nth-child(2) { font-family: weasyprint-woff }
+        span:nth-child(3) { font-family: weasyprint-woff-cached }
+        span:nth-child(4) { font-family: sans }
+      </style>'''
+      '<span>woff font</span>'
+      '<span>woff font</span>'
+      '<span>woff font</span>'
+      '<span>woff font</span>')
+    html, = page.children
+    body, = html.children
+    line, = body.children
+    span1, span2, span3, span4 = line.children
+    # otf font matches woff font
+    assert span1.width == span2.width
+    # otf font matches woff font loaded from cache
+    assert span1.width == span3.width
+    # the default font does not match the loaded fonts
+    assert span1.width != span4.width
