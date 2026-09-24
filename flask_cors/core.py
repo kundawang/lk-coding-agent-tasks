@@ -69,15 +69,15 @@ def parse_resources(resources):
         # resource of '*', which is not actually a valid regexp.
         resources = [(re_fix(k), v) for k, v in resources.items()]
 
-        # Sort patterns with static (literal) paths first, then by regex specificity
+        # Sort static (literal) paths first, then regex patterns, ordering each
+        # group from most specific to least specific (more path segments, then
+        # longer pattern), so that a broad fallback regex cannot shadow a more
+        # specific one regardless of the order in which they were configured.
         def sort_key(pair):
             pattern, _ = pair
-            if isinstance(pattern, RegexObject):
-                return (1, 0, pattern.pattern.count("/"), -len(pattern.pattern))
-            elif probably_regex(pattern):
-                return (1, 1, pattern.count("/"), -len(pattern))
-            else:
-                return (0, 0, pattern.count("/"), -len(pattern))
+            pat = get_regexp_pattern(pattern)
+            group = 1 if probably_regex(pattern) else 0
+            return (group, -pat.count("/"), -len(pat))
 
         return sorted(resources, key=sort_key)
 

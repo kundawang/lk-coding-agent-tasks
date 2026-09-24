@@ -434,5 +434,51 @@ class AppExtensionPlusInPath(FlaskCorsTestCase):
         self.assertIsNone(response.headers.get(ACL_ORIGIN))
 
 
+class AppExtensionRegexSpecificity(FlaskCorsTestCase):
+    '''When several resource regexes match a path, the most specific one
+    must win even when the broad one is configured first.'''
+
+    def _make_app(self, resources):
+        app = Flask(__name__)
+        CORS(app, resources=resources)
+
+        @app.route('/api/v1/users')
+        def users():
+            return 'users'
+
+        @app.route('/api/health')
+        def health():
+            return 'health'
+
+        return app
+
+    def test_specific_regex_wins_when_configured_first_or_last(self):
+        broad = {r'/api/.*': {'origins': 'http://broad.com'}}
+        specific = {r'/api/v1/.*': {'origins': 'http://specific.com'}}
+
+        for resources in (
+            {**broad, **specific},
+            {**specific, **broad},
+        ):
+            self.app = self._make_app(resources)
+            client = self.app.test_client()
+
+            resp = client.get('/api/v1/users',
+                              headers={'Origin': 'http://specific.com'})
+            self.assertEqual(resp.headers.get(ACL_ORIGIN), 'http://specific.com')
+
+            # A request only the broad rule permits must keep matching the
+            # broad rule, proving previously correct matches are unchanged.
+            resp = client.get('/api/health',
+                              headers={'Origin': 'http://broad.com'})
+            self.assertEqual(resp.headers.get(ACL_ORIGIN), 'http://broad.com')
+
+            # An origin allowed by the broad rule but not by the specific
+            # rule must be rejected for the specific path.
+            resp = client.get('/api/v1/users',
+                              headers={'Origin': 'http://broad.com'})
+            self.assertNotIn(ACL_ORIGIN, resp.headers)
+
+
 if __name__ == "__main__":
     unittest.main()

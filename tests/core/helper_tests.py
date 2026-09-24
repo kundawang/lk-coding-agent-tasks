@@ -84,6 +84,53 @@ class InternalsTestCase(unittest.TestCase):
             ['/foo', re.compile(r'/api/v1/.*'), re.compile(r'/.*')]
         )
 
+    def test_parse_resources_more_specific_regex_first(self):
+        # A broad pattern listed first in the config must not shadow a more
+        # specific pattern, regardless of whether patterns are strings or
+        # pre-compiled regexes.
+        broad = {'origins': 'http://broad.com'}
+        specific = {'origins': 'http://specific.com'}
+
+        resources = parse_resources({
+            r'/api/.*': broad,
+            r'/api/v1/users/.*': specific,
+        })
+        self.assertEqual(
+            [r[0] for r in resources],
+            [r'/api/v1/users/.*', r'/api/.*']
+        )
+
+        # Reverse the configured order: the result must be identical.
+        resources_reversed = parse_resources({
+            r'/api/v1/users/.*': specific,
+            r'/api/.*': broad,
+        })
+        self.assertEqual(
+            [r[0] for r in resources_reversed],
+            [r'/api/v1/users/.*', r'/api/.*']
+        )
+
+        # Mixing compiled regexes and regex strings must not change ordering.
+        resources_mixed = parse_resources({
+            re.compile(r'/api/.*'): broad,
+            r'/api/v1/users/.*': specific,
+        })
+        self.assertEqual(
+            [get_regexp_pattern(r[0]) for r in resources_mixed],
+            [r'/api/v1/users/.*', r'/api/.*']
+        )
+
+        # With an equal number of path segments, the longer (more specific)
+        # pattern wins.
+        resources_tie = parse_resources({
+            r'/api/.*': broad,
+            r'/api/v[0-9]': specific,
+        })
+        self.assertEqual(
+            [r[0] for r in resources_tie],
+            [r'/api/v[0-9]', r'/api/.*']
+        )
+
     def test_probably_regex(self):
         self.assertTrue(probably_regex("http://*.example.com"))
         self.assertTrue(probably_regex("*"))
