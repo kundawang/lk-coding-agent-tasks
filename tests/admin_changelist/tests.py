@@ -1201,6 +1201,60 @@ class ChangeListTests(TestCase):
         self.assertContains(response, formats.localize(event.date))
         self.assertNotContains(response, str(event.date))
 
+    def test_date_hierarchy_at_max_date(self):
+        """
+        Drilling down into a period that ends beyond the maximum supported
+        date (e.g. a 9999-12-31 sentinel value) doesn't overflow when
+        computing the upper bound of the period.
+        """
+        Event.objects.create(date=datetime.date(9999, 12, 31))
+        Event.objects.create(date=datetime.date(9999, 6, 15))
+        Event.objects.create(date=datetime.date(9998, 12, 31))
+        m = EventAdmin(Event, custom_site)
+        tests = [
+            (
+                "date__year=9999",
+                [datetime.date(9999, 6, 15), datetime.date(9999, 12, 31)],
+            ),
+            ("date__year=9999&date__month=12", [datetime.date(9999, 12, 31)]),
+            (
+                "date__year=9999&date__month=12&date__day=31",
+                [datetime.date(9999, 12, 31)],
+            ),
+            # Periods below the upper bound are unaffected.
+            ("date__year=9998", [datetime.date(9998, 12, 31)]),
+            ("date__year=9998&date__month=12", [datetime.date(9998, 12, 31)]),
+            (
+                "date__year=9998&date__month=12&date__day=31",
+                [datetime.date(9998, 12, 31)],
+            ),
+        ]
+        for querystring, expected in tests:
+            with self.subTest(querystring=querystring):
+                request = self._mocked_authenticated_request(
+                    "/event/?%s" % querystring, self.superuser
+                )
+                cl = m.get_changelist_instance(request)
+                self.assertEqual(
+                    sorted(cl.queryset.values_list("date", flat=True)), expected
+                )
+
+    def test_date_hierarchy_at_max_date_changelist_view(self):
+        Event.objects.create(date=datetime.date(9999, 12, 31))
+        m = EventAdmin(Event, custom_site)
+        for querystring in (
+            "date__year=9999",
+            "date__year=9999&date__month=12",
+            "date__year=9999&date__month=12&date__day=31",
+        ):
+            with self.subTest(querystring=querystring):
+                request = self._mocked_authenticated_request(
+                    "/event/?%s" % querystring, self.superuser
+                )
+                response = m.changelist_view(request)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.context_data["cl"].result_count, 1)
+
     def test_dynamic_list_display(self):
         """
         Regression tests for #14206: dynamic list_display support.
