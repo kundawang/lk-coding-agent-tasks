@@ -1,0 +1,22 @@
+{
+  "id": "order",
+  "initial": "created",
+  "finals": ["closed", "refunded"],
+  "states": [
+    { "id": "created", "name": "已创建", "x": 80, "y": 160 },
+    { "id": "paid", "name": "已支付", "x": 320, "y": 160 },
+    { "id": "shipped", "name": "已发货", "x": 560, "y": 160 },
+    { "id": "closed", "name": "已完成", "x": 800, "y": 160 },
+    { "id": "refunded", "name": "已退款", "x": 320, "y": 320 },
+    { "id": "audit", "name": "风控挂起", "x": 80, "y": 320 }
+  ],
+  "transitions": [
+    { "from": "created", "to": "paid", "event": "pay", "guard": "amount > 0" },
+    { "from": "created", "to": "paid", "event": "pay", "guard": "coupon" },
+    { "from": "paid", "to": "shipped", "event": "ship" },
+    { "from": "shipped", "to": "closed", "event": "confirm" },
+    { "from": "paid", "to": "refunded", "event": "refund" },
+    { "from": "audit", "to": "paid", "event": "pass" },
+    { "from": "shipped", "to": "missing_state", "event": "lost" }
+  ]
+}
