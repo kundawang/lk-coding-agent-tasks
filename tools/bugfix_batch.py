@@ -98,6 +98,9 @@ def main():
             task_mod.cmd_new(ns)
         except SystemExit as exc:
             print(f"!! {task_id} 建题失败：{exc}")
+            # 建题中途失败会在仓库里留下半截工作区，先收拾干净，别影响后面几道
+            subprocess.run(["git", "reset", "-q", "--hard"], cwd=build.REPO, capture_output=True)
+            subprocess.run(["git", "clean", "-fdq"], cwd=build.REPO, capture_output=True)
             continue
         print(f"++ {task_id} {info['repo']} -> {title}")
         if not args.no_push:
