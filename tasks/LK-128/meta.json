@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-128",
+  "title": "chalk 把数字 FORCE_COLOR 当成布尔（真实开源 bug）",
+  "created_at": "2026-09-24T23:32:47",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, chalk",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-128/base",
+    "sha": "1f1835fab93a2ccf6a0f26fec6cd0a6f0221303e",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/1f1835fab93a2ccf6a0f26fec6cd0a6f0221303e"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-128/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-128/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
