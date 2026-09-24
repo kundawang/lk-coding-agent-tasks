@@ -1,0 +1,11 @@
+{
+  "name": "张",
+  "email": "not-an-email",
+  "age": 12,
+  "phone": "139001",
+  "password": "123",
+  "confirm": "1234",
+  "vip": true,
+  "invite": "",
+  "code": "USED-001"
+}

@@ -1,0 +1,12 @@
+{
+  "fields": {
+    "name": { "rules": [{ "type": "required" }, { "type": "length", "min": 2, "max": 20 }] },
+    "email": { "rules": [{ "type": "required" }, { "type": "email" }] },
+    "age": { "rules": [{ "type": "range", "min": 18, "max": 65 }] },
+    "phone": { "rules": [{ "type": "pattern", "regex": "^1\\d{10}$", "message": "手机号格式不对" }] },
+    "password": { "rules": [{ "type": "length", "min": 8 }] },
+    "confirm": { "rules": [{ "type": "sameAs", "field": "password", "message": "两次输入不一致" }] },
+    "invite": { "rules": [{ "type": "requiredIf", "field": "vip", "equals": true }] },
+    "code": { "rules": [{ "type": "unique", "message": "这个编号已被占用" }] }
+  }
+}
