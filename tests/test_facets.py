@@ -274,6 +274,53 @@ async def test_column_facet_results_column_starts_with_underscore(ds_client):
 
 
 @pytest.mark.asyncio
+async def test_column_facet_results_exact_filter_selected(ds_client):
+    # Explicit __exact filters should be marked selected, with a
+    # toggle_url that removes the filter:
+    facet = ColumnFacet(
+        ds_client.ds,
+        Request.fake("/?_facet=state&state__exact=CA"),
+        database="fixtures",
+        sql="select * from facetable",
+        table="facetable",
+    )
+    buckets, timed_out = await facet.facet_results()
+    assert [] == timed_out
+    assert [
+        {
+            "name": "state",
+            "type": "column",
+            "hideable": True,
+            "toggle_url": "/?state__exact=CA",
+            "results": [
+                {
+                    "value": "CA",
+                    "label": "CA",
+                    "count": 10,
+                    "toggle_url": "http://localhost/?_facet=state",
+                    "selected": True,
+                },
+                {
+                    "value": "MI",
+                    "label": "MI",
+                    "count": 4,
+                    "toggle_url": "http://localhost/?_facet=state&state__exact=CA&state=MI",
+                    "selected": False,
+                },
+                {
+                    "value": "MC",
+                    "label": "MC",
+                    "count": 1,
+                    "toggle_url": "http://localhost/?_facet=state&state__exact=CA&state=MC",
+                    "selected": False,
+                },
+            ],
+            "truncated": False,
+        }
+    ] == buckets
+
+
+@pytest.mark.asyncio
 async def test_column_facet_from_metadata_cannot_be_hidden(ds_client):
     facet = ColumnFacet(
         ds_client.ds,

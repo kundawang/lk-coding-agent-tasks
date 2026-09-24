@@ -1005,6 +1005,28 @@ def test_page_size_matching_max_returned_rows(
             },
         ),
         (
+            # Explicit __exact filter should be marked selected
+            "/fixtures/facetable.json?_facet=state&state__exact=MI",
+            {
+                "state": {
+                    "name": "state",
+                    "hideable": True,
+                    "type": "column",
+                    "toggle_url": "/fixtures/facetable.json?state__exact=MI",
+                    "results": [
+                        {
+                            "value": "MI",
+                            "label": "MI",
+                            "count": 4,
+                            "selected": True,
+                            "toggle_url": "_facet=state",
+                        }
+                    ],
+                    "truncated": False,
+                },
+            },
+        ),
+        (
             "/fixtures/facetable.json?_facet=planet_int",
             {
                 "planet_int": {
