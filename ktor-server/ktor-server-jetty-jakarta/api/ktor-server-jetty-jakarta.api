@@ -1,0 +1,74 @@
+public final class io/ktor/server/jetty/jakarta/EngineMain {
+	public static final field INSTANCE Lio/ktor/server/jetty/jakarta/EngineMain;
+	public final fun createServer ([Ljava/lang/String;)Lio/ktor/server/engine/EmbeddedServer;
+	public static final fun main ([Ljava/lang/String;)V
+}
+
+public final class io/ktor/server/jetty/jakarta/Jetty : io/ktor/server/engine/ApplicationEngineFactory {
+	public static final field INSTANCE Lio/ktor/server/jetty/jakarta/Jetty;
+	public synthetic fun configuration (Lkotlin/jvm/functions/Function1;)Lio/ktor/server/engine/ApplicationEngine$Configuration;
+	public fun configuration (Lkotlin/jvm/functions/Function1;)Lio/ktor/server/jetty/jakarta/JettyApplicationEngineBase$Configuration;
+	public synthetic fun create (Lio/ktor/server/application/ApplicationEnvironment;Lio/ktor/events/Events;ZLio/ktor/server/engine/ApplicationEngine$Configuration;Lkotlin/jvm/functions/Function0;)Lio/ktor/server/engine/ApplicationEngine;
+	public fun create (Lio/ktor/server/application/ApplicationEnvironment;Lio/ktor/events/Events;ZLio/ktor/server/jetty/jakarta/JettyApplicationEngineBase$Configuration;Lkotlin/jvm/functions/Function0;)Lio/ktor/server/jetty/jakarta/JettyApplicationEngine;
+}
+
+public final class io/ktor/server/jetty/jakarta/JettyApplicationCall : io/ktor/server/engine/BaseApplicationCall {
+	public synthetic fun <init> (Lio/ktor/server/application/Application;Lorg/eclipse/jetty/server/Request;Lorg/eclipse/jetty/server/Response;Ljava/util/concurrent/Executor;Lkotlin/coroutines/CoroutineContext;Lkotlin/coroutines/CoroutineContext;Lkotlin/time/Duration;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun getCoroutineContext ()Lkotlin/coroutines/CoroutineContext;
+	public synthetic fun getRequest ()Lio/ktor/server/engine/BaseApplicationRequest;
+	public fun getRequest ()Lio/ktor/server/jetty/jakarta/JettyApplicationCall$JettyApplicationRequest;
+	public synthetic fun getRequest ()Lio/ktor/server/request/ApplicationRequest;
+	public synthetic fun getRequest ()Lio/ktor/server/request/PipelineRequest;
+	public synthetic fun getResponse ()Lio/ktor/server/engine/BaseApplicationResponse;
+	public fun getResponse ()Lio/ktor/server/jetty/jakarta/JettyApplicationCall$JettyApplicationResponse;
+	public synthetic fun getResponse ()Lio/ktor/server/response/ApplicationResponse;
+	public synthetic fun getResponse ()Lio/ktor/server/response/PipelineResponse;
+}
+
+public final class io/ktor/server/jetty/jakarta/JettyApplicationCall$JettyApplicationRequest : io/ktor/server/engine/BaseApplicationRequest {
+	public fun <init> (Lio/ktor/server/jetty/jakarta/JettyApplicationCall;Lorg/eclipse/jetty/server/Request;)V
+	public fun getCookies ()Lio/ktor/server/request/RequestCookies;
+	public fun getLocal ()Lio/ktor/http/RequestConnectionPoint;
+	public fun getQueryParameters ()Lio/ktor/http/Parameters;
+	public fun getRawQueryParameters ()Lio/ktor/http/Parameters;
+}
+
+public final class io/ktor/server/jetty/jakarta/JettyApplicationCall$JettyApplicationResponse : io/ktor/server/engine/BaseApplicationResponse {
+	public fun <init> (Lio/ktor/server/jetty/jakarta/JettyApplicationCall;Lorg/eclipse/jetty/io/EndPoint;Lorg/eclipse/jetty/server/Response;)V
+	public fun getHeaders ()Lio/ktor/server/response/ResponseHeaders;
+}
+
+public final class io/ktor/server/jetty/jakarta/JettyApplicationEngine : io/ktor/server/jetty/jakarta/JettyApplicationEngineBase {
+	public fun <init> (Lio/ktor/server/application/ApplicationEnvironment;Lio/ktor/events/Events;ZLio/ktor/server/jetty/jakarta/JettyApplicationEngineBase$Configuration;Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun start (Z)Lio/ktor/server/engine/ApplicationEngine;
+	public fun start (Z)Lio/ktor/server/jetty/jakarta/JettyApplicationEngine;
+	public synthetic fun start (Z)Lio/ktor/server/jetty/jakarta/JettyApplicationEngineBase;
+}
+
+public class io/ktor/server/jetty/jakarta/JettyApplicationEngineBase : io/ktor/server/engine/BaseApplicationEngine {
+	public fun <init> (Lio/ktor/server/application/ApplicationEnvironment;Lio/ktor/events/Events;ZLio/ktor/server/jetty/jakarta/JettyApplicationEngineBase$Configuration;Lkotlin/jvm/functions/Function0;)V
+	public final fun getConfiguration ()Lio/ktor/server/jetty/jakarta/JettyApplicationEngineBase$Configuration;
+	protected final fun getServer ()Lorg/eclipse/jetty/server/Server;
+	public synthetic fun start (Z)Lio/ktor/server/engine/ApplicationEngine;
+	public fun start (Z)Lio/ktor/server/jetty/jakarta/JettyApplicationEngineBase;
+	public fun stop (JJ)V
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/ktor/server/jetty/jakarta/JettyApplicationEngineBase$Configuration : io/ktor/server/engine/BaseApplicationEngine$Configuration {
+	public fun <init> ()V
+	public final fun getConfigureServer ()Lkotlin/jvm/functions/Function1;
+	public final fun getHttpConfiguration ()Lkotlin/jvm/functions/Function1;
+	public final fun getIdleTimeout-UwyO8pc ()J
+	public final fun getSecureRequestCustomizer ()Lkotlin/jvm/functions/Function1;
+	public final fun setConfigureServer (Lkotlin/jvm/functions/Function1;)V
+	public final fun setHttpConfiguration (Lkotlin/jvm/functions/Function1;)V
+	public final fun setIdleTimeout-LRDsOJo (J)V
+	public final fun setSecureRequestCustomizer (Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class io/ktor/server/jetty/jakarta/internal/JettyUpgradeImpl : io/ktor/server/servlet/jakarta/ServletUpgrade {
+	public static final field INSTANCE Lio/ktor/server/jetty/jakarta/internal/JettyUpgradeImpl;
+	public fun performUpgrade (Lio/ktor/http/content/OutgoingContent$ProtocolUpgrade;Ljakarta/servlet/http/HttpServletRequest;Ljakarta/servlet/http/HttpServletResponse;Lkotlin/coroutines/CoroutineContext;Lkotlin/coroutines/CoroutineContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+

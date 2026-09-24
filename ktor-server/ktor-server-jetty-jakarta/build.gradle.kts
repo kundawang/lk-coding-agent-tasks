@@ -1,0 +1,42 @@
+/*
+ * Copyright 2014-2025 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+ */
+
+description = ""
+
+plugins {
+    id("ktorbuild.project.library")
+}
+
+kotlin {
+    // The minimal JVM version required for Jetty 12+
+    jvmToolchain(17)
+
+    sourceSets {
+        jvmMain.dependencies {
+            api(projects.ktorServerCore)
+            api(projects.ktorServerServletJakarta)
+            api(libs.jetty.server.jakarta)
+            api(libs.jetty.servlets.jakarta)
+            api(libs.jetty.servlet.websocket.jakarta)
+            api(libs.jakarta.servlet)
+            api(libs.jetty.alpn.server.jakarta)
+            api(libs.jetty.alpn.java.server.jakarta)
+            api(libs.jetty.http2.server.jakarta)
+        }
+        jvmTest.dependencies {
+            implementation(libs.kotlin.test.junit5)
+            implementation(projects.ktorServerCore)
+            implementation(projects.ktorServerTestBase)
+            implementation(projects.ktorServerTestSuites)
+            implementation(projects.ktorServerContentNegotiation)
+            implementation(projects.ktorSerializationJackson)
+            implementation(projects.ktorClientContentNegotiation)
+            implementation(libs.jackson.databind)
+            implementation(libs.jackson.module.kotlin)
+
+            implementation(libs.jetty.servlet.jakarta)
+            implementation(libs.jetty.servlet.websocket.jakarta)
+        }
+    }
+}

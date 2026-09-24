@@ -1,0 +1,397 @@
+/*
+ * Copyright 2014-2021 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+ */
+
+package io.ktor.client.plugins.contentnegotiation
+
+import io.ktor.client.plugins.api.*
+import io.ktor.client.plugins.sse.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.client.utils.*
+import io.ktor.http.*
+import io.ktor.http.content.*
+import io.ktor.serialization.*
+import io.ktor.util.AttributeKey
+import io.ktor.util.logging.*
+import io.ktor.util.reflect.*
+import io.ktor.utils.io.*
+import io.ktor.utils.io.charsets.*
+import kotlin.reflect.*
+
+// Media types of the underlying representations mapped to the structured syntax suffixes
+// registered in RFC 6839. The `+ber` and `+der` suffixes are omitted as the RFC defines
+// no generic media type for them, so there is no content type to register a converter for.
+private val supportedSuffixTypes = mapOf(
+    ContentType.Application.Json to "json",
+    ContentType.Application.Xml to "xml",
+    ContentType("application", "fastinfoset") to "fastinfoset",
+    ContentType("application", "vnd.wap.wbxml") to "wbxml",
+    ContentType.Application.Zip to "zip",
+)
+private val LOGGER = KtorSimpleLogger("io.ktor.client.plugins.contentnegotiation.ContentNegotiation")
+
+internal val DefaultCommonIgnoredTypes: Set<KClass<*>> = setOf(
+    ByteArray::class,
+    String::class,
+    HttpStatusCode::class,
+    ByteReadChannel::class,
+    OutgoingContent::class,
+    ClientSSESession::class,
+    ClientSSESessionWithDeserialization::class,
+)
+
+internal expect val DefaultIgnoredTypes: Set<KClass<*>>
+
+/**
+ * The content types that are excluded from the `Accept` header for this specific request. Use the
+ * [exclude] `HttpRequestBuilder` extension to set this attribute on a request.
+ */
+internal val ExcludedContentTypes: AttributeKey<List<ContentType>> = AttributeKey("ExcludedContentTypesAttr")
+
+/**
+ * Defines how registered content types are merged into the request's Accept header.
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentTypeMergeStrategy)
+ */
+public fun interface ContentTypeMergeStrategy {
+    /**
+     * Returns the content types that should be appended to the Accept header.
+     *
+     * @param registeredContentTypes the content types from all active converter registrations
+     * @param acceptHeaders the Accept header values already present on the request
+     */
+    public fun mergeContentTypes(
+        registeredContentTypes: List<ContentType>,
+        acceptHeaders: List<String>
+    ): Sequence<ContentType>
+
+    public companion object {
+        /**
+         * Default behavior: appends each registered content type that is not already
+         * represented in the existing Accept headers. Preserves backward compatibility.
+         *
+         * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentTypeMergeStrategy.Default)
+         */
+        public val Default: ContentTypeMergeStrategy = ContentTypeMergeStrategy { registered, headers ->
+            registered.asSequence().filter { contentType ->
+                headers.none { h ->
+                    try {
+                        ContentType.parse(h).match(contentType)
+                    } catch (e: BadContentTypeFormatException) {
+                        false
+                    }
+                }
+            }
+        }
+
+        /**
+         * Skips Accept header injection entirely when at least one Accept header is already
+         * present on the request. Falls back to [Default] behavior when none are present.
+         * Useful when working with APIs that are strict about which Accept values they accept.
+         *
+         * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentTypeMergeStrategy.SkipIfPresent)
+         */
+        public val SkipIfPresent: ContentTypeMergeStrategy = ContentTypeMergeStrategy { registered, headers ->
+            if (headers.isNotEmpty()) {
+                emptySequence()
+            } else {
+                Default.mergeContentTypes(registered, headers)
+            }
+        }
+    }
+}
+
+/**
+ * A [ContentNegotiation] configuration that is used during installation.
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiationConfig)
+ */
+@KtorDsl
+public class ContentNegotiationConfig : Configuration {
+
+    internal class ConverterRegistration(
+        val converter: ContentConverter,
+        val contentTypeToSend: ContentType,
+        val contentTypeMatcher: ContentTypeMatcher
+    )
+
+    internal val ignoredTypes: MutableSet<KClass<*>> =
+        (DefaultIgnoredTypes + DefaultCommonIgnoredTypes).toMutableSet()
+
+    internal val registrations = mutableListOf<ConverterRegistration>()
+
+    /**
+     * By default, `Accept` headers for registered content types will have no q value (implicit 1.0). Set this to
+     * change that behavior. This is useful to override the preferred `Accept` content types on a per-request basis.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiationConfig.defaultAcceptHeaderQValue)
+     */
+    public var defaultAcceptHeaderQValue: Double? = null
+
+    /**
+     * Controls how registered content types are merged into the Accept header.
+     * Defaults to [ContentTypeMergeStrategy.Default], which preserves backward-compatible behavior.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiationConfig.acceptHeaderMergeStrategy)
+     */
+    public var acceptHeaderMergeStrategy: ContentTypeMergeStrategy = ContentTypeMergeStrategy.Default
+
+    /**
+     * Registers a [contentType] to a specified [converter] with an optional [configuration] script for a converter.
+     *
+     * Besides the exact matches, the converter is used for content types with the matching
+     * structured syntax suffix as registered in [RFC 6839](https://datatracker.ietf.org/doc/html/rfc6839).
+     * For example, a converter registered for `application/json` also handles `application/problem+json`.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiationConfig.register)
+     */
+    public override fun <T : ContentConverter> register(
+        contentType: ContentType,
+        converter: T,
+        configuration: T.() -> Unit
+    ) {
+        register(contentType, converter, defaultMatcher(contentType), configuration)
+    }
+
+    /**
+     * Registers a [contentTypeToSend] and [contentTypeMatcher] to a specified [converter] with
+     * an optional [configuration] script for a converter.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiationConfig.register)
+     */
+    public fun <T : ContentConverter> register(
+        contentTypeToSend: ContentType,
+        converter: T,
+        contentTypeMatcher: ContentTypeMatcher,
+        configuration: T.() -> Unit
+    ) {
+        val registration = ConverterRegistration(
+            converter.apply(configuration),
+            contentTypeToSend,
+            contentTypeMatcher
+        )
+        registrations.add(registration)
+    }
+
+    /**
+     * Adds a type to the list of types that should be ignored by [ContentNegotiation].
+     *
+     * The list contains the [HttpStatusCode], [ByteArray], [String] and streaming types by default.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiationConfig.ignoreType)
+     */
+    public inline fun <reified T> ignoreType() {
+        ignoreType(T::class)
+    }
+
+    /**
+     * Remove [T] from the list of types that should be ignored by [ContentNegotiation].
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiationConfig.removeIgnoredType)
+     */
+    public inline fun <reified T> removeIgnoredType() {
+        removeIgnoredType(T::class)
+    }
+
+    /**
+     * Remove [type] from the list of types that should be ignored by [ContentNegotiation].
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiationConfig.removeIgnoredType)
+     */
+    public fun removeIgnoredType(type: KClass<*>) {
+        ignoredTypes.remove(type)
+    }
+
+    /**
+     * Adds a [type] to the list of types that should be ignored by [ContentNegotiation].
+     *
+     * The list contains the [HttpStatusCode], [ByteArray], [String] and streaming types by default.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiationConfig.ignoreType)
+     */
+    public fun ignoreType(type: KClass<*>) {
+        ignoredTypes.add(type)
+    }
+
+    /**
+     * Clear all configured ignored types including defaults.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiationConfig.clearIgnoredTypes)
+     */
+    public fun clearIgnoredTypes() {
+        ignoredTypes.clear()
+    }
+
+    private fun defaultMatcher(pattern: ContentType): ContentTypeMatcher = object : ContentTypeMatcher {
+        // RFC 6839 doesn't restrict suffixed types to any top-level type,
+        // so only the subtype suffix is checked (e.g., image/svg+xml matches application/xml).
+        private val subtypeSuffix by lazy {
+            supportedSuffixTypes[pattern.withoutParameters()]?.let { "+$it" }
+        }
+
+        override fun contains(contentType: ContentType): Boolean {
+            if (contentType.match(pattern)) {
+                return true
+            }
+
+            val subtypeSuffix = subtypeSuffix ?: return false
+
+            return contentType.contentSubtype.endsWith(subtypeSuffix, ignoreCase = true)
+        }
+    }
+}
+
+/**
+ * A plugin that serves two primary purposes:
+ * - Negotiating media types between the client and server. For this, it uses the `Accept` and `Content-Type` headers.
+ * - Serializing/deserializing the content in a specific format when sending requests and receiving responses.
+ * Ktor supports the following formats out-of-the-box: `JSON`, `XML`, and `CBOR`.
+ *
+ * You can learn more from [Content negotiation and serialization](https://ktor.io/docs/serialization-client.html).
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.ContentNegotiation)
+ */
+@OptIn(InternalAPI::class)
+public val ContentNegotiation: ClientPlugin<ContentNegotiationConfig> = createClientPlugin(
+    "ContentNegotiation",
+    ::ContentNegotiationConfig
+) {
+    val registrations: List<ContentNegotiationConfig.ConverterRegistration> = pluginConfig.registrations
+    val ignoredTypes: Set<KClass<*>> = pluginConfig.ignoredTypes
+
+    suspend fun convertRequest(request: HttpRequestBuilder, body: Any): OutgoingContent? {
+        val requestRegistrations = if (request.attributes.contains(ExcludedContentTypes)) {
+            val excluded = request.attributes[ExcludedContentTypes]
+            registrations.filter { registration -> excluded.none { registration.contentTypeToSend.match(it) } }
+        } else {
+            registrations
+        }
+
+        val acceptHeaders = request.headers.getAll(HttpHeaders.Accept).orEmpty()
+        pluginConfig.acceptHeaderMergeStrategy
+            .mergeContentTypes(requestRegistrations.map { it.contentTypeToSend }, acceptHeaders)
+            .forEach { contentType ->
+                val contentTypeToSend = when (val qValue = pluginConfig.defaultAcceptHeaderQValue) {
+                    null -> contentType
+                    else -> contentType.withParameter("q", qValue.toString())
+                }
+                LOGGER.trace { "Adding Accept=$contentTypeToSend header for ${request.url}" }
+                request.accept(contentTypeToSend)
+            }
+
+        if (body is OutgoingContent || ignoredTypes.any { it.isInstance(body) }) {
+            LOGGER.trace {
+                "Body type ${body::class} is in ignored types. Skipping ContentNegotiation for ${request.url}."
+            }
+            return null
+        }
+        val contentType = request.contentType() ?: run {
+            LOGGER.trace { "Request doesn't have Content-Type header. Skipping ContentNegotiation for ${request.url}." }
+            return null
+        }
+
+        if (body is Unit) {
+            LOGGER.trace { "Sending empty body for ${request.url}" }
+            request.headers.remove(HttpHeaders.ContentType)
+            return EmptyContent
+        }
+
+        val matchingRegistrations = registrations.filter { it.contentTypeMatcher.contains(contentType) }
+            .takeIf { it.isNotEmpty() } ?: run {
+            LOGGER.trace {
+                "None of the registered converters match request Content-Type=$contentType. " +
+                    "Skipping ContentNegotiation for ${request.url}."
+            }
+            return null
+        }
+        if (request.bodyType == null) {
+            LOGGER.trace { "Request has unknown body type. Skipping ContentNegotiation for ${request.url}." }
+            return null
+        }
+        request.headers.remove(HttpHeaders.ContentType)
+
+        // Pick the first one that can convert the subject successfully
+        val serializedContent = matchingRegistrations.firstNotNullOfOrNull { registration ->
+            val result = registration.converter.serialize(
+                contentType,
+                contentType.charset() ?: Charsets.UTF_8,
+                request.bodyType!!,
+                body.takeIf { it != NullBody }
+            )
+            if (result != null) {
+                LOGGER.trace { "Converted request body using ${registration.converter} for ${request.url}" }
+            }
+            result
+        } ?: throw ContentConverterException(
+            "Can't convert $body with contentType $contentType using converters " +
+                matchingRegistrations.joinToString { it.converter.toString() }
+        )
+
+        return serializedContent
+    }
+
+    @OptIn(InternalAPI::class)
+    suspend fun convertResponse(
+        requestUrl: Url,
+        info: TypeInfo,
+        body: Any,
+        responseContentType: ContentType,
+        charset: Charset = Charsets.UTF_8
+    ): Any? {
+        if (body !is ByteReadChannel) {
+            LOGGER.trace { "Response body is already transformed. Skipping ContentNegotiation for $requestUrl." }
+            return null
+        }
+        if (info.type in ignoredTypes) {
+            LOGGER.trace {
+                "Response body type ${info.type} is in ignored types. Skipping ContentNegotiation for $requestUrl."
+            }
+            return null
+        }
+
+        val suitableConverters = registrations
+            .filter { it.contentTypeMatcher.contains(responseContentType) }
+            .map { it.converter }
+            .takeIf { it.isNotEmpty() }
+            ?: run {
+                LOGGER.trace {
+                    "None of the registered converters match response with Content-Type=$responseContentType. " +
+                        "Skipping ContentNegotiation for $requestUrl."
+                }
+                return null
+            }
+
+        val result = suitableConverters.deserialize(body, info, charset)
+        if (LOGGER.isTraceEnabled && result !is ByteReadChannel) {
+            LOGGER.trace("Response body was converted to ${result::class} for $requestUrl.")
+        }
+        return result
+    }
+
+    transformRequestBody { request, body, _ ->
+        convertRequest(request, body)
+    }
+
+    transformResponseBody { response, body, info ->
+        val contentType = response.contentType() ?: return@transformResponseBody null
+        val charset = contentType.charset() ?: Charsets.UTF_8
+
+        convertResponse(response.request.url, info, body, contentType, charset)
+    }
+}
+
+public class ContentConverterException(message: String) : Exception(message)
+
+/**
+ * Excludes the given [ContentType] from the list of types that will be sent in the `Accept` header by
+ * the [ContentNegotiation] plugin. Can be used to not accept specific types for particular requests.
+ * This can be called multiple times to exclude multiple content types, or multiple content types can
+ * be passed in a single call.
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.contentnegotiation.exclude)
+ */
+public fun HttpRequestBuilder.exclude(vararg contentType: ContentType) {
+    val excludedContentTypes = attributes.getOrNull(ExcludedContentTypes).orEmpty()
+    attributes.put(ExcludedContentTypes, excludedContentTypes + contentType)
+}

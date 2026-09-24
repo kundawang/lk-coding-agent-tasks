@@ -1,0 +1,45 @@
+/*
+* Copyright 2014-2021 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+*/
+
+package io.ktor.http.content
+
+import io.ktor.http.*
+import io.ktor.utils.io.*
+import io.ktor.utils.io.jvm.javaio.*
+import java.io.OutputStream
+
+/**
+ * [OutgoingContent] to respond with [OutputStream].
+ * The stream would be automatically closed after [body] finish.
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.http.content.OutputStreamContent)
+ */
+public class OutputStreamContent(
+    private val body: suspend OutputStream.() -> Unit,
+    override val contentType: ContentType,
+    override val status: HttpStatusCode? = null,
+    override val contentLength: Long? = null
+) : OutgoingContent.WriteChannelContent() {
+
+    override suspend fun writeTo(channel: ByteWriteChannel) {
+        channel.withBlockingOutputStream(block = body)
+    }
+
+    /**
+     * Writes the content body directly to the given [stream], bypassing the [ByteWriteChannel] intermediary.
+     *
+     * Engine implementations that have access to a native blocking [OutputStream] (e.g. servlet engines
+     * backed by a thread-per-request model) should call this method instead of [writeTo(ByteWriteChannel)]
+     * to avoid dispatching to [kotlinx.coroutines.Dispatchers.IO] and the `runBlocking` bridge inside
+     * [ByteWriteChannel.toOutputStream].
+     *
+     * The caller is responsible for closing the [stream] after this method returns.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.http.content.OutputStreamContent.writeTo)
+     */
+    @InternalAPI
+    public suspend fun writeTo(stream: OutputStream) {
+        stream.body()
+    }
+}

@@ -1,0 +1,675 @@
+/*
+* Copyright 2014-2021 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+*/
+
+package io.ktor.util
+
+import kotlin.jvm.JvmName
+
+/**
+ * Provides data structure for associating a [String] with a [List] of Strings
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues)
+ */
+public interface StringValues {
+    public companion object {
+        /**
+         * Empty [StringValues] instance
+         *
+         * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.Companion.Empty)
+         */
+        public val Empty: StringValues = StringValuesImpl()
+
+        /**
+         * Builds a [StringValues] instance with the given [builder] function
+         *
+         * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.Companion.build)
+         *
+         * @param caseInsensitiveName specifies if map should have case-sensitive or case-insensitive names
+         * @param builder specifies a function to build a map
+         */
+        public inline fun build(
+            caseInsensitiveName: Boolean = false,
+            builder: StringValuesBuilder.() -> Unit
+        ): StringValues = StringValuesBuilderImpl(caseInsensitiveName).apply(builder).build()
+    }
+
+    /**
+     * Specifies if map has case-sensitive or case-insensitive names
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.caseInsensitiveName)
+     */
+    public val caseInsensitiveName: Boolean
+
+    /**
+     * Gets first value from the list of values associated with a [name], or null if the name is not present
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.get)
+     */
+    public operator fun get(name: String): String? = getAll(name)?.firstOrNull()
+
+    /**
+     * Gets all values associated with the [name], or null if the name is not present
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.getAll)
+     */
+    public fun getAll(name: String): List<String>?
+
+    /**
+     * Gets all names from the map
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.names)
+     */
+    public fun names(): Set<String>
+
+    /**
+     * Gets all entries from the map
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.entries)
+     */
+    public fun entries(): Set<Map.Entry<String, List<String>>>
+
+    /**
+     * Checks if the given [name] exists in the map
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.contains)
+     */
+    public operator fun contains(name: String): Boolean = getAll(name) != null
+
+    /**
+     * Checks if the given [name] and [value] pair exists in the map
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.contains)
+     */
+    public fun contains(name: String, value: String): Boolean = getAll(name)?.contains(value) ?: false
+
+    /**
+     * Iterates over all entries in this map and calls [body] for each pair
+     *
+     * Can be optimized in implementations
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.forEach)
+     */
+    public fun forEach(body: (String, List<String>) -> Unit): Unit = entries().forEach { (k, v) -> body(k, v) }
+
+    /**
+     * Checks if this map is empty
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.StringValues.isEmpty)
+     */
+    public fun isEmpty(): Boolean
+}
+
+public interface StringValuesBuilder {
+    public val caseInsensitiveName: Boolean
+    public fun getAll(name: String): List<String>?
+
+    public operator fun contains(name: String): Boolean
+    public fun contains(name: String, value: String): Boolean
+    public fun names(): Set<String>
+    public fun isEmpty(): Boolean
+    public fun entries(): Set<Map.Entry<String, List<String>>>
+
+    public operator fun set(name: String, value: String)
+
+    public operator fun get(name: String): String?
+    public fun append(name: String, value: String)
+    public fun appendAll(stringValues: StringValues)
+    public fun appendAll(name: String, values: Iterable<String>)
+    public fun appendMissing(stringValues: StringValues)
+    public fun appendMissing(name: String, values: Iterable<String>)
+    public fun remove(name: String)
+    public fun removeKeysWithNoEntries()
+    public fun remove(name: String, value: String): Boolean
+    public fun clear()
+
+    public fun build(): StringValues
+}
+
+public open class StringValuesSingleImpl(
+    override val caseInsensitiveName: Boolean,
+    public val name: String,
+    public val values: List<String>
+) : StringValues {
+
+    override fun getAll(name: String): List<String>? = if (this.name.equals(name, caseInsensitiveName)) values else null
+
+    override fun entries(): Set<Map.Entry<String, List<String>>> = setOf(
+        object : Map.Entry<String, List<String>> {
+            override val key: String = name
+            override val value: List<String> = values
+            override fun toString() = "$key=$value"
+
+            override fun equals(other: Any?): Boolean =
+                other is Map.Entry<*, *> &&
+                    other.key == key &&
+                    other.value == value
+
+            override fun hashCode(): Int = key.hashCode() xor value.hashCode()
+        }
+    )
+
+    override fun isEmpty(): Boolean = false
+
+    override fun names(): Set<String> = setOf(name)
+
+    override fun toString(): String = "StringValues(case=${!caseInsensitiveName}) ${entries()}"
+
+    override fun hashCode(): Int = entriesHashCode(entries(), 31 * caseInsensitiveName.hashCode())
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is StringValues) return false
+        if (caseInsensitiveName != other.caseInsensitiveName) return false
+        return entriesEquals(entries(), other.entries())
+    }
+
+    override fun forEach(body: (String, List<String>) -> Unit): Unit = body(name, values)
+
+    override fun get(name: String): String? =
+        if (name.equals(this.name, caseInsensitiveName)) values.firstOrNull() else null
+
+    override fun contains(name: String): Boolean = name.equals(this.name, caseInsensitiveName)
+
+    override fun contains(name: String, value: String): Boolean =
+        name.equals(this.name, caseInsensitiveName) && values.contains(value)
+}
+
+public open class StringValuesImpl(
+    final override val caseInsensitiveName: Boolean = false,
+    values: Map<String, List<String>> = emptyMap()
+) : StringValues {
+
+    // Parallel arrays for zero-allocation iteration
+    private val keyStorage: Array<String>
+    private val valueStorage: Array<List<String>>
+    private val entryCount: Int
+
+    // Hash table for O(1) lookup - stores indices into parallel arrays
+    private val hashBuckets: IntArray
+    private val hashNext: IntArray // collision chain
+
+    /**
+     * Provides access to the underlying values as a Map.
+     * Reconstructs the map from internal storage for binary compatibility.
+     */
+    @Suppress("unused")
+    protected val values: Map<String, List<String>>
+        get() {
+            if (entryCount == 0) return emptyMap()
+            val result: MutableMap<String, List<String>> =
+                if (caseInsensitiveName) caseInsensitiveMap() else LinkedHashMap(entryCount)
+            for (i in 0 until entryCount) {
+                result[keyStorage[i]] = valueStorage[i]
+            }
+            return result
+        }
+
+    init {
+        if (values.isEmpty()) {
+            entryCount = 0
+            keyStorage = emptyArray()
+            valueStorage = emptyArray()
+            hashBuckets = IntArray(0)
+            hashNext = IntArray(0)
+        } else if (!caseInsensitiveName) {
+            entryCount = values.size
+            @Suppress("UNCHECKED_CAST")
+            keyStorage = arrayOfNulls<String>(entryCount) as Array<String>
+            @Suppress("UNCHECKED_CAST")
+            valueStorage = arrayOfNulls<List<String>>(entryCount) as Array<List<String>>
+
+            // Size hash table to next power of two, minimum 4
+            val tableSize = tableSizeFor(entryCount)
+            hashBuckets = IntArray(tableSize) { -1 }
+            hashNext = IntArray(entryCount) { -1 }
+
+            var i = 0
+            for ((key, value) in values) {
+                keyStorage[i] = key
+                valueStorage[i] = List(value.size) { value[it] }
+
+                // Insert into hash table
+                val hash = computeHash(key)
+                val bucket = hash and (tableSize - 1)
+                hashNext[i] = hashBuckets[bucket]
+                hashBuckets[bucket] = i
+                i++
+            }
+        } else {
+            // Case-insensitive mode: deduplicate keys, merging values for keys
+            // that differ only by case. The first occurrence's casing is kept.
+            val deduped = caseInsensitiveMap<List<String>>()
+            for ((key, value) in values) {
+                val existing = deduped[key]
+                if (existing != null) {
+                    deduped[key] = existing + value
+                } else {
+                    deduped[key] = value
+                }
+            }
+
+            entryCount = deduped.size
+            @Suppress("UNCHECKED_CAST")
+            keyStorage = arrayOfNulls<String>(entryCount) as Array<String>
+            @Suppress("UNCHECKED_CAST")
+            valueStorage = arrayOfNulls<List<String>>(entryCount) as Array<List<String>>
+
+            val tableSize = tableSizeFor(entryCount)
+            hashBuckets = IntArray(tableSize) { -1 }
+            hashNext = IntArray(entryCount) { -1 }
+
+            var i = 0
+            for ((key, value) in deduped) {
+                keyStorage[i] = key
+                valueStorage[i] = List(value.size) { value[it] }
+
+                val hash = computeHash(key)
+                val bucket = hash and (tableSize - 1)
+                hashNext[i] = hashBuckets[bucket]
+                hashBuckets[bucket] = i
+                i++
+            }
+        }
+    }
+
+    override operator fun get(name: String): String? = listForKey(name)?.firstOrNull()
+
+    override fun getAll(name: String): List<String>? = listForKey(name)
+
+    override operator fun contains(name: String): Boolean = listForKey(name) != null
+
+    override fun contains(name: String, value: String): Boolean = listForKey(name)?.contains(value) ?: false
+
+    override fun names(): Set<String> {
+        if (entryCount == 0) return emptySet()
+        val result = linkedSetOf<String>()
+        for (i in 0 until entryCount) {
+            result.add(keyStorage[i])
+        }
+        return result
+    }
+
+    override fun isEmpty(): Boolean = entryCount == 0
+
+    override fun entries(): Set<Map.Entry<String, List<String>>> {
+        if (entryCount == 0) return emptySet()
+        val result = linkedSetOf<Map.Entry<String, List<String>>>()
+        for (i in 0 until entryCount) {
+            result.add(StringValuesEntry(keyStorage[i], valueStorage[i]))
+        }
+        return result
+    }
+
+    override fun forEach(body: (String, List<String>) -> Unit) {
+        // Direct array iteration - no iterator allocation!
+        for (i in 0 until entryCount) {
+            body(keyStorage[i], valueStorage[i])
+        }
+    }
+
+    private fun listForKey(name: String): List<String>? {
+        if (entryCount == 0) return null
+        val hash = computeHash(name)
+        var idx = hashBuckets[hash and (hashBuckets.size - 1)]
+        while (idx >= 0) {
+            if (keyStorage[idx].equals(name, caseInsensitiveName)) {
+                return valueStorage[idx]
+            }
+            idx = hashNext[idx]
+        }
+        return null
+    }
+
+    private fun computeHash(key: String): Int {
+        return if (caseInsensitiveName) {
+            caseInsensitiveHashCode(key)
+        } else {
+            key.hashCode()
+        }
+    }
+
+    override fun toString(): String = "StringValues(case=${!caseInsensitiveName}) ${entries()}"
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is StringValues) return false
+        if (caseInsensitiveName != other.caseInsensitiveName) return false
+        return entriesEquals(entries(), other.entries())
+    }
+
+    override fun hashCode(): Int = entriesHashCode(entries(), 31 * caseInsensitiveName.hashCode())
+
+    private class StringValuesEntry(
+        override val key: String,
+        override val value: List<String>
+    ) : Map.Entry<String, List<String>> {
+        override fun equals(other: Any?): Boolean =
+            other is Map.Entry<*, *> && other.key == key && other.value == value
+
+        override fun hashCode(): Int = key.hashCode() xor value.hashCode()
+        override fun toString(): String = "$key=$value"
+    }
+
+    private companion object {
+        private fun tableSizeFor(size: Int): Int {
+            var n = size - 1
+            n = n or (n ushr 1)
+            n = n or (n ushr 2)
+            n = n or (n ushr 4)
+            n = n or (n ushr 8)
+            n = n or (n ushr 16)
+            return if (n < 4) 4 else n + 1
+        }
+
+        private fun caseInsensitiveHashCode(s: String): Int {
+            var h = 0
+            for (i in 0 until s.length) {
+                h = 31 * h + s[i].lowercaseChar().code
+            }
+            return h
+        }
+    }
+}
+
+@Suppress("KDocMissingDocumentation", "DEPRECATION")
+public open class StringValuesBuilderImpl(
+    final override val caseInsensitiveName: Boolean = false,
+    size: Int = 8
+) : StringValuesBuilder {
+
+    protected val values: MutableMap<String, MutableList<String>> =
+        if (caseInsensitiveName) caseInsensitiveMap() else LinkedHashMap(size)
+
+    override fun getAll(name: String): List<String>? = values[name]
+
+    override operator fun contains(name: String): Boolean = name in values
+
+    override fun contains(name: String, value: String): Boolean = values[name]?.contains(value) ?: false
+
+    override fun names(): Set<String> = values.keys
+
+    override fun isEmpty(): Boolean = values.isEmpty()
+
+    override fun entries(): Set<Map.Entry<String, List<String>>> = values.entries.unmodifiable()
+
+    override operator fun set(name: String, value: String) {
+        validateValue(value)
+        val list = ensureListForKey(name)
+        list.clear()
+        list.add(value)
+    }
+
+    override operator fun get(name: String): String? = getAll(name)?.firstOrNull()
+
+    override fun append(name: String, value: String) {
+        validateValue(value)
+        ensureListForKey(name).add(value)
+    }
+
+    override fun appendAll(stringValues: StringValues) {
+        stringValues.forEach { name, values ->
+            appendAll(name, values)
+        }
+    }
+
+    override fun appendMissing(stringValues: StringValues) {
+        stringValues.forEach { name, values ->
+            appendMissing(name, values)
+        }
+    }
+
+    override fun appendAll(name: String, values: Iterable<String>) {
+        ensureListForKey(name).let { list ->
+            values.forEach { validateValue(it) }
+            list.addAll(values)
+        }
+    }
+
+    override fun appendMissing(name: String, values: Iterable<String>) {
+        val existing = this.values[name]?.toSet() ?: emptySet()
+
+        appendAll(name, values.filter { it !in existing })
+    }
+
+    override fun remove(name: String) {
+        values.remove(name)
+    }
+
+    override fun removeKeysWithNoEntries() {
+        for ((k, _) in values.filter { it.value.isEmpty() }) {
+            remove(k)
+        }
+    }
+
+    override fun remove(name: String, value: String): Boolean = values[name]?.remove(value) ?: false
+
+    override fun clear() {
+        values.clear()
+    }
+
+    override fun build(): StringValues {
+        return StringValuesImpl(caseInsensitiveName, values)
+    }
+
+    protected open fun validateName(name: String) {
+    }
+
+    protected open fun validateValue(value: String) {
+    }
+
+    private fun ensureListForKey(name: String): MutableList<String> {
+        return values[name] ?: mutableListOf<String>().also {
+            validateName(name)
+            values[name] = it
+        }
+    }
+}
+
+/**
+ * Build an instance of [StringValues] from a vararg list of pairs
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.valuesOf)
+ */
+public fun valuesOf(vararg pairs: Pair<String, List<String>>, caseInsensitiveKey: Boolean = false): StringValues {
+    return StringValuesImpl(caseInsensitiveKey, pairs.asList().toMap())
+}
+
+/**
+ * Build an instance of [StringValues] from a single pair
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.valuesOf)
+ */
+public fun valuesOf(name: String, value: String, caseInsensitiveKey: Boolean = false): StringValues {
+    return StringValuesSingleImpl(caseInsensitiveKey, name, listOf(value))
+}
+
+/**
+ * Build an instance of [StringValues] with a single [name] and multiple [values]
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.valuesOf)
+ */
+public fun valuesOf(name: String, values: List<String>, caseInsensitiveKey: Boolean = false): StringValues {
+    return StringValuesSingleImpl(caseInsensitiveKey, name, values)
+}
+
+/**
+ * Build an empty [StringValues] instance.
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.valuesOf)
+ */
+public fun valuesOf(): StringValues = StringValues.Empty
+
+/**
+ * Build an instance of [StringValues] from the specified [map]
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.valuesOf)
+ */
+public fun valuesOf(map: Map<String, Iterable<String>>, caseInsensitiveKey: Boolean = false): StringValues {
+    val size = map.size
+    if (size == 1) {
+        val entry = map.entries.single()
+        return StringValuesSingleImpl(caseInsensitiveKey, entry.key, entry.value.toList())
+    }
+    val values: MutableMap<String, List<String>> =
+        if (caseInsensitiveKey) caseInsensitiveMap() else LinkedHashMap(size)
+    map.entries.forEach { values[it.key] = it.value.toList() }
+    return StringValuesImpl(caseInsensitiveKey, values)
+}
+
+/**
+ * Copy values to a new independent map
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.toMap)
+ */
+public fun StringValues.toMap(): Map<String, List<String>> =
+    entries().associateByTo(LinkedHashMap(), { it.key }, { it.value.toList() })
+
+/**
+ * Copy values to a list of pairs
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.flattenEntries)
+ */
+public fun StringValues.flattenEntries(): List<Pair<String, String>> = entries().flatMap { e ->
+    e.value.map { e.key to it }
+}
+
+/**
+ * Invoke [block] function for every value pair
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.flattenForEach)
+ */
+public fun StringValues.flattenForEach(block: (String, String) -> Unit): Unit = forEach { name, items ->
+    items.forEach { block(name, it) }
+}
+
+/**
+ * Create a new instance of [StringValues] filtered by the specified [predicate]
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.filter)
+ *
+ * @param keepEmpty when `true` will keep empty lists otherwise keys with no values will be discarded
+ */
+public fun StringValues.filter(keepEmpty: Boolean = false, predicate: (String, String) -> Boolean): StringValues {
+    val entries = entries()
+    val values: MutableMap<String, MutableList<String>> =
+        if (caseInsensitiveName) caseInsensitiveMap() else LinkedHashMap(entries.size)
+
+    entries.forEach { entry ->
+        val list = entry.value.filterTo(ArrayList(entry.value.size)) { predicate(entry.key, it) }
+        if (keepEmpty || list.isNotEmpty()) {
+            values[entry.key] = list
+        }
+    }
+
+    return StringValuesImpl(caseInsensitiveName, values)
+}
+
+/**
+ * Append values from [source] filtering values by the specified [predicate]
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.appendFiltered)
+ *
+ * @param keepEmpty when `true` will keep empty lists otherwise keys with no values will be discarded
+ */
+public fun StringValuesBuilder.appendFiltered(
+    source: StringValues,
+    keepEmpty: Boolean = false,
+    predicate: (String, String) -> Boolean
+) {
+    source.forEach { name, value ->
+        val list = value.filterTo(ArrayList(value.size)) { predicate(name, it) }
+        if (keepEmpty || list.isNotEmpty()) {
+            appendAll(name, list)
+        }
+    }
+}
+
+/**
+ * Append all values from the specified [builder]
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.appendAll)
+ */
+public fun StringValuesBuilder.appendAll(builder: StringValuesBuilder): StringValuesBuilder = apply {
+    builder.entries().forEach { (name, values) ->
+        appendAll(name, values)
+    }
+}
+
+/**
+ * Appends [name] [value] pair if there are no values associated with [name]
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.appendIfNameAbsent)
+ */
+public fun StringValuesBuilder.appendIfNameAbsent(name: String, value: String): StringValuesBuilder = apply {
+    if (contains(name)) return@apply
+    append(name, value)
+}
+
+/**
+ * Appends [name] [value] pair if there is no existing [name] [value] pair
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.appendIfNameAndValueAbsent)
+ */
+public fun StringValuesBuilder.appendIfNameAndValueAbsent(name: String, value: String): StringValuesBuilder = apply {
+    if (contains(name, value)) return@apply
+    append(name, value)
+}
+
+/**
+ * Appends multiple key-value pairs to this builder
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.appendAll)
+ *
+ * @param values the key-value pairs to append
+ * @return this builder instance
+ */
+public fun StringValuesBuilder.appendAll(vararg values: Pair<String, String>): StringValuesBuilder = apply {
+    values.forEach { (key, value) -> append(key, value) }
+}
+
+/**
+ * Appends multiple key-value pairs where values are [Iterable] to this builder
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.appendAll)
+ *
+ * @param values the key-value pairs to append where values are [Iterable] of strings
+ * @return this builder instance
+ */
+@JvmName("appendAllIterable")
+public fun StringValuesBuilder.appendAll(vararg values: Pair<String, Iterable<String>>): StringValuesBuilder = apply {
+    values.forEach { (key, value) -> appendAll(key, value) }
+}
+
+/**
+ * Appends multiple key-value pairs from a [Map] where values are [Iterable] to this builder
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.appendAll)
+ *
+ * @param values the map containing key-value pairs to append where values are [Iterable] of strings
+ * @return this builder instance
+ */
+@JvmName("appendAllIterable")
+public fun StringValuesBuilder.appendAll(values: Map<String, Iterable<String>>): StringValuesBuilder = apply {
+    values.forEach { (key, value) -> appendAll(key, value) }
+}
+
+/**
+ * Appends multiple key-value pairs from a [Map] to this builder
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.util.appendAll)
+ *
+ * @param values the map containing key-value pairs to append
+ * @return this builder instance
+ */
+public fun StringValuesBuilder.appendAll(values: Map<String, String>): StringValuesBuilder = apply {
+    values.forEach { (key, value) -> append(key, value) }
+}
+
+private fun entriesEquals(a: Set<Map.Entry<String, List<String>>>, b: Set<Map.Entry<String, List<String>>>): Boolean {
+    return a == b
+}
+
+private fun entriesHashCode(entries: Set<Map.Entry<String, List<String>>>, seed: Int): Int {
+    return seed * 31 + entries.hashCode()
+}

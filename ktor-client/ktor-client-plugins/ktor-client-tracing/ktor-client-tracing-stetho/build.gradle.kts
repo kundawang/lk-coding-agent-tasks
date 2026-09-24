@@ -1,0 +1,72 @@
+/*
+ * Copyright 2014-2024 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+ */
+
+plugins {
+    id("com.android.library")
+    id("kotlin-android-extensions")
+}
+
+kotlin {
+    android {
+        publishAllLibraryVariants()
+    }
+
+    sourceSets {
+        named("androidMain") {
+            kotlin.srcDir("android/src")
+            dependencies {
+                implementation(projects.ktorClientTracing)
+                implementation(projects.ktorClientCore)
+                implementation("com.facebook.stetho:stetho:$android_stetho_version")
+            }
+        }
+
+        named("androidTest") {
+            kotlin.srcDir("android/test")
+            dependencies {
+                implementation(projects.ktorClientCio)
+                implementation(libs.kotlin.test.junit5)
+                implementation("org.mockito:mockito-core:5.23.0")
+            }
+        }
+    }
+
+    sourceSets.all {
+    }
+}
+
+android {
+    compileSdkVersion(29)
+    packagingOptions {
+        exclude("META-INF/kotlinx-coroutines-core.kotlin_module")
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+    defaultConfig {
+        minSdkVersion(9)
+        targetSdkVersion(29)
+        versionCode = 1
+        versionName = "1.0"
+        testInstrumentationRunner = "android.support.test.runner.AndroidJUnitRunner"
+    }
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+        }
+    }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
+    }
+    useLibrary("android.test.mock")
+
+    sourceSets {
+        named("main") {
+            manifest.srcFile("AndroidManifest.xml")
+        }
+    }
+}

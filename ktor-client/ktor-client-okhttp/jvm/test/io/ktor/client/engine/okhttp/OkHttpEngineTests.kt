@@ -1,0 +1,182 @@
+/*
+ * Copyright 2014-2019 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+ */
+
+package io.ktor.client.engine.okhttp
+
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.test.*
+import io.ktor.utils.io.*
+import kotlinx.coroutines.*
+import okhttp3.*
+import okhttp3.ResponseBody.Companion.asResponseBody
+import okio.Buffer
+import okio.BufferedSource
+import okio.Pipe
+import okio.buffer
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import kotlin.test.*
+import kotlin.time.Duration.Companion.seconds
+
+class OkHttpEngineTests {
+    @Test
+    fun testClose() {
+        val okHttpClient = OkHttpClient()
+        val engine = OkHttpEngine(OkHttpConfig().apply { preconfigured = okHttpClient })
+        engine.close()
+
+        assertFalse("OkHttp dispatcher is not working.") { okHttpClient.dispatcher.executorService.isShutdown }
+        assertEquals(0, okHttpClient.connectionPool.connectionCount())
+        okHttpClient.cache?.let { assertFalse("OkHttp client cache is closed.") { it.isClosed } }
+    }
+
+    @Test
+    fun testThreadLeak() = runBlocking {
+        val initialNumberOfThreads = Thread.getAllStackTraces().size
+
+        repeat(25) {
+            HttpClient(OkHttp).use { client ->
+                val response = client.get("http://www.google.com").body<String>()
+                assertNotNull(response)
+            }
+        }
+
+        val totalNumberOfThreads = Thread.getAllStackTraces().size
+        val threadsCreated = totalNumberOfThreads - initialNumberOfThreads
+        assertTrue { threadsCreated < 25 }
+    }
+
+    @Test
+    fun testPreconfigured() = runBlocking {
+        var preconfiguredClientCalled = false
+        val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                preconfiguredClientCalled = true
+                chain.proceed(chain.request())
+            }
+            .connectTimeout(1, TimeUnit.MILLISECONDS)
+            .build()
+
+        HttpClient(OkHttp) {
+            engine { preconfigured = okHttpClient }
+        }.use { client ->
+            runCatching { client.get("http://localhost:1234").body<String>() }
+            assertTrue(preconfiguredClientCalled)
+        }
+    }
+
+    @Test
+    fun testResponseBodyIsStreamedBeforeEof() = runTest(timeout = 5.seconds) {
+        val pipe = Pipe(1024)
+        val sink = pipe.sink.buffer()
+        val source = pipe.source.buffer()
+
+        val client = HttpClient(OkHttp) {
+            engine {
+                preconfigured = OkHttpClient.Builder()
+                    .addResponseInterceptor(source.asResponseBody())
+                    .build()
+            }
+        }
+
+        client.use { client ->
+            sink.use { sink ->
+                client.prepareGet("http://localhost/").execute { response ->
+                    sink.writeByte(42)
+                    sink.flush()
+
+                    val channel = response.bodyAsChannel()
+                    assertEquals(42, channel.readByte().toInt())
+                    assertFalse(channel.isClosedForRead)
+
+                    sink.close()
+                    assertFalse(channel.awaitContent())
+                    assertFalse(source.isOpen)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun testResponseBodyIsClosedOnEngineDispatcher() = runTest {
+        val engineThread = CompletableDeferred<Thread>()
+        val closingThread = CompletableDeferred<Thread>()
+
+        val engineExecutor = Executors.newSingleThreadExecutor { task ->
+            Thread(task, "okhttp-engine-test").also { engineThread.complete(it) }
+        }
+
+        engineExecutor.asCoroutineDispatcher().use { engineDispatcher ->
+            val responseBody = object : ResponseBody() {
+                private val source = Buffer()
+
+                override fun contentType(): MediaType? = null
+
+                override fun contentLength(): Long = 0
+
+                override fun source(): BufferedSource = source
+
+                override fun close() {
+                    super.close()
+                    closingThread.complete(Thread.currentThread())
+                }
+            }
+
+            val client = HttpClient(OkHttp) {
+                engine {
+                    preconfigured = OkHttpClient.Builder()
+                        .addResponseInterceptor(responseBody)
+                        .build()
+                    dispatcher = engineDispatcher
+                }
+            }
+
+            client.use {
+                val responseReceived = CompletableDeferred<Unit>()
+                val request = launch(Dispatchers.Default) {
+                    client.prepareGet("http://localhost/").execute {
+                        responseReceived.complete(Unit)
+                        awaitCancellation()
+                    }
+                }
+
+                responseReceived.await()
+                request.cancelAndJoin()
+
+                assertSame(
+                    engineThread.await(),
+                    closingThread.await(),
+                    "The response body must be closed on the engine dispatcher"
+                )
+            }
+        }
+    }
+
+    @Test
+    fun testRequestAfterRecreate() {
+        runBlocking {
+            HttpClient(OkHttp)
+                .close()
+
+            HttpClient(OkHttp).use { client ->
+                val response = client.get("http://www.google.com").body<String>()
+                assertNotNull(response)
+            }
+        }
+    }
+}
+
+private fun OkHttpClient.Builder.addResponseInterceptor(responseBody: ResponseBody): OkHttpClient.Builder =
+    addInterceptor { chain ->
+        Response.Builder()
+            .request(chain.request())
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body(responseBody)
+            .build()
+    }

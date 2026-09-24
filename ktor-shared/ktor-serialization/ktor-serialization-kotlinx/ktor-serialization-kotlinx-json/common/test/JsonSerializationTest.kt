@@ -1,0 +1,291 @@
+/*
+ * Copyright 2014-2026 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+ */
+
+package io.ktor.serialization.kotlinx.test.json
+
+import io.ktor.client.engine.mock.*
+import io.ktor.http.*
+import io.ktor.serialization.*
+import io.ktor.serialization.kotlinx.*
+import io.ktor.serialization.kotlinx.json.*
+import io.ktor.serialization.kotlinx.test.*
+import io.ktor.test.*
+import io.ktor.util.*
+import io.ktor.util.reflect.*
+import io.ktor.utils.io.*
+import io.ktor.utils.io.charsets.*
+import io.ktor.utils.io.core.*
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.*
+import kotlinx.serialization.modules.SerializersModule
+import kotlin.test.*
+
+class JsonSerializationTest : AbstractSerializationTest<Json>() {
+    override val defaultContentType: ContentType = ContentType.Application.Json
+    override val defaultSerializationFormat: Json = DefaultJson
+
+    override fun assertEquals(expectedAsJson: String, actual: ByteArray, format: Json): Boolean {
+        return expectedAsJson == actual.decodeToString()
+    }
+
+    @Test
+    fun testJsonElements() = runTest {
+        val testSerializer = KotlinxSerializationConverter(defaultSerializationFormat)
+        testSerializer.testSerialize(
+            buildJsonObject {
+                put("a", "1")
+                put(
+                    "b",
+                    buildJsonObject {
+                        put("c", 3)
+                    }
+                )
+                put("x", JsonNull)
+            }
+        ).let { result ->
+            assertEquals("""{"a":"1","b":{"c":3},"x":null}""", result.decodeToString())
+        }
+
+        testSerializer.testSerialize(
+            buildJsonObject {
+                put("a", "1")
+                put(
+                    "b",
+                    buildJsonArray {
+                        add("c")
+                        add(JsonPrimitive(2))
+                    }
+                )
+            }
+        ).let { result ->
+            assertEquals("""{"a":"1","b":["c",2]}""", result.decodeToString())
+        }
+    }
+
+    @Test
+    fun testContextual() = runTest {
+        val serializer = KotlinxSerializationConverter(
+            Json {
+                prettyPrint = true
+                encodeDefaults = true
+                serializersModule =
+                    SerializersModule {
+                        contextual(Either::class) { serializers: List<KSerializer<*>> ->
+                            EitherSerializer(serializers[0], serializers[1])
+                        }
+                    }
+            }
+        )
+        val dogJson = """{"age": 8,"name":"Auri"}"""
+        assertEquals(
+            Either.Right(DogDTO(8, "Auri")),
+            serializer.deserialize(
+                Charsets.UTF_8,
+                typeInfo<Either<ErrorDTO, DogDTO>>(),
+                ByteReadChannel(dogJson.toByteArray())
+            )
+        )
+        val errorJson = """{"message": "Some error"}"""
+        assertEquals(
+            Either.Left(ErrorDTO("Some error")),
+            serializer.deserialize(
+                Charsets.UTF_8,
+                typeInfo<Either<ErrorDTO, DogDTO>>(),
+                ByteReadChannel(errorJson.toByteArray())
+            )
+        )
+
+        val emptyErrorJson = "{}"
+        assertEquals(
+            Either.Left(ErrorDTO("Some default error")),
+            serializer.deserialize(
+                Charsets.UTF_8,
+                typeInfo<Either<ErrorDTO, DogDTO>>(),
+                ByteReadChannel(emptyErrorJson.toByteArray())
+            )
+        )
+    }
+
+    @Test
+    fun testExtraFields() = runTest {
+        val testSerializer = KotlinxSerializationConverter(defaultSerializationFormat)
+        val dogExtraFieldJson = """{"age": 8,"name":"Auri","color":"Black"}"""
+        assertFailsWith<JsonConvertException> {
+            testSerializer.deserialize(
+                Charsets.UTF_8,
+                typeInfo<DogDTO>(),
+                ByteReadChannel(dogExtraFieldJson.toByteArray())
+            )
+        }
+    }
+
+    @Test
+    fun testList() = runTest {
+        val testSerializer = KotlinxSerializationConverter(defaultSerializationFormat)
+        val dogListJson = """[{"age": 8,"name":"Auri"}]"""
+        assertEquals(
+            listOf(DogDTO(8, "Auri")),
+            testSerializer.deserialize(
+                Charsets.UTF_8,
+                typeInfo<List<DogDTO>>(),
+                ByteReadChannel(dogListJson.toByteArray())
+            )
+        )
+    }
+
+    @Test
+    fun testListsWithExperimentApi() = runTest {
+        val testSerializer = ExperimentalJsonConverter(defaultSerializationFormat)
+        val expected = listOf(DogDTO(8, "Auri"))
+        val serialized = testSerializer.serialize(
+            ContentType.Application.Json,
+            Charsets.UTF_8,
+            typeInfo<List<DogDTO>>(),
+            expected
+        ).toByteArray().decodeToString()
+        assertEquals("""[{"age":8,"name":"Auri"}]""", serialized)
+        assertEquals(
+            expected,
+            testSerializer.deserialize(
+                Charsets.UTF_8,
+                typeInfo<List<DogDTO>>(),
+                ByteReadChannel(serialized.toByteArray())
+            )
+        )
+    }
+
+    @Test
+    fun testContentIsReplayable() = runTest {
+        val testSerializer = ExperimentalJsonConverter(defaultSerializationFormat)
+        val expected = DogDTO(8, "Auri")
+        val content = testSerializer.serialize(
+            ContentType.Application.Json,
+            Charsets.UTF_8,
+            typeInfo<DogDTO>(),
+            expected
+        )
+
+        // Verify content can be written multiple times (replayable)
+        // This is important for auth retry scenarios where the request body needs to be resent
+        val firstWrite = content.toByteArray().decodeToString()
+        val secondWrite = content.toByteArray().decodeToString()
+        val thirdWrite = content.toByteArray().decodeToString()
+
+        val expectedJson = """{"age":8,"name":"Auri"}"""
+        assertEquals(expectedJson, firstWrite)
+        assertEquals(expectedJson, secondWrite)
+        assertEquals(expectedJson, thirdWrite)
+    }
+
+    @Test
+    fun testSequence() = runTest {
+        if (!PlatformUtils.IS_JVM) return@runTest
+
+        val testSerializer = KotlinxSerializationConverter(defaultSerializationFormat)
+        val dogListJson = """[{"age":8,"name":"Auri"}]"""
+        assertContentEquals(
+            sequenceOf(DogDTO(8, "Auri")),
+            testSerializer.deserialize(
+                Charsets.UTF_8,
+                typeInfo<Sequence<DogDTO>>(),
+                ByteReadChannel(dogListJson.toByteArray())
+            ) as Sequence<*>
+        )
+    }
+
+    @Test
+    fun `deserialize list with non-serializable type shows helpful error`() = runTest {
+        if (!PlatformUtils.IS_JVM) return@runTest
+
+        val testSerializer = KotlinxSerializationConverter(defaultSerializationFormat)
+        val json = """[{"value":1}]"""
+        val exception = assertFailsWith<SerializationException> {
+            testSerializer.deserialize(
+                Charsets.UTF_8,
+                typeInfo<List<NonSerializableDTO>>(),
+                ByteReadChannel(json.toByteArray())
+            )
+        }
+        assertContains(
+            exception.message.orEmpty(),
+            "'NonSerializableDTO'",
+            message = "Error message should mention the non-serializable type parameter"
+        )
+    }
+
+    @Test
+    fun `deserialize generic box with non-serializable type shows helpful error`() = runTest {
+        if (!PlatformUtils.IS_JVM) return@runTest
+
+        val testSerializer = KotlinxSerializationConverter(defaultSerializationFormat)
+        val json = """{"value":{"value":1}}"""
+        val exception = assertFailsWith<SerializationException> {
+            testSerializer.deserialize(
+                Charsets.UTF_8,
+                typeInfo<SerializableBox<NonSerializableDTO>>(),
+                ByteReadChannel(json.toByteArray())
+            )
+        }
+        assertContains(
+            exception.message.orEmpty(),
+            "'NonSerializableDTO'",
+            message = "Error message should mention the non-serializable type parameter"
+        )
+    }
+}
+
+@Serializable
+data class DogDTO(val age: Int, val name: String)
+
+@Serializable
+data class ErrorDTO(val message: String = "Some default error")
+
+// Not marked as @Serializable intentionally — used to verify helpful error messages
+private data class NonSerializableDTO(val value: Int)
+
+@Serializable
+private data class SerializableBox<T>(val value: T)
+
+sealed class Either<out L, out R> {
+
+    data class Left<out L>(val left: L) : Either<L, Nothing>()
+
+    data class Right<out R>(val right: R) : Either<Nothing, R>()
+}
+
+class EitherSerializer<L, R>(
+    private val leftSerializer: KSerializer<L>,
+    private val rightSerializer: KSerializer<R>,
+) : KSerializer<Either<L, R>> {
+
+    override val descriptor: SerialDescriptor =
+        buildClassSerialDescriptor("NetworkEitherSerializer") {
+            element("left", leftSerializer.descriptor)
+            element("right", rightSerializer.descriptor)
+        }
+
+    override fun deserialize(decoder: Decoder): Either<L, R> {
+        require(decoder is JsonDecoder) { "only works in JSON format" }
+        val element: JsonElement = decoder.decodeJsonElement()
+
+        return try {
+            Either.Right(decoder.json.decodeFromJsonElement(rightSerializer, element))
+        } catch (_: Throwable) {
+            Either.Left(decoder.json.decodeFromJsonElement(leftSerializer, element))
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: Either<L, R>) {
+        when (value) {
+            is Either.Left -> encoder.encodeSerializableValue(leftSerializer, value.left)
+            is Either.Right -> encoder.encodeSerializableValue(rightSerializer, value.right)
+        }
+    }
+}

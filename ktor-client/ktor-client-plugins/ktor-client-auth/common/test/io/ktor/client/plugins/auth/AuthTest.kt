@@ -1,0 +1,1294 @@
+/*
+ * Copyright 2014-2026 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+ */
+
+package io.ktor.client.plugins.auth
+
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.engine.mock.*
+import io.ktor.client.plugins.*
+import io.ktor.client.plugins.auth.providers.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.client.test.base.*
+import io.ktor.http.*
+import io.ktor.http.auth.*
+import io.ktor.test.*
+import io.ktor.util.*
+import io.ktor.utils.io.*
+import kotlinx.coroutines.*
+import kotlinx.io.IOException
+import kotlin.concurrent.atomics.AtomicInt
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.incrementAndFetch
+import kotlin.concurrent.atomics.update
+import kotlin.test.*
+import kotlin.time.Duration.Companion.milliseconds
+
+class AuthTest : ClientLoader() {
+
+    @Test
+    fun testDigestAuthLegacy() = clientTests(except("native:*")) {
+        config {
+            install(Auth) {
+                digest {
+                    credentials {
+                        DigestAuthCredentials("MyName", "Circle Of Life")
+                    }
+
+                    realm = "testrealm@host.com"
+                }
+            }
+        }
+        test { client ->
+            client.prepareGet("$TEST_SERVER/auth/digest").execute {
+                assertTrue(it.status.isSuccess())
+            }
+        }
+    }
+
+    @Test
+    fun testDigestAuth() = clientTests(except("native:*")) {
+        config {
+            install(Auth) {
+                digest {
+                    credentials { DigestAuthCredentials("MyName", "Circle Of Life") }
+                    realm = "testrealm@host.com"
+                }
+            }
+        }
+        test { client ->
+            assertTrue(client.get("$TEST_SERVER/auth/digest").status.isSuccess())
+        }
+    }
+
+    @Test
+    fun testDigestAuthPerRealm() = clientTests(except("native:*")) {
+        config {
+            install(Auth) {
+                digest {
+                    credentials { DigestAuthCredentials("MyName", "Circle Of Life") }
+                    realm = "testrealm@host.com"
+                }
+                digest {
+                    credentials { DigestAuthCredentials("MyName", "some password") }
+                    realm = "testrealm-2@host.com"
+                }
+            }
+        }
+        test { client ->
+            assertTrue(client.get("$TEST_SERVER/auth/digest").status.isSuccess())
+            assertTrue(client.get("$TEST_SERVER/auth/digest-2").status.isSuccess())
+        }
+    }
+
+    @Test
+    fun testDigestAuthSHA256() = clientTests(except("native:*")) {
+        config {
+            install(Auth) {
+                digest {
+                    algorithmName = "SHA-256"
+                    credentials { DigestAuthCredentials("MyName", "Circle Of Life") }
+                    realm = "testrealm@host.com"
+                }
+            }
+        }
+        test { client ->
+            assertTrue(client.get("$TEST_SERVER/auth/digest-SHA256").status.isSuccess())
+        }
+    }
+
+    @Test
+    fun `digest client selects nonce from the challenge matching its configured algorithm`() =
+        testWithEngine(MockEngine) {
+            config {
+                if (!PlatformUtils.IS_NATIVE) {
+                    install(Auth) {
+                        digest {
+                            credentials { DigestAuthCredentials(username = "jetbrains", password = "foobar") }
+                            realm = "realm"
+                        }
+                    }
+                }
+                engine {
+                    addHandler { request ->
+                        if (request.headers[HttpHeaders.Authorization] == null) {
+                            // Initial request: respond with two challenges, SHA-512-256 first, MD5 second.
+                            respond(
+                                content = "",
+                                status = HttpStatusCode.Unauthorized,
+                                headers = Headers.build {
+                                    append(
+                                        HttpHeaders.WWWAuthenticate,
+                                        """Digest realm="realm", nonce="sha-nonce", algorithm=SHA-512-256, qop="auth""""
+                                    )
+                                    append(
+                                        HttpHeaders.WWWAuthenticate,
+                                        """Digest realm="realm", nonce="md5-nonce", algorithm=MD5, qop="auth""""
+                                    )
+                                }
+                            )
+                        } else {
+                            respond("OK", HttpStatusCode.OK)
+                        }
+                    }
+                }
+            }
+
+            if (PlatformUtils.IS_NATIVE) return@testWithEngine
+
+            test { client ->
+                val response = client.get("/")
+                val header = assertNotNull(response.call.request.headers[HttpHeaders.Authorization])
+                assertContains(header, "nonce=\"md5-nonce\"")
+            }
+        }
+
+    @Suppress("DEPRECATION_ERROR")
+    @Test
+    fun testBasicAuthLegacy() = clientTests(except("Js")) {
+        config {
+            install(Auth) {
+                basic {
+                    username = "MyUser"
+                    password = "1234"
+                }
+            }
+        }
+
+        test { client ->
+            client.get("$TEST_SERVER/auth/basic-fixed").body<String>()
+        }
+    }
+
+    @Test
+    fun testBasicAuth() = clientTests(except("Js")) {
+        config {
+            install(Auth) {
+                basic {
+                    credentials { BasicAuthCredentials("MyUser", "1234") }
+                }
+            }
+        }
+
+        test { client ->
+            client.get("$TEST_SERVER/auth/basic-fixed")
+        }
+    }
+
+    @Test
+    fun testAuthDoesntRefreshBeforeSend() = testWithEngine(MockEngine) {
+        var refreshCount = 0
+        config {
+            install(Auth) {
+                providers += object : AuthProvider {
+                    @Deprecated("Please use sendWithoutRequest function instead")
+                    override val sendWithoutRequest: Boolean = false
+                    override fun isApplicable(auth: HttpAuthHeader): Boolean = true
+
+                    override suspend fun addRequestHeaders(request: HttpRequestBuilder, authHeader: HttpAuthHeader?) {
+                        request.headers.append(HttpHeaders.Authorization, "Auth1")
+                    }
+
+                    override suspend fun refreshToken(response: HttpResponse): Boolean {
+                        refreshCount++
+                        return true
+                    }
+                }
+            }
+            engine {
+                addHandler { respond("ERROR", HttpStatusCode.Unauthorized) }
+                addHandler { respond("OK", HttpStatusCode.OK) }
+            }
+        }
+
+        test { client ->
+            refreshCount = 0
+            val response = client.get("/")
+            assertEquals(HttpStatusCode.OK, response.status)
+            assertEquals(0, refreshCount)
+        }
+    }
+
+    @Test
+    fun testBasicAuthWithoutNegotiationLegacy() = clientTests {
+        config {
+            install(Auth) {
+                basic {
+                    credentials {
+                        BasicAuthCredentials("MyUser", "1234")
+                    }
+
+                    sendWithoutRequest { true }
+                }
+            }
+        }
+
+        test { client ->
+            client.get("$TEST_SERVER/auth/basic-fixed").body<String>()
+        }
+    }
+
+    @Test
+    fun testBasicAuthWithoutNegotiation() = clientTests {
+        config {
+            install(Auth) {
+                basic {
+                    credentials { BasicAuthCredentials("MyUser", "1234") }
+                    sendWithoutRequest { true }
+                }
+            }
+        }
+
+        test { client ->
+            client.get("$TEST_SERVER/auth/basic-fixed")
+        }
+    }
+
+    @Suppress("DEPRECATION_ERROR")
+    @Test
+    fun testUnauthorizedBasicAuthLegacy() = clientTests(except("Js")) {
+        config {
+            install(Auth) {
+                basic {
+                    username = "usr"
+                    password = "pw"
+                }
+            }
+            expectSuccess = false
+        }
+
+        test { client ->
+            client.prepareGet("$TEST_SERVER/auth/unauthorized").execute { response ->
+                assertEquals(HttpStatusCode.Unauthorized, response.status)
+            }
+        }
+    }
+
+    @Test
+    fun testUnauthorizedBasicAuth() = clientTests(except("Js")) {
+        config {
+            install(Auth) {
+                basic {
+                    credentials { BasicAuthCredentials("usr", "pw") }
+                }
+            }
+            expectSuccess = false
+        }
+
+        test { client ->
+            val response = client.get("$TEST_SERVER/auth/unauthorized")
+            assertEquals(HttpStatusCode.Unauthorized, response.status)
+        }
+    }
+
+    @Test
+    fun testBasicAuthMultiple() = clientTests(except("Js")) {
+        config {
+            install(Auth) {
+                basic {
+                    credentials { BasicAuthCredentials("MyUser", "1234") }
+                    sendWithoutRequest { it.url.encodedPath.endsWith("basic-fixed") }
+                }
+                basic {
+                    credentials { BasicAuthCredentials("user1", "Password1") }
+                    sendWithoutRequest { it.url.encodedPath.endsWith("basic") }
+                }
+            }
+        }
+
+        test { client ->
+            client.get("$TEST_SERVER/auth/basic-fixed").bodyAsText()
+            client.post("$TEST_SERVER/auth/basic") {
+                setBody("{\"test\":\"text\"}")
+            }.bodyAsText()
+        }
+    }
+
+    @Test
+    fun testBasicAuthMultipleNotSendWithoutRequest() = clientTests(except("Js")) {
+        config {
+            install(Auth) {
+                basic {
+                    credentials { BasicAuthCredentials("MyUser", "1234") }
+                    realm = "Ktor Server"
+                }
+                basic {
+                    credentials { BasicAuthCredentials("user1", "Password1") }
+                    realm = "my-server"
+                }
+            }
+        }
+
+        test { client ->
+            client.get("$TEST_SERVER/auth/basic-fixed").bodyAsText()
+            client.post("$TEST_SERVER/auth/basic") {
+                setBody("{\"test\":\"text\"}")
+            }.bodyAsText()
+        }
+    }
+
+    @Test
+    fun testBasicAuthPerRealm() = clientTests(except("Js")) {
+        config {
+            install(Auth) {
+                basic {
+                    credentials { BasicAuthCredentials("MyUser", "1234") }
+                    realm = "Ktor Server"
+                }
+            }
+        }
+
+        test { client ->
+            client.get("$TEST_SERVER/auth/basic-fixed")
+            assertEquals(
+                HttpStatusCode.Unauthorized,
+                client.post("$TEST_SERVER/auth/basic") { expectSuccess = false }.status
+            )
+        }
+    }
+
+    @Test
+    fun testUnauthorizedBearerAuthWithInvalidAccessAndRefreshTokensAsNulls() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    refreshTokens { null }
+                    loadTokens { null }
+                }
+            }
+
+            expectSuccess = false
+        }
+
+        test { client ->
+            client.prepareGet("$TEST_SERVER/auth/bearer/test-refresh").execute {
+                assertEquals(HttpStatusCode.Unauthorized, it.status)
+            }
+        }
+    }
+
+    @Test
+    fun testUsesFreshTokenIfAvailable() = runTest {
+        val request1FinishMonitor = CompletableDeferred<Unit>()
+        val request2StartMonitor = CompletableDeferred<Unit>()
+        var refreshCount = 0
+        val client = HttpClient(MockEngine) {
+            install(Auth) {
+                bearer {
+                    loadTokens {
+                        BearerTokens("initial", "initial")
+                    }
+
+                    refreshTokens {
+                        val tokens = BearerTokens("new$refreshCount", "new$refreshCount")
+                        refreshCount++
+                        tokens
+                    }
+                }
+            }
+
+            engine {
+                addHandler { request ->
+                    fun respond(): HttpResponseData {
+                        return if (request.headers[HttpHeaders.Authorization] != "Bearer initial") {
+                            respond("OK")
+                        } else {
+                            respond("Error", HttpStatusCode.Unauthorized, headersOf("WWW-Authenticate", "Bearer"))
+                        }
+                    }
+
+                    when (request.url.encodedPath) {
+                        "/url1" -> {
+                            request2StartMonitor.await()
+                            respond()
+                        }
+
+                        "/url2" -> {
+                            request1FinishMonitor.await()
+                            respond()
+                        }
+
+                        else -> throw IllegalStateException()
+                    }
+                }
+            }
+        }
+        coroutineScope {
+            launch {
+                client.get("/url1")
+                request1FinishMonitor.complete(Unit)
+            }
+            launch {
+                request2StartMonitor.complete(Unit)
+                client.get("/url2")
+            }
+        }
+        assertEquals(1, refreshCount)
+    }
+
+    @Test
+    fun testUnauthorizedBearerAuthWithInvalidAccessAndRefreshTokens() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    refreshTokens { BearerTokens("invalid", "refresh") }
+                    loadTokens { BearerTokens("invalid", "refresh") }
+                }
+            }
+
+            expectSuccess = false
+        }
+
+        test { client ->
+            client.prepareGet("$TEST_SERVER/auth/bearer/test-refresh").execute {
+                assertEquals(HttpStatusCode.Unauthorized, it.status)
+            }
+        }
+    }
+
+    @Test
+    fun testForbiddenBearerAuthWithInvalidAccessAndValidRefreshTokens() = clientTests {
+        config {
+            install(Auth) {
+                reAuthorizeOnResponse { it.status == HttpStatusCode.Forbidden }
+                bearer {
+                    refreshTokens { BearerTokens("valid", "refresh") }
+                    loadTokens { BearerTokens("invalid", "refresh") }
+                }
+            }
+
+            expectSuccess = false
+        }
+
+        test { client ->
+            client.prepareGet("$TEST_SERVER/auth/bearer/test-refresh?status=403").execute {
+                assertEquals(HttpStatusCode.OK, it.status)
+            }
+        }
+    }
+
+    // The return of refreshTokenFun is null, cause it should not be called at all if loadTokensFun returns valid tokens
+    @Test
+    fun testUnauthorizedBearerAuthWithValidAccessTokenAndInvalidRefreshToken() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    refreshTokens { null }
+                    loadTokens { BearerTokens("valid", "refresh") }
+                }
+            }
+        }
+
+        test { client ->
+            client.prepareGet("$TEST_SERVER/auth/bearer/test-refresh").execute {
+                assertEquals(HttpStatusCode.OK, it.status)
+            }
+        }
+    }
+
+    @Test
+    fun testUnauthorizedBearerAuthWithInvalidAccessTokenAndValidRefreshToken() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    refreshTokens { BearerTokens("valid", "refresh") }
+                    loadTokens { BearerTokens("invalid", "refresh") }
+                    realm = "TestServer"
+                }
+            }
+        }
+
+        test { client ->
+            client.prepareGet("$TEST_SERVER/auth/bearer/test-refresh").execute {
+                assertEquals(HttpStatusCode.OK, it.status)
+            }
+        }
+    }
+
+    @Test
+    fun testUnauthorizedRefreshTokenWithoutWWWAuthenticateHeaderIfOneProviderIsInstalled() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    refreshTokens { BearerTokens("valid", "refresh") }
+                    loadTokens { BearerTokens("invalid", "refresh") }
+                    realm = "TestServer"
+                }
+            }
+        }
+
+        test { client ->
+            client.prepareGet("$TEST_SERVER/auth/bearer/test-refresh-no-www-authenticate-header").execute {
+                assertEquals(HttpStatusCode.OK, it.status)
+            }
+        }
+    }
+
+    @Test
+    fun testUnauthorizedDoesNotRefreshTokenWithoutWWWAuthenticateHeaderIfMultipleProvidersAreInstalled() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    refreshTokens { BearerTokens("valid", "refresh") }
+                    loadTokens { BearerTokens("invalid", "refresh") }
+                    realm = "TestServer"
+                }
+                basic {
+                    credentials { BasicAuthCredentials("name", "password") }
+                }
+            }
+        }
+
+        test { client ->
+            client.prepareGet("$TEST_SERVER/auth/bearer/test-refresh-no-www-authenticate-header").execute {
+                assertEquals(HttpStatusCode.Unauthorized, it.status)
+            }
+        }
+    }
+
+    @Test
+    fun testUnauthorizedRefreshTokenWithIncorrectWWWAuthenticateHeaderIfOneProviderIsInstalled() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    refreshTokens { BearerTokens("valid", "refresh") }
+                    loadTokens { BearerTokens("invalid", "refresh") }
+                }
+            }
+        }
+
+        test { client ->
+            client.prepareGet("$TEST_SERVER/auth/bearer/different-header").execute {
+                assertEquals(HttpStatusCode.OK, it.status)
+            }
+        }
+    }
+
+    @Test
+    fun testRefreshOnBackgroundThread() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    refreshTokens { BearerTokens("valid", "refresh") }
+                    loadTokens { BearerTokens("invalid", "refresh") }
+                    realm = "TestServer"
+                }
+            }
+        }
+
+        test { client ->
+            val response = withContext(Dispatchers.Default) {
+                client.get("$TEST_SERVER/auth/bearer/test-refresh")
+            }
+            assertEquals(HttpStatusCode.OK, response.status)
+        }
+    }
+
+    @Test
+    fun testRefreshWithSameClient() = clientTests {
+        lateinit var clientWithAuth: HttpClient
+        test { client ->
+            clientWithAuth = client.config {
+                install(Auth) {
+                    bearer {
+                        loadTokens { BearerTokens("first", "first") }
+
+                        refreshTokens {
+                            val token = clientWithAuth.get("$TEST_SERVER/auth/bearer/token/second").bodyAsText()
+                            BearerTokens(token, token)
+                        }
+                    }
+                }
+            }
+
+            val first = clientWithAuth.get("$TEST_SERVER/auth/bearer/first").bodyAsText()
+            val second = clientWithAuth.get("$TEST_SERVER/auth/bearer/second").bodyAsText()
+
+            assertEquals("OK", first)
+            assertEquals("OK", second)
+        }
+    }
+
+    @Test
+    fun testRefreshReplies401() = clientTests {
+        lateinit var clientWithAuth: HttpClient
+        test { client ->
+            clientWithAuth = client.config {
+                install(Auth) {
+                    bearer {
+                        loadTokens { BearerTokens("first", "first") }
+
+                        refreshTokens {
+                            val token = clientWithAuth.get("$TEST_SERVER/auth/bearer/token/refresh-401") {
+                                markAsRefreshTokenRequest()
+                            }.bodyAsText()
+                            BearerTokens(token, token)
+                        }
+                    }
+                }
+            }
+
+            val result = clientWithAuth.get("$TEST_SERVER/auth/bearer/second")
+            assertEquals(HttpStatusCode.Unauthorized, result.status)
+        }
+    }
+
+    @Test
+    fun testRefreshWithSameClientInBlock() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    loadTokens { BearerTokens("first", "first") }
+
+                    refreshTokens {
+                        val token = client.get("$TEST_SERVER/auth/bearer/token/second").bodyAsText()
+                        BearerTokens(token, token)
+                    }
+                }
+            }
+        }
+        test { client ->
+            val first = client.get("$TEST_SERVER/auth/bearer/first").bodyAsText()
+            val second = client.get("$TEST_SERVER/auth/bearer/second").bodyAsText()
+
+            assertEquals("OK", first)
+            assertEquals("OK", second)
+        }
+    }
+
+    @Test
+    @OptIn(ExperimentalAtomicApi::class)
+    fun testMultipleRefreshShouldMakeSingleCall() = clientTests {
+        val refreshRequestsCount = AtomicInt(0)
+        config {
+            install(Auth) {
+                bearer {
+                    loadTokens { BearerTokens("first", "first") }
+
+                    refreshTokens {
+                        refreshRequestsCount.incrementAndFetch()
+                        val token = client.get("$TEST_SERVER/auth/bearer/token/second?delay=500").bodyAsText()
+                        BearerTokens(token, token)
+                    }
+                }
+            }
+        }
+        test { client ->
+            refreshRequestsCount.update { 0 }
+            client.get("$TEST_SERVER/auth/bearer/first").bodyAsText()
+
+            withContext(Dispatchers.Default) {
+                launch {
+                    val second = client.get("$TEST_SERVER/auth/bearer/second").bodyAsText()
+                    assertEquals("OK", second)
+                }
+                launch {
+                    val second = client.get("$TEST_SERVER/auth/bearer/second").bodyAsText()
+                    assertEquals("OK", second)
+                }
+                launch {
+                    val second = client.get("$TEST_SERVER/auth/bearer/second").bodyAsText()
+                    assertEquals("OK", second)
+                }
+            }
+            assertEquals(1, refreshRequestsCount.load())
+        }
+    }
+
+    @Test
+    fun testRefreshAfterException() = clientTests {
+        var firstCall = true
+        config {
+            install(Auth) {
+                bearer {
+                    loadTokens { BearerTokens("first", "first") }
+
+                    refreshTokens {
+                        if (firstCall) {
+                            firstCall = false
+                            throw IOException("Refresh failed")
+                        }
+                        val token = client.get("$TEST_SERVER/auth/bearer/token/second?delay=500").bodyAsText()
+                        BearerTokens(token, token)
+                    }
+                }
+            }
+        }
+        test { client ->
+            firstCall = true
+            val first = client.get("$TEST_SERVER/auth/bearer/first").bodyAsText()
+            assertEquals("OK", first)
+
+            val error = assertFailsWith<IOException> {
+                client.get("$TEST_SERVER/auth/bearer/second")
+            }
+            assertEquals("Refresh failed", error.message)
+
+            val second = client.get("$TEST_SERVER/auth/bearer/second").bodyAsText()
+            assertEquals("OK", second)
+        }
+    }
+
+    private var loadCount = 0
+
+    @Test
+    fun testLoadTokenAfterClear() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    refreshTokens { null }
+                    loadTokens {
+                        loadCount++
+                        BearerTokens("valid", "refresh")
+                    }
+                }
+            }
+        }
+
+        test { client ->
+            loadCount = 0
+            client.get("$TEST_SERVER/auth/bearer/test-refresh")
+                .bodyAsText()
+            client.authProviders.filterIsInstance<BearerAuthProvider>().first().clearToken()
+            client.get("$TEST_SERVER/auth/bearer/test-refresh")
+                .bodyAsText()
+
+            assertEquals(2, loadCount)
+        }
+    }
+
+    @Test
+    fun testMultipleChallengesInHeader() = clientTests {
+        config {
+            install(Auth) {
+                basic {
+                    credentials { BasicAuthCredentials("Invalid", "Invalid") }
+                }
+                bearer {
+                    loadTokens { BearerTokens("test", "test") }
+                }
+            }
+        }
+        test { client ->
+            val responseOneHeader = client.get("$TEST_SERVER/auth/multiple/header").bodyAsText()
+            assertEquals("OK", responseOneHeader)
+        }
+    }
+
+    @Test
+    fun testMultipleChallengesInHeaders() = clientTests {
+        config {
+            install(Auth) {
+                basic {
+                    credentials { BasicAuthCredentials("Invalid", "Invalid") }
+                }
+                bearer {
+                    loadTokens { BearerTokens("test", "test") }
+                }
+            }
+        }
+        test { client ->
+            val responseMultipleHeaders = client.get("$TEST_SERVER/auth/multiple/headers").bodyAsText()
+            assertEquals("OK", responseMultipleHeaders)
+        }
+    }
+
+    @Test
+    fun testMultipleChallengesInHeaderUnauthorized() = clientTests {
+        test { client ->
+            val response = client.get("$TEST_SERVER/auth/multiple/header")
+            assertEquals(HttpStatusCode.Unauthorized, response.status)
+            response.headers[HttpHeaders.WWWAuthenticate]?.also {
+                assertTrue { it.contains("Bearer") }
+                assertTrue { it.contains("Basic") }
+                assertTrue { it.contains("Digest") }
+            } ?: run {
+                fail("Expected WWWAuthenticate header")
+            }
+        }
+    }
+
+    @Test
+    fun testMultipleChallengesInMultipleHeadersUnauthorized() = clientTests(except("Js")) {
+        test { client ->
+            val response = client.get("$TEST_SERVER/auth/multiple/headers")
+            assertEquals(HttpStatusCode.Unauthorized, response.status)
+            response.headers.getAll(HttpHeaders.WWWAuthenticate)?.let {
+                assertEquals(2, it.size)
+                it.joinToString().let { header ->
+                    assertTrue { header.contains("Basic") }
+                    assertTrue { header.contains("Digest") }
+                    assertTrue { header.contains("Bearer") }
+                }
+            } ?: run {
+                fail("Expected WWWAuthenticate header")
+            }
+        }
+    }
+
+    @Test
+    fun noRequestsMadeAfterFailureRefresh() = clientTests {
+        config {
+            install(Auth) {
+                bearer {
+                    refreshTokens { null }
+                    loadTokens { BearerTokens("invalid", "") }
+                }
+            }
+        }
+
+        test { client ->
+            val requests = mutableListOf<HttpRequestBuilder>()
+            client.plugin(HttpSend).intercept { request ->
+                requests.add(request)
+                execute(request)
+            }
+
+            client.prepareGet("$TEST_SERVER/auth/bearer/test-refresh").execute {
+                assertEquals(HttpStatusCode.Unauthorized, it.status)
+            }
+
+            assertEquals(1, requests.size)
+            assertEquals("Bearer invalid", requests[0].headers[HttpHeaders.Authorization])
+        }
+    }
+
+    @Test
+    fun testBearerAuthWithCircuitBreaker() = testWithEngine(MockEngine) {
+        config {
+            install(Auth) {
+                bearer {
+                    loadTokens { BearerTokens("invalid", null) }
+                }
+            }
+            engine {
+                addHandler { request ->
+                    val authHeader = request.headers[HttpHeaders.Authorization]
+                    // Respond with the authorization header as body so it can be checked in this test.
+                    respond(authHeader.orEmpty())
+                }
+            }
+        }
+
+        test { client ->
+            // Test without circuit breaker - should add auth header with invalid token
+            val response1 = client.get("/")
+            assertEquals("Bearer invalid", response1.bodyAsText())
+
+            // Test with circuit breaker - should not add auth header
+            val response2 = client.get("/") {
+                // add AuthCircuitBreaker like any refresh token request would have
+                attributes.put(AuthCircuitBreaker, Unit)
+            }
+            assertEquals("", response2.bodyAsText())
+
+            // Test with circuit breaker - should keep custom auth header
+            val response3 = client.get("/") {
+                // add AuthCircuitBreaker like any refresh token request would have
+                attributes.put(AuthCircuitBreaker, Unit)
+                // Add a different auth header which could be needed for the token refresh request
+                header(HttpHeaders.Authorization, "token refresh")
+            }
+            assertEquals("token refresh", response3.bodyAsText())
+        }
+    }
+
+    @Test
+    fun testBearerAuthWithoutCaching() = testWithEngine(MockEngine) {
+        var tokenCounter = 0
+        config {
+            install(Auth) {
+                bearer {
+                    cacheTokens = false
+                    loadTokens {
+                        tokenCounter++
+                        BearerTokens("token$tokenCounter", "refresh")
+                    }
+                }
+            }
+            engine {
+                addHandler { request ->
+                    val authHeader = request.headers[HttpHeaders.Authorization]
+                    respond("OK: $authHeader", HttpStatusCode.OK)
+                }
+            }
+        }
+
+        test { client ->
+            tokenCounter = 0
+
+            val response1 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token1", response1)
+
+            val response2 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token2", response2)
+
+            val response3 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token3", response3)
+
+            // Verify loadTokens was called 3 times (no caching)
+            assertEquals(3, tokenCounter)
+        }
+    }
+
+    @Test
+    fun testBearerAuthWithCaching() = testWithEngine(MockEngine) {
+        var tokenCounter = 0
+        config {
+            install(Auth) {
+                bearer {
+                    cacheTokens = true // explicit, though this is default
+                    loadTokens {
+                        tokenCounter++
+                        BearerTokens("token$tokenCounter", "refresh")
+                    }
+                }
+            }
+            engine {
+                addHandler { request ->
+                    val authHeader = request.headers[HttpHeaders.Authorization]
+                    respond("OK: $authHeader", HttpStatusCode.OK)
+                }
+            }
+        }
+
+        test { client ->
+            tokenCounter = 0
+
+            val response1 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token1", response1)
+
+            val response2 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token1", response2)
+
+            val response3 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token1", response3)
+
+            // Verify loadTokens was called only once (cached)
+            assertEquals(1, tokenCounter)
+        }
+    }
+
+    @Test
+    fun testBasicAuthWithoutCaching() = testWithEngine(MockEngine) {
+        var credentialCounter = 0
+        config {
+            install(Auth) {
+                basic {
+                    cacheTokens = false
+                    credentials {
+                        credentialCounter++
+                        BasicAuthCredentials("user$credentialCounter", "pass$credentialCounter")
+                    }
+                    sendWithoutRequest { true }
+                }
+            }
+            engine {
+                addHandler { request ->
+                    val authHeader = request.headers[HttpHeaders.Authorization]
+                    respond("OK: $authHeader", HttpStatusCode.OK)
+                }
+            }
+        }
+
+        test { client ->
+            credentialCounter = 0
+
+            client.get("/").bodyAsText()
+            client.get("/").bodyAsText()
+            client.get("/").bodyAsText()
+
+            // Verify credentials was called 3 times (no caching)
+            assertEquals(3, credentialCounter)
+        }
+    }
+
+    @Test
+    fun testClearAuthTokensExtension() = testWithEngine(MockEngine) {
+        var tokenCounter = 0
+        config {
+            install(Auth) {
+                bearer {
+                    loadTokens {
+                        tokenCounter++
+                        BearerTokens("token$tokenCounter", "refresh")
+                    }
+                }
+            }
+            engine {
+                addHandler { request ->
+                    val authHeader = request.headers[HttpHeaders.Authorization]
+                    respond("OK: $authHeader", HttpStatusCode.OK)
+                }
+            }
+        }
+
+        test { client ->
+            tokenCounter = 0
+
+            val response1 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token1", response1)
+
+            val response2 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token1", response2)
+
+            // Clear tokens using extension
+            client.clearAuthTokens()
+
+            val response3 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token2", response3)
+
+            // Verify loadTokens was called twice (once initially, once after clear)
+            assertEquals(2, tokenCounter)
+        }
+    }
+
+    @Test
+    fun testClearAuthTokensWithMultipleProviders() = testWithEngine(MockEngine) {
+        var bearerTokenCounter = 0
+        var basicCredentialCounter = 0
+        config {
+            install(Auth) {
+                bearer {
+                    loadTokens {
+                        bearerTokenCounter++
+                        BearerTokens("bearer$bearerTokenCounter", "refresh")
+                    }
+                    sendWithoutRequest { it.url.encodedPath == "/bearer" }
+                }
+                basic {
+                    credentials {
+                        basicCredentialCounter++
+                        BasicAuthCredentials("user$basicCredentialCounter", "pass")
+                    }
+                    sendWithoutRequest { it.url.encodedPath == "/basic" }
+                }
+            }
+            engine {
+                addHandler { request ->
+                    val authHeader = request.headers[HttpHeaders.Authorization]
+                    respond("OK: $authHeader", HttpStatusCode.OK)
+                }
+            }
+        }
+
+        test { client ->
+            bearerTokenCounter = 0
+            basicCredentialCounter = 0
+
+            client.get("/bearer").bodyAsText()
+            client.get("/basic").bodyAsText()
+
+            assertEquals(1, bearerTokenCounter)
+            assertEquals(1, basicCredentialCounter)
+
+            // Clear all auth tokens
+            client.clearAuthTokens()
+
+            client.get("/bearer").bodyAsText()
+            client.get("/basic").bodyAsText()
+
+            // Both should be called again after clear
+            assertEquals(2, bearerTokenCounter)
+            assertEquals(2, basicCredentialCounter)
+        }
+    }
+
+    @Test
+    fun testAuthProviderExtension() = testWithEngine(MockEngine) {
+        config {
+            install(Auth) {
+                bearer {
+                    loadTokens { BearerTokens("bearer-token", "refresh") }
+                }
+                basic {
+                    credentials { BasicAuthCredentials("user", "pass") }
+                }
+            }
+            engine {
+                addHandler { respond("OK", HttpStatusCode.OK) }
+            }
+        }
+
+        test { client ->
+            // Test getting bearer provider
+            val bearerProvider = client.authProvider<BearerAuthProvider>()
+            assertNotNull(bearerProvider)
+
+            // Test getting basic provider
+            val basicProvider = client.authProvider<BasicAuthProvider>()
+            assertNotNull(basicProvider)
+
+            // Test getting non-existent provider
+            val digestProvider = client.authProvider<DigestAuthProvider>()
+            assertNull(digestProvider)
+        }
+    }
+
+    @Test
+    fun testAuthProviderExtensionWithClearToken() = testWithEngine(MockEngine) {
+        var tokenCounter = 0
+        config {
+            install(Auth) {
+                bearer {
+                    loadTokens {
+                        tokenCounter++
+                        BearerTokens("token$tokenCounter", "refresh")
+                    }
+                }
+            }
+            engine {
+                addHandler { request ->
+                    val authHeader = request.headers[HttpHeaders.Authorization]
+                    respond("OK: $authHeader", HttpStatusCode.OK)
+                }
+            }
+        }
+
+        test { client ->
+            tokenCounter = 0
+
+            val response1 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token1", response1)
+
+            val response2 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token1", response2)
+
+            // Clear using authProvider extension
+            client.authProvider<BearerAuthProvider>()?.clearToken()
+
+            val response3 = client.get("/").bodyAsText()
+            assertEquals("OK: Bearer token2", response3)
+
+            assertEquals(2, tokenCounter)
+        }
+    }
+
+    @Test
+    fun testAuthProvidersProperty() = testWithEngine(MockEngine) {
+        config {
+            install(Auth) {
+                bearer {
+                    loadTokens { BearerTokens("token", "refresh") }
+                    realm = "realm1"
+                }
+                bearer {
+                    loadTokens { BearerTokens("token2", "refresh2") }
+                    realm = "realm2"
+                }
+                basic {
+                    credentials { BasicAuthCredentials("user", "pass") }
+                }
+            }
+            engine {
+                addHandler { respond("OK", HttpStatusCode.OK) }
+            }
+        }
+
+        test { client ->
+            val providers = client.authProviders
+            assertEquals(3, providers.size)
+
+            val bearerProviders = providers.filterIsInstance<BearerAuthProvider>()
+            assertEquals(2, bearerProviders.size)
+
+            val basicProviders = providers.filterIsInstance<BasicAuthProvider>()
+            assertEquals(1, basicProviders.size)
+        }
+    }
+
+    data class Tokens(val access: String, val refresh: String)
+
+    @Test
+    fun testNonCancellableRefresh() = testWithEngine(MockEngine) {
+        val old = Tokens("access-old", "refresh-old")
+        val new = Tokens("access-new", "refresh-new")
+
+        val serverAccessToken = new.access
+        var serverRefreshToken = old.refresh
+
+        val tokensRenewed = CompletableDeferred<Unit>()
+        config {
+            var tokenStorage = BearerTokens(old.access, old.refresh)
+            install(Auth) {
+                bearer {
+                    nonCancellableRefresh = true
+
+                    sendWithoutRequest { request ->
+                        request.url.encodedPath != "/auth/token"
+                    }
+
+                    loadTokens {
+                        tokenStorage
+                    }
+
+                    refreshTokens {
+                        val response = client.post("/auth/token") {
+                            url {
+                                parameters.append("grant_type", "refresh_token")
+                                parameters.append("refresh_token", oldTokens!!.refreshToken!!)
+                            }
+                        }
+
+                        if (response.status == HttpStatusCode.Unauthorized) {
+                            throw IllegalStateException("Refresh failed with 401")
+                        }
+
+                        // server returned new valid tokens
+                        val result = BearerTokens(new.access, new.refresh)
+                        tokenStorage = result
+                        result
+                    }
+                }
+            }
+            engine {
+                addHandler { request ->
+                    when (request.url.encodedPath) {
+                        "/auth/token" -> {
+                            if (request.url.parameters["refresh_token"] == serverRefreshToken) {
+                                serverRefreshToken = new.refresh
+
+                                tokensRenewed.complete(Unit)
+                                delay(250.milliseconds)
+
+                                respond(
+                                    content = ByteReadChannel(
+                                        "access_token:${new.access}&refresh_token:${new.refresh}"
+                                    ),
+                                    status = HttpStatusCode.OK
+                                )
+                            } else {
+                                respond(content = ByteReadChannel.Empty, status = HttpStatusCode.Unauthorized)
+                            }
+                        }
+
+                        "/get/something" ->
+                            if (request.headers[HttpHeaders.Authorization] == "Bearer $serverAccessToken") {
+                                respondOk("data")
+                            } else {
+                                respond(content = ByteReadChannel.Empty, status = HttpStatusCode.Unauthorized)
+                            }
+
+                        else -> respondBadRequest()
+                    }
+                }
+            }
+        }
+
+        test { client ->
+            val firstJob = async {
+                client.get("/get/something")
+            }
+
+            tokensRenewed.await()
+            firstJob.cancel()
+
+            client.get("/get/something").apply {
+                assertEquals(HttpStatusCode.OK, status)
+                assertEquals("data", bodyAsText())
+            }
+        }
+    }
+}

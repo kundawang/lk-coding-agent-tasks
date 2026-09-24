@@ -1,0 +1,34 @@
+/*
+ * Copyright 2014-2025 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+ */
+
+description = ""
+
+plugins {
+    id("ktorbuild.project.server-plugin")
+    id("kotlinx-serialization")
+}
+
+kotlin {
+    compilerOptions {
+        // -Xcontext-parameters requires Kotlin 2.2.0 or newer
+        freeCompilerArgs.add("-Xcontext-parameters")
+    }
+    sourceSets {
+        commonMain.dependencies {
+            api(projects.ktorClientCore)
+            api(projects.ktorServerCsrf)
+            api(projects.ktorServerSessions)
+            api(libs.kotlinx.serialization.json)
+        }
+        commonTest.dependencies {
+            implementation(projects.ktorServerTestHost)
+        }
+        jvmTest.dependencies {
+            implementation(projects.ktorServerContentNegotiation)
+            implementation(projects.ktorSerializationJackson)
+            implementation(projects.ktorServerNetty)
+            implementation(libs.apache.client5)
+        }
+    }
+}

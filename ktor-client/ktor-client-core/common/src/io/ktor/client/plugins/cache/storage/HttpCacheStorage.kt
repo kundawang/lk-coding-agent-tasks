@@ -1,0 +1,308 @@
+/*
+ * Copyright 2014-2026 JetBrains s.r.o and contributors. Use of this source code is governed by the Apache 2.0 license.
+ */
+
+@file:Suppress("DEPRECATION")
+
+package io.ktor.client.plugins.cache.storage
+
+import io.ktor.client.*
+import io.ktor.client.call.*
+import io.ktor.client.plugins.cache.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.util.date.*
+import io.ktor.utils.io.*
+import io.ktor.utils.io.core.*
+import kotlin.coroutines.*
+
+/**
+ * Cache storage interface.
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.HttpCacheStorage)
+ */
+@Deprecated("Use new [CacheStorage] instead.", level = DeprecationLevel.ERROR)
+@Suppress("DEPRECATION_ERROR")
+public abstract class HttpCacheStorage {
+
+    /**
+     * Store [value] in cache storage for [url] key.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.HttpCacheStorage.store)
+     */
+    public abstract fun store(url: Url, value: HttpCacheEntry)
+
+    /**
+     * Find valid entry in cache storage with additional [varyKeys].
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.HttpCacheStorage.find)
+     */
+    public abstract fun find(url: Url, varyKeys: Map<String, String>): HttpCacheEntry?
+
+    /**
+     * Find all matched [HttpCacheEntry] for [url].
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.HttpCacheStorage.findByUrl)
+     */
+    public abstract fun findByUrl(url: Url): Set<HttpCacheEntry>
+
+    public companion object {
+        /**
+         * Default unlimited cache storage.
+         *
+         * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.HttpCacheStorage.Companion.Unlimited)
+         */
+        public val Unlimited: () -> HttpCacheStorage = { UnlimitedCacheStorage() }
+
+        /**
+         * Disabled cache always empty and store nothing.
+         *
+         * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.HttpCacheStorage.Companion.Disabled)
+         */
+        public val Disabled: HttpCacheStorage = DisabledCacheStorage
+    }
+}
+
+@Suppress("DEPRECATION_ERROR")
+internal suspend fun HttpCacheStorage.store(url: Url, value: HttpResponse, isShared: Boolean): HttpCacheEntry {
+    val result = HttpCacheEntry(isShared, value)
+    store(url, result)
+    return result
+}
+
+/**
+ * Cache storage interface.
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.CacheStorage)
+ */
+public interface CacheStorage {
+
+    /**
+     * Store [data] in cache storage for [url] key.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.CacheStorage.store)
+     */
+    public suspend fun store(url: Url, data: CachedResponseData)
+
+    /**
+     * Find valid entry in cache storage with additional [varyKeys].
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.CacheStorage.find)
+     */
+    public suspend fun find(url: Url, varyKeys: Map<String, String>): CachedResponseData?
+
+    /**
+     * Find all matched [HttpCacheEntry] for [url].
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.CacheStorage.findAll)
+     */
+    public suspend fun findAll(url: Url): Set<CachedResponseData>
+
+    /**
+     * Remove from cache storage the entry matching [url] with additional [varyKeys].
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.CacheStorage.remove)
+     */
+    public suspend fun remove(url: Url, varyKeys: Map<String, String>)
+
+    /**
+     * Remove all matched [HttpCacheEntry] for [url].
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.CacheStorage.removeAll)
+     */
+    public suspend fun removeAll(url: Url)
+
+    /**
+     * Removes all entries from this cache storage.
+     *
+     * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.CacheStorage.clear)
+     */
+    public suspend fun clear() {}
+
+    public companion object {
+        /**
+         * Default unlimited cache storage.
+         *
+         * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.CacheStorage.Companion.Unlimited)
+         */
+        public val Unlimited: () -> CacheStorage = { UnlimitedStorage() }
+
+        /**
+         * Disabled cache always empty and store nothing.
+         *
+         * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.CacheStorage.Companion.Disabled)
+         */
+        public val Disabled: CacheStorage = DisabledStorage
+    }
+}
+
+/**
+ * Store [response] in cache storage.
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.store)
+ */
+@Deprecated(
+    message = "Please use method with `response.varyKeys()` and `isShared` arguments",
+    level = DeprecationLevel.ERROR,
+    replaceWith = ReplaceWith("store(response, response.varyKeys(), isShared)")
+)
+public suspend fun CacheStorage.store(response: HttpResponse): CachedResponseData {
+    return store(response, response.varyKeys())
+}
+
+/**
+ * Store [response] with [varyKeys] in cache storage.
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.store)
+ */
+@OptIn(InternalAPI::class)
+public suspend fun CacheStorage.store(
+    response: HttpResponse,
+    varyKeys: Map<String, String>,
+    isShared: Boolean = false
+): CachedResponseData {
+    val url = response.call.request.url
+    val body = response.rawContent.readBuffer().readBytes()
+    val data = CachedResponseData(
+        url = response.call.request.url,
+        statusCode = response.status,
+        requestTime = response.requestTime,
+        headers = response.headers.filterForCacheStorage(),
+        version = response.version,
+        body = body,
+        responseTime = response.responseTime,
+        expires = response.cacheExpires(isShared),
+        varyKeys = varyKeys
+    )
+    store(url, data)
+    return data
+}
+
+internal fun CachedResponseData.createResponse(
+    client: HttpClient,
+    request: HttpRequest,
+    responseContext: CoroutineContext
+): HttpResponse {
+    val response = object : HttpResponse() {
+        override val call: HttpClientCall get() = throw IllegalStateException("This is a fake response")
+        override val status: HttpStatusCode = statusCode
+        override val version: HttpProtocolVersion = this@createResponse.version
+        override val requestTime: GMTDate = this@createResponse.requestTime
+        override val responseTime: GMTDate = this@createResponse.responseTime
+
+        @InternalAPI
+        override val rawContent: ByteReadChannel get() = throw IllegalStateException("This is a fake response")
+        override val headers: Headers = this@createResponse.headers
+        override val coroutineContext: CoroutineContext = responseContext
+    }
+    return SavedHttpCall(client, request, response, body).response
+}
+
+/**
+ * Cached representation of response
+ *
+ * [Report a problem](https://ktor.io/feedback/?fqname=io.ktor.client.plugins.cache.storage.CachedResponseData)
+ */
+public class CachedResponseData(
+    public val url: Url,
+    public val statusCode: HttpStatusCode,
+    public val requestTime: GMTDate,
+    public val responseTime: GMTDate,
+    public val version: HttpProtocolVersion,
+    public val expires: GMTDate,
+    public val headers: Headers,
+    public val varyKeys: Map<String, String>,
+    public val body: ByteArray
+) {
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is CachedResponseData) return false
+
+        if (url != other.url) return false
+        if (varyKeys != other.varyKeys) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = url.hashCode()
+        result = 31 * result + varyKeys.hashCode()
+        return result
+    }
+
+    internal fun copy(
+        varyKeys: Map<String, String>,
+        expires: GMTDate,
+        headers: Headers = this.headers,
+    ): CachedResponseData = CachedResponseData(
+        url = url,
+        statusCode = statusCode,
+        requestTime = requestTime,
+        responseTime = responseTime,
+        version = version,
+        expires = expires,
+        headers = headers,
+        varyKeys = varyKeys,
+        body = body
+    )
+}
+
+// RFC 9110 §7.6.1 hop-by-hop headers; RFC 9111 §3.1 excepted from storage / §3.2 excepted from update.
+private val hopByHopHeaders = listOf(
+    HttpHeaders.Connection,
+    HttpHeaders.TE,
+    HttpHeaders.TransferEncoding,
+    HttpHeaders.Upgrade,
+    HttpHeaders.ContentRange,
+    "Keep-Alive",
+    "Proxy-Connection",
+)
+
+private val proxyAuthHeaders = listOf(
+    HttpHeaders.ProxyAuthenticate,
+    HttpHeaders.ProxyAuthenticationInfo,
+    HttpHeaders.ProxyAuthorization,
+)
+
+private val staticStorageExcludedHeaders = hopByHopHeaders + proxyAuthHeaders
+
+private val connectionOptionsWithoutFieldNames = listOf("close", "keep-alive", "upgrade")
+
+private fun Headers.connectionOptionFieldNames(): Set<String> {
+    val connection = this[HttpHeaders.Connection] ?: return emptySet()
+    return connection.split(',')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && it.lowercase() !in connectionOptionsWithoutFieldNames }
+        .toSet()
+}
+
+private fun Headers.excludedNamesForCacheStorage(): List<String> {
+    val names = connectionOptionFieldNames()
+    if (names.isEmpty()) return staticStorageExcludedHeaders
+    return staticStorageExcludedHeaders + names
+}
+
+private fun List<String>.containsIgnoreCase(element: String): Boolean =
+    any { it.equals(element, ignoreCase = true) }
+
+internal fun Headers.filterForCacheStorage(): Headers =
+    filterExcluded(excludedNamesForCacheStorage())
+
+private fun Headers.filterExcluded(excluded: List<String>): Headers = Headers.build {
+    for ((name, values) in this@filterExcluded.entries()) {
+        if (excluded.containsIgnoreCase(name)) continue
+        appendAll(name, values)
+    }
+}
+
+internal fun Headers.merge(other: Headers): Headers = Headers.build {
+    appendAll(this@merge)
+    val excluded = other.excludedNamesForCacheStorage() + HttpHeaders.ContentLength
+    for ((name, values) in other.entries()) {
+        if (excluded.containsIgnoreCase(name)) continue
+        remove(name)
+        appendAll(name, values)
+    }
+}
