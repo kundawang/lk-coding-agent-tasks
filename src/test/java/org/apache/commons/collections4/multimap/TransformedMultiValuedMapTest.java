@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 import org.apache.commons.collections4.MultiValuedMap;
@@ -103,6 +104,29 @@ public class TransformedMultiValuedMapTest<K, V> extends AbstractMultiValuedMapT
     @Test
     void testInvertedIsUnsupportedByDefault() {
         assertThrows(UnsupportedOperationException.class, () -> makeObject().inverted());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testPutAllWithNullValueTransformer() {
+        final MultiValuedMap<K, V> map = TransformedMultiValuedMap.transformingMap(
+                new ArrayListValuedHashMap<>(), null, null);
+        assertTrue(map.putAll((K) "A", Arrays.asList((V) "1", (V) "2")));
+        assertEquals(2, map.size());
+        assertTrue(map.get((K) "A").contains("1"));
+        assertTrue(map.get((K) "A").contains("2"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testPutAllWithValueTransformer() {
+        final MultiValuedMap<K, V> map = TransformedMultiValuedMap.transformingMap(
+                new ArrayListValuedHashMap<>(), null,
+                (Transformer<? super V, ? extends V>) TransformedCollectionTest.STRING_TO_INTEGER_TRANSFORMER);
+        assertTrue(map.putAll((K) "A", Arrays.asList((V) "1", (V) "2")));
+        assertEquals(2, map.size());
+        assertTrue(map.get((K) "A").contains(Integer.valueOf(1)));
+        assertTrue(map.get((K) "A").contains(Integer.valueOf(2)));
     }
 
     @Test
