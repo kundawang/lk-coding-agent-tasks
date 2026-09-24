@@ -434,5 +434,74 @@ class AppExtensionPlusInPath(FlaskCorsTestCase):
         self.assertIsNone(response.headers.get(ACL_ORIGIN))
 
 
+class AppExtensionResourceSpecificity(FlaskCorsTestCase):
+    '''
+        When a wide regex and a more specific (deeper, longer) regex both
+        match a request path, the more specific resource's options must win,
+        regardless of the order the resources were declared in.
+    '''
+
+    def create_app(self, resources):
+        app = Flask(__name__)
+        CORS(app, resources=resources)
+
+        @app.route('/api/v1/users/123')
+        def specific():
+            return 'specific'
+
+        @app.route('/api/other')
+        def fallback():
+            return 'fallback'
+
+        return app
+
+    def iter_apps(self):
+        # Wide pattern declared first, specific pattern declared first,
+        # and a mix of compiled and string patterns: all must behave the same.
+        yield self.create_app({
+            r'/api/.*': {'origins': 'http://wide.com'},
+            r'/api/v1/users/.*': {'origins': 'http://specific.com'},
+        })
+        yield self.create_app({
+            r'/api/v1/users/.*': {'origins': 'http://specific.com'},
+            r'/api/.*': {'origins': 'http://wide.com'},
+        })
+        yield self.create_app({
+            re.compile(r'/api/.*'): {'origins': 'http://wide.com'},
+            r'/api/v1/users/.*': {'origins': 'http://specific.com'},
+        })
+
+    def test_specific_resource_wins_over_wide(self):
+        '''
+            A path matching both patterns uses the specific resource's origins.
+        '''
+        for self.app in self.iter_apps():
+            for resp in self.iter_responses('/api/v1/users/123', origin='http://specific.com'):
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp.headers.get(ACL_ORIGIN), 'http://specific.com')
+
+    def test_wide_resource_does_not_shadow_specific(self):
+        '''
+            The wide resource's origins must not apply to the specific path.
+        '''
+        for self.app in self.iter_apps():
+            for resp in self.iter_responses('/api/v1/users/123', origin='http://wide.com'):
+                self.assertEqual(resp.status_code, 200)
+                self.assertIsNone(resp.headers.get(ACL_ORIGIN))
+
+    def test_wide_resource_still_matches_fallback_paths(self):
+        '''
+            Paths matched only by the wide pattern keep its behavior.
+        '''
+        for self.app in self.iter_apps():
+            for resp in self.iter_responses('/api/other', origin='http://wide.com'):
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp.headers.get(ACL_ORIGIN), 'http://wide.com')
+
+            for resp in self.iter_responses('/api/other', origin='http://specific.com'):
+                self.assertEqual(resp.status_code, 200)
+                self.assertIsNone(resp.headers.get(ACL_ORIGIN))
+
+
 if __name__ == "__main__":
     unittest.main()

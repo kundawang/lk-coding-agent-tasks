@@ -84,6 +84,19 @@ class InternalsTestCase(unittest.TestCase):
             ['/foo', re.compile(r'/api/v1/.*'), re.compile(r'/.*')]
         )
 
+    def test_parse_resources_sorted_regardless_of_declaration_order(self):
+        # The wide pattern is declared first, but the more specific
+        # (deeper, longer) string pattern must still be matched first.
+        resources = parse_resources({
+            r'/api/.*': {'origins': 'http://wide.com'},
+            r'/api/v1/users/.*': {'origins': 'http://specific.com'},
+        })
+
+        self.assertEqual(
+            [r[0] for r in resources],
+            [r'/api/v1/users/.*', r'/api/.*']
+        )
+
     def test_probably_regex(self):
         self.assertTrue(probably_regex("http://*.example.com"))
         self.assertTrue(probably_regex("*"))
