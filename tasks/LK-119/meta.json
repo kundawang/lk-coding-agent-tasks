@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-119",
+  "title": "h2 不拒绝冲突的 content-length 头（真实开源 bug）",
+  "created_at": "2026-09-24T23:26:27",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, h2",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-119/base",
+    "sha": "d95e25e7afa44df8ac4b19701b3c5b6f25a5113b",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/d95e25e7afa44df8ac4b19701b3c5b6f25a5113b"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-119/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-119/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
