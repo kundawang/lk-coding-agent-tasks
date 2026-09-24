@@ -382,6 +382,20 @@ def test_generator_object() -> None:
         freeze_time(frozen_datetimes)
 
 
+def test_decorated_generator_function() -> None:
+    @freeze_time("2012-01-14")
+    def frozen_generator() -> Any:
+        yield datetime.datetime.now()
+        yield datetime.datetime.now()
+
+    iterator = frozen_generator()
+    assert next(iterator) == datetime.datetime(2012, 1, 14)
+    assert next(iterator) == datetime.datetime(2012, 1, 14)
+    with pytest.raises(StopIteration):
+        next(iterator)
+    assert datetime.datetime.now() != datetime.datetime(2012, 1, 14)
+
+
 def test_maya_datetimes() -> None:
     if not maya:
         raise SkipTest("maya is optional since it's not supported for "

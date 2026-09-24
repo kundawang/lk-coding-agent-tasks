@@ -1,6 +1,12 @@
 Freezegun Changelog
 ===================
 
+Unreleased
+----------
+ * Fix a regression from 1.5.3 where generator functions (such as pytest
+   fixtures using ``yield``) were decorated as regular callables, breaking
+   their setup/teardown under ``freeze_time``
+
 1.5.3
 -----
  * Fix compatibility with pytest 8.4.0 when using fixtures
