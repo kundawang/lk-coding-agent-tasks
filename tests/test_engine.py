@@ -21,6 +21,33 @@ def test_default_engine(app: Flask, db: SQLAlchemy) -> None:
 
 
 @pytest.mark.usefixtures("app_ctx")
+def test_repr_default_engine(app: Flask, model_class: t.Any) -> None:
+    db = SQLAlchemy(app, model_class=model_class)
+    assert repr(db) == "<SQLAlchemy sqlite://>"
+
+
+@pytest.mark.usefixtures("app_ctx")
+def test_repr_default_engine_with_binds(app: Flask, model_class: t.Any) -> None:
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite://"
+    app.config["SQLALCHEMY_BINDS"] = {"a": "sqlite://", "b": "sqlite://"}
+    db = SQLAlchemy(app, model_class=model_class)
+    assert repr(db) == "<SQLAlchemy sqlite:// +2>"
+
+
+@pytest.mark.usefixtures("app_ctx")
+def test_repr_no_default_engine(app: Flask, model_class: t.Any) -> None:
+    del app.config["SQLALCHEMY_DATABASE_URI"]
+    app.config["SQLALCHEMY_BINDS"] = {"a": "sqlite://", "b": "sqlite://"}
+    db = SQLAlchemy(app, model_class=model_class)
+    assert repr(db) == "<SQLAlchemy 2 engines>"
+
+
+def test_repr_no_app_context(app: Flask, model_class: t.Any) -> None:
+    db = SQLAlchemy(model_class=model_class)
+    assert repr(db) == "<SQLAlchemy>"
+
+
+@pytest.mark.usefixtures("app_ctx")
 def test_engine_per_bind(app: Flask, model_class: t.Any) -> None:
     app.config["SQLALCHEMY_BINDS"] = {"a": "sqlite://"}
     db = SQLAlchemy(app, model_class=model_class)

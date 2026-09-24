@@ -1,3 +1,12 @@
+Version 3.1.2
+-------------
+
+Unreleased
+
+-   ``repr(db)`` no longer raises a ``KeyError`` when only bind engines are
+    configured without a default engine. It reports the number of engines,
+    for example ``<SQLAlchemy 2 engines>``.
+
 Version 3.1.1
 -------------
 
