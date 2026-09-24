@@ -1,0 +1,9 @@
+{
+  "platform": "win",
+  "bindings": {
+    "save": "Ctrl+S",
+    "find": "Ctrl+S",
+    "saveAs": "Ctrl+K S",
+    "close": "Ctrl+K"
+  }
+}

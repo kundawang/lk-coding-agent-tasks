@@ -1,0 +1,11 @@
+{
+  "actions": [
+    { "id": "save", "name": "保存", "default": "Ctrl+S", "scope": "global" },
+    { "id": "saveAs", "name": "另存为", "default": "Ctrl+Shift+S", "scope": "global" },
+    { "id": "find", "name": "查找", "default": "Ctrl+F", "scope": "editor" },
+    { "id": "replace", "name": "替换", "default": "Ctrl+H", "scope": "editor" },
+    { "id": "close", "name": "关闭", "default": "Ctrl+W", "scope": "global" },
+    { "id": "palette", "name": "命令面板", "default": "Ctrl+K", "scope": "global" },
+    { "id": "paletteFile", "name": "命令面板-文件", "default": "Ctrl+K F", "scope": "global" }
+  ]
+}
