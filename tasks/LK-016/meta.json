@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-016",
+  "title": "hexscope 二进制解析与元数据查看器（从 0 实现）",
+  "created_at": "2026-09-24T16:04:09",
+  "task_type": "0-1 代码生成",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, 原生 ES module（无构建、无依赖）",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "无外部依赖",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-016/base",
+    "sha": "3364bb133db5e7cc67b24d6cd4849978e63fc37e",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/3364bb133db5e7cc67b24d6cd4849978e63fc37e"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-016/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-016/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": ""
+}
