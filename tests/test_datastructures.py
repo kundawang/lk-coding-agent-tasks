@@ -62,6 +62,17 @@ def test_url() -> None:
     assert url.replace(username="u") == URL("http://u@host:80")
 
 
+def test_url_replace_without_hostname() -> None:
+    url = URL("/foo/bar")
+    assert url.replace(scheme="https") == URL("https:///foo/bar")
+    assert url.replace(path="/baz") == URL("/baz")
+    assert url.replace(port=8080) == URL("//:8080/foo/bar")
+
+    url = URL("mailto:hello@example.com")
+    assert url.replace(path="bye@example.com") == URL("mailto:bye@example.com")
+    assert url.replace(port=8080) == URL("mailto://:8080/hello@example.com")
+
+
 def test_url_query_params() -> None:
     u = URL("https://example.org/path/?page=3")
     assert u.query == "page=3"
