@@ -191,3 +191,31 @@ class TestMarkdownRendererPlugins(TestCase):
             ],
         }
         self.assertEqual(renderer.render_token(token, BlockState()), "- x\n\n")
+
+
+class CustomHTMLRenderer(HTMLRenderer):
+    pass
+
+
+class TestCustomRendererEscape(TestCase):
+    raw_html = "<div>raw</div>"
+
+    def test_explicit_escape_true_overrides_renderer(self):
+        md = create_markdown(escape=True, renderer=CustomHTMLRenderer(escape=False))
+        self.assertNotIn("<div>", md(self.raw_html))
+        self.assertIn("&lt;div&gt;", md(self.raw_html))
+
+    def test_explicit_escape_false_overrides_renderer(self):
+        md = create_markdown(escape=False, renderer=CustomHTMLRenderer(escape=True))
+        self.assertIn("<div>raw</div>", md(self.raw_html))
+        self.assertNotIn("&lt;div&gt;", md(self.raw_html))
+
+    def test_without_escape_keeps_renderer_setting(self):
+        unescaped = create_markdown(renderer=CustomHTMLRenderer(escape=False))
+        escaped = create_markdown(renderer=CustomHTMLRenderer(escape=True))
+        self.assertIn("<div>raw</div>", unescaped(self.raw_html))
+        self.assertIn("&lt;div&gt;", escaped(self.raw_html))
+
+    def test_default_renderer_escape_behavior_unchanged(self):
+        self.assertIn("&lt;div&gt;", create_markdown()(self.raw_html))
+        self.assertIn("<div>raw</div>", create_markdown(escape=False)(self.raw_html))

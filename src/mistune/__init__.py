@@ -22,14 +22,16 @@ RendererRef = Union[Literal["html", "ast"], BaseRenderer]
 
 
 def create_markdown(
-    escape: bool = True,
+    escape: Optional[bool] = None,
     hard_wrap: bool = False,
     renderer: Optional[RendererRef] = "html",
     plugins: Optional[Iterable[PluginRef]] = None,
 ) -> Markdown:
     """Create a Markdown instance based on the given condition.
 
-    :param escape: Boolean. If using html renderer, escape html.
+    :param escape: Boolean. If using html renderer, escape html. When a
+                   custom renderer is given, this overrides the renderer's
+                   own escape setting; leave it unset to keep that setting.
     :param hard_wrap: Boolean. Break every new line into ``<br>``.
     :param renderer: renderer instance, default is HTMLRenderer.
     :param plugins: List of plugins.
@@ -47,7 +49,10 @@ def create_markdown(
         # explicit and more similar to 2.x's API
         renderer = None
     elif renderer == "html":
-        renderer = HTMLRenderer(escape=escape)
+        renderer = HTMLRenderer(escape=True if escape is None else escape)
+    elif escape is not None and isinstance(renderer, HTMLRenderer):
+        # an explicit escape flag overrides the custom renderer's own setting
+        renderer._escape = escape
 
     inline = InlineParser(hard_wrap=hard_wrap)
     real_plugins: Optional[Iterable[Plugin]] = None
