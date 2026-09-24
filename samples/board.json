@@ -1,0 +1,14 @@
+{
+  "columns": [
+    { "id": "todo", "name": "待办", "cards": [
+      { "id": "c-1", "title": "改接口文档" },
+      { "id": "c-2", "title": "补单元测试" },
+      { "id": "c-3", "title": "排查缓存命中率" },
+      { "id": "c-4", "title": "写周报" }
+    ]},
+    { "id": "doing", "name": "进行中", "maxCards": 3, "cards": [
+      { "id": "c-5", "title": "重构导出模块" }
+    ]},
+    { "id": "done", "name": "已完成", "cards": [] }
+  ]
+}
