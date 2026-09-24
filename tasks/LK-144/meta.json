@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-144",
+  "title": "mockito clearInlineMocks 没注销单例 mock（真实开源 bug）",
+  "created_at": "2026-09-25T00:15:52",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Java, mockito",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-144/base",
+    "sha": "0ce22d5c1b07683794eb59b0a9ce0f283de74e0a",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/0ce22d5c1b07683794eb59b0a9ce0f283de74e0a"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-144/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-144/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
