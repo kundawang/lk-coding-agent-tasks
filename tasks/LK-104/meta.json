@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-104",
+  "title": "tox 无条件 set_env 被前面的条件标记绑住（真实开源 bug）",
+  "created_at": "2026-09-24T22:39:12",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, tox",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-104/base",
+    "sha": "92f05f3da57c79327f5750072a4bd601ca523452",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/92f05f3da57c79327f5750072a4bd601ca523452"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-104/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-104/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
