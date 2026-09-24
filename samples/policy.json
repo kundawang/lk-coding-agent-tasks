@@ -1,0 +1,9 @@
+{
+  "version": "v3",
+  "strategies": [
+    { "match": "/api/", "type": "networkFirst", "timeoutMs": 3000 },
+    { "match": "/assets/", "type": "cacheFirst" },
+    { "match": "/", "type": "staleWhileRevalidate" }
+  ],
+  "precache": ["/", "/index.html", "/app.js", "/style.css"]
+}
