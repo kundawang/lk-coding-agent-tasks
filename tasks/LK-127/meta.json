@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-127",
+  "title": "axios 遇到 null 的拦截器列表就崩（真实开源 bug）",
+  "created_at": "2026-09-24T23:32:40",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, axios",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-127/base",
+    "sha": "3568f2f77a14ae3bd87a67aeaddb7507163d402f",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/3568f2f77a14ae3bd87a67aeaddb7507163d402f"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-127/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-127/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
