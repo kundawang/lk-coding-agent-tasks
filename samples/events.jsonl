@@ -1,0 +1,11 @@
+{"seq":1,"type":"OrderCreated","at":1789700000000,"payload":{"orderId":"o-1","customer":"张"}}
+{"seq":2,"type":"ItemAdded","at":1789700001000,"payload":{"orderId":"o-1","sku":"AB-0001","price":12.5,"qty":2}}
+{"seq":3,"type":"ItemAdded","at":1789700002000,"payload":{"orderId":"o-1","sku":"CD-0002","price":3.33,"qty":1}}
+{"seq":4,"type":"NoteUpdated","at":1789700003000,"payload":{"orderId":"o-1","note":"客户要求周五前到"}}
+{"seq":5,"type":"OrderPaid","at":1789700004000,"payload":{"orderId":"o-1","amount":28.33}}
+{"seq":5,"type":"OrderPaid","at":1789700004000,"payload":{"orderId":"o-1","amount":28.33}}
+{"seq":6,"type":"OrderShipped","at":1789700005000,"payload":{"orderId":"o-1","carrier":"SF"}}
+{"seq":8,"type":"NoteUpdated","at":1789700007000,"payload":{"orderId":"o-1","note":"已发货"}}
+{"seq":7,"type":"OrderCancelled","at":1789700006000,"payload":{"orderId":"o-1","reason":"客户取消"}}
+{"seq":9,"type":"UnknownThing","at":1789700008000,"payload":{"orderId":"o-1"}}
+{"seq":10,"type":"ItemAdded","at":1789700009000,"payload":{"sku":"EF-0003"}}

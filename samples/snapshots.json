@@ -1,0 +1,6 @@
+{
+  "snapshots": [
+    { "atSeq": 4, "state": { "o-1": { "status": "created", "items": [{ "sku": "AB-0001", "price": 12.5, "qty": 2 }, { "sku": "CD-0002", "price": 3.33, "qty": 1 }], "note": "客户要求周五前到", "total": 28.33 } } },
+    { "atSeq": 8, "state": { "o-1": { "status": "shipped", "items": [{ "sku": "AB-0001", "price": 12.5, "qty": 2 }, { "sku": "CD-0002", "price": 3.33, "qty": 1 }], "note": "已发货", "total": 28.33 } } }
+  ]
+}
