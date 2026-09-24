@@ -1,0 +1,13 @@
+{
+  "zones": [
+    { "id": "UTC", "name": "协调世界时", "utcOffsetMinutes": 0, "dst": null },
+    { "id": "Asia/Shanghai", "name": "中国标准时间", "utcOffsetMinutes": 480, "dst": null },
+    { "id": "Asia/Tokyo", "name": "日本标准时间", "utcOffsetMinutes": 540, "dst": null },
+    { "id": "Europe/London", "name": "英国时间", "utcOffsetMinutes": 0,
+      "dst": { "offsetMinutes": 60, "start": { "month": 3, "week": 5, "weekday": 0, "hour": 1 },
+               "end": { "month": 10, "week": 5, "weekday": 0, "hour": 2 } } },
+    { "id": "America/New_York", "name": "美国东部时间", "utcOffsetMinutes": -300,
+      "dst": { "offsetMinutes": -240, "start": { "month": 3, "week": 2, "weekday": 0, "hour": 2 },
+               "end": { "month": 11, "week": 1, "weekday": 0, "hour": 2 } } }
+  ]
+}

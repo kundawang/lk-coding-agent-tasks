@@ -1,0 +1,12 @@
+{
+  "cases": [
+    { "from": "Asia/Shanghai", "to": "UTC", "at": "2026-09-24 10:00", "expect": "2026-09-24 02:00" },
+    { "from": "UTC", "to": "Asia/Shanghai", "at": "2026-09-24 02:00", "expect": "2026-09-24 10:00" },
+    { "from": "America/New_York", "to": "Asia/Shanghai", "at": "2026-03-07 09:00", "expect": "2026-03-07 22:00" },
+    { "from": "America/New_York", "to": "Asia/Shanghai", "at": "2026-03-09 09:00", "expect": "2026-03-09 21:00" },
+    { "from": "America/New_York", "to": "UTC", "at": "2026-03-08 02:30", "expect": "不存在的时间" },
+    { "from": "America/New_York", "to": "UTC", "at": "2026-11-01 01:30", "expect": "有歧义" },
+    { "from": "Europe/London", "to": "Asia/Shanghai", "at": "2026-01-15 12:00", "expect": "2026-01-15 20:00" },
+    { "from": "Europe/London", "to": "Asia/Shanghai", "at": "2026-07-15 12:00", "expect": "2026-07-15 19:00" }
+  ]
+}
