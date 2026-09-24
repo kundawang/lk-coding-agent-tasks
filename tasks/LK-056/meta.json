@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-056",
+  "title": "apscheduler 日历触发器跨午夜 DST 跳变算错日期（真实开源 bug）",
+  "created_at": "2026-09-24T18:48:06",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, apscheduler",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-056/base",
+    "sha": "817ecb5d2796d9f777aefa5b62a83fcd518e1662",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/817ecb5d2796d9f777aefa5b62a83fcd518e1662"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-056/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-056/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
