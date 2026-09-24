@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-065",
+  "title": "black 对括号头部单独的 fmt: skip 报 InvalidInput（真实开源 bug）",
+  "created_at": "2026-09-24T18:48:43",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, black",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-065/base",
+    "sha": "4a64137bb1ede44d3536f2ec19b2a8ff45e8af9a",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/4a64137bb1ede44d3536f2ec19b2a8ff45e8af9a"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-065/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-065/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
