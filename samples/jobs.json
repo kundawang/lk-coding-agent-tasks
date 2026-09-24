@@ -1,0 +1,9 @@
+{
+  "output": { "format": "jpeg", "quality": 0.85, "naming": "{name}-{index}.{ext}" },
+  "steps": [
+    { "type": "autoOrient" },
+    { "type": "resize", "mode": "fit", "width": 1280, "height": 1280 },
+    { "type": "watermark", "text": "内部资料", "x": 0.02, "y": 0.96, "opacity": 0.35 }
+  ],
+  "concurrency": 2
+}
