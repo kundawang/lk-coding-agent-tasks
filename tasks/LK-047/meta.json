@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-047",
+  "title": "eventsrc 事件溯源与时间旅行（从 0 实现）",
+  "created_at": "2026-09-24T16:30:21",
+  "task_type": "0-1 代码生成",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, 原生 ES module（无构建、无依赖）",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "无外部依赖",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-047/base",
+    "sha": "ca0d1d8da4e3b2ebd5aa202f94bfc11c498321dd",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/ca0d1d8da4e3b2ebd5aa202f94bfc11c498321dd"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-047/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-047/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": ""
+}
