@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-082",
+  "title": "schedule 带时区的 at() 按本机时区排任务（真实开源 bug）",
+  "created_at": "2026-09-24T19:02:17",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, schedule",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-082/base",
+    "sha": "b97e789ad9a301e86fc317613e37602a91bfb0da",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/b97e789ad9a301e86fc317613e37602a91bfb0da"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-082/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-082/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
