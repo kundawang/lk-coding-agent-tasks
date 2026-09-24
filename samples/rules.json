@@ -1,0 +1,11 @@
+{
+  "rules": [
+    { "id": "img-alt", "enabled": true, "level": "error" },
+    { "id": "label-for", "enabled": true, "level": "error" },
+    { "id": "contrast", "enabled": true, "level": "warn", "minRatio": 4.5 },
+    { "id": "heading-order", "enabled": true, "level": "warn" },
+    { "id": "tabindex-positive", "enabled": true, "level": "warn" },
+    { "id": "dup-id", "enabled": true, "level": "error" },
+    { "id": "link-text", "enabled": true, "level": "warn" }
+  ]
+}
