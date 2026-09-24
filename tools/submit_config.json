@@ -13,6 +13,14 @@
       "submitter_field": "",
       "uid_base": 1,
       "uid_task_start": 12
+    },
+    "lk2": {
+      "_comment": "100 道 bug 题的交付表。UID 1 对应 lk-053，往后依次 +1",
+      "base_token": "KbxPbrmAla6r2dsNWOtc1cQOnCb",
+      "table_id": "tblj1eJltacocChq",
+      "submitter_field": "",
+      "uid_base": 1,
+      "uid_task_start": 53
     }
   }
 }
