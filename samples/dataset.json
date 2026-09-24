@@ -1,0 +1,13 @@
+{
+  "total": 100000,
+  "fields": {
+    "id": "唯一编号，r-开头 6 位数字",
+    "group": "分组，比如 华东/华北/华南/西南/东北",
+    "title": "标题，长度 4~60 字不等（行高会因此不一致）",
+    "status": "ok / warn / error",
+    "size": "数字，字节",
+    "updated": "时间字符串 YYYY-MM-DD HH:mm"
+  },
+  "rowHeight": { "single": 32, "wrapped": 52 },
+  "wrapAtChars": 28
+}
