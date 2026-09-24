@@ -43,7 +43,25 @@ function envForceColor() {
 		return 0;
 	}
 
-	return env.FORCE_COLOR.length === 0 ? 1 : Math.min(Number.parseInt(env.FORCE_COLOR, 10), 3);
+	if (env.FORCE_COLOR.length === 0) {
+		return 1;
+	}
+
+	// Any other value is treated as if FORCE_COLOR was not set.
+}
+
+// A numeric FORCE_COLOR value in the 0-3 range forces the exact color level.
+function envForceColorLevel() {
+	if (!('FORCE_COLOR' in env) || !/^\d+$/.test(env.FORCE_COLOR)) {
+		return;
+	}
+
+	const level = Number.parseInt(env.FORCE_COLOR, 10);
+
+	// Values outside the 0-3 range are treated as if FORCE_COLOR was not set.
+	if (level <= 3) {
+		return level;
+	}
 }
 
 function translateLevel(level) {
@@ -60,6 +78,12 @@ function translateLevel(level) {
 }
 
 function _supportsColor(haveStream, {streamIsTTY, sniffFlags = true} = {}) {
+	// A numeric FORCE_COLOR value forces the exact color level.
+	const forceColorLevel = envForceColorLevel();
+	if (forceColorLevel !== undefined) {
+		return forceColorLevel;
+	}
+
 	const noFlagForceColor = envForceColor();
 	if (noFlagForceColor !== undefined) {
 		flagForceColor = noFlagForceColor;
