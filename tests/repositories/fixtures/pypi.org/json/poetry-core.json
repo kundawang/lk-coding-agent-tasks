@@ -1,0 +1,84 @@
+{
+  "files": [
+    {
+      "core-metadata": {
+        "sha256": "7901e9c07999287d28be06df377c9e8529ec602c583dc7e2f22c1211d5f747e3"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "7901e9c07999287d28be06df377c9e8529ec602c583dc7e2f22c1211d5f747e3"
+      },
+      "filename": "poetry_core-1.5.0-py3-none-any.whl",
+      "hashes": {
+        "md5": "be7589b4902793e66d7d979bd8581591",
+        "sha256": "e216b70f013c47b82a72540d34347632c5bfe59fd54f5fe5d51f6a68b19aaf84"
+      },
+      "provenance": null,
+      "requires-python": ">=3.7,<4.0",
+      "size": 464992,
+      "upload-time": "2023-01-28T10:52:52.445537Z",
+      "url": "https://files.pythonhosted.org/packages/2d/99/6b0c5fe90e247b2b7b96a27cdf39ee59a02aab3c01d7243fc0c63cd7fb73/poetry_core-1.5.0-py3-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": false,
+      "data-dist-info-metadata": false,
+      "filename": "poetry_core-1.5.0.tar.gz",
+      "hashes": {
+        "md5": "3f9b36a7a94cd235bfd5f05794828445",
+        "sha256": "0ae8d28caf5c12ec1714b16d2e7157ddd52397ea6bfdeba5a9432e449a0184da"
+      },
+      "provenance": null,
+      "requires-python": ">=3.7,<4.0",
+      "size": 448812,
+      "upload-time": "2023-01-28T10:52:53.916268Z",
+      "url": "https://files.pythonhosted.org/packages/57/bb/2435fef60bb01f6c0891d9482c7053b50e90639f0f74d7658e99bdd4da69/poetry_core-1.5.0.tar.gz",
+      "yanked": false
+    },
+    {
+      "core-metadata": {
+        "sha256": "143631e35bbd4f4292a0806a3c6ec707e0dbc317e3e7ad3a631c58c41d20ec9d"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "143631e35bbd4f4292a0806a3c6ec707e0dbc317e3e7ad3a631c58c41d20ec9d"
+      },
+      "filename": "poetry_core-2.1.3-py3-none-any.whl",
+      "hashes": {
+        "md5": "edbd124754fbb14141470a75d415be48",
+        "sha256": "2c704f05016698a54ca1d327f46ce2426d72eaca6ff614132c8477c292266771"
+      },
+      "provenance": "https://pypi.org/integrity/poetry-core/2.1.3/poetry_core-2.1.3-py3-none-any.whl/provenance",
+      "requires-python": "<4.0,>=3.9",
+      "size": 332607,
+      "upload-time": "2025-05-04T12:43:09.814666Z",
+      "url": "https://files.pythonhosted.org/packages/d2/f1/fb218aebd29bca5c506230201c346881ae9b43de7bbb21a68dc648e972b3/poetry_core-2.1.3-py3-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": false,
+      "data-dist-info-metadata": false,
+      "filename": "poetry_core-2.1.3.tar.gz",
+      "hashes": {
+        "md5": "e57da2d8bd726c565a04d9183a8c36ed",
+        "sha256": "0610f27f3e8b688fc7d7bdd2a5d197a755248a85cf4c77e5279b3e6bcfde0677"
+      },
+      "provenance": "https://pypi.org/integrity/poetry-core/2.1.3/poetry_core-2.1.3.tar.gz/provenance",
+      "requires-python": "<4.0,>=3.9",
+      "size": 365027,
+      "upload-time": "2025-05-04T12:43:11.596621Z",
+      "url": "https://files.pythonhosted.org/packages/44/ca/c2d21635a4525d427ae969d4cde155fb055c3b5d0bc4199b6de35bb6a826/poetry_core-2.1.3.tar.gz",
+      "yanked": false
+    }
+  ],
+  "meta": {
+    "_last-serial": 0,
+    "api-version": "1.4"
+  },
+  "name": "poetry-core",
+  "project-status": {
+    "status": "active"
+  },
+  "versions": [
+    "1.5.0",
+    "2.1.3"
+  ]
+}

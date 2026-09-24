@@ -1,0 +1,68 @@
+{
+  "files": [
+    {
+      "core-metadata": false,
+      "data-dist-info-metadata": false,
+      "filename": "more-itertools-4.1.0.tar.gz",
+      "hashes": {
+        "md5": "bf351a1050242ce3af7e475a4da1a26b",
+        "sha256": "bab2dc6f4be8f9a4a72177842c5283e2dff57c167439a03e3d8d901e854f0f2e"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 51310,
+      "upload-time": "2018-01-21T15:34:22.533243Z",
+      "url": "https://files.pythonhosted.org/packages/db/0b/f5660bf6299ec5b9f17bd36096fa8148a1c843fa77ddfddf9bebac9301f7/more-itertools-4.1.0.tar.gz",
+      "yanked": false
+    },
+    {
+      "core-metadata": {
+        "sha256": "59c3513ac4a78ad61b2a0eda88807985c4bb71cd36e6917f2f9c0ea121a7c029"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "59c3513ac4a78ad61b2a0eda88807985c4bb71cd36e6917f2f9c0ea121a7c029"
+      },
+      "filename": "more_itertools-4.1.0-py2-none-any.whl",
+      "hashes": {
+        "md5": "703e1e0922de1f11823da60af1488b7a",
+        "sha256": "0f461c2cd4ec16611396f9ee57f40433de3d59e95475d84c0c829cde02f746cd"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 47987,
+      "upload-time": "2018-01-21T15:34:19.304356Z",
+      "url": "https://files.pythonhosted.org/packages/4a/88/c28e2a2da8f3dc3a391d9c97ad949f2ea0c05198222e7e6af176e5bf9b26/more_itertools-4.1.0-py2-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": {
+        "sha256": "59c3513ac4a78ad61b2a0eda88807985c4bb71cd36e6917f2f9c0ea121a7c029"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "59c3513ac4a78ad61b2a0eda88807985c4bb71cd36e6917f2f9c0ea121a7c029"
+      },
+      "filename": "more_itertools-4.1.0-py3-none-any.whl",
+      "hashes": {
+        "md5": "ae17a45d13e9dc319794c40fa739c38f",
+        "sha256": "580b6002d1f28feb5bcb8303278d59cf17dfbd19a63a5c2375112dae72c9bf98"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 47988,
+      "upload-time": "2018-01-21T15:34:20.567853Z",
+      "url": "https://files.pythonhosted.org/packages/7a/46/886917c6a4ce49dd3fff250c01c5abac5390d57992751384fe61befc4877/more_itertools-4.1.0-py3-none-any.whl",
+      "yanked": false
+    }
+  ],
+  "meta": {
+    "_last-serial": 0,
+    "api-version": "1.4"
+  },
+  "name": "more-itertools",
+  "project-status": {
+    "status": "active"
+  },
+  "versions": [
+    "4.1.0"
+  ]
+}

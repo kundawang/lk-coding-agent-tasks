@@ -1,0 +1,68 @@
+{
+  "files": [
+    {
+      "core-metadata": {
+        "sha256": "4a736288a055765f102d09f6b8bac7d5a2ba13a82cc9e46e80c3f65ef2497d3c"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "4a736288a055765f102d09f6b8bac7d5a2ba13a82cc9e46e80c3f65ef2497d3c"
+      },
+      "filename": "isort-4.3.4-py2-none-any.whl",
+      "hashes": {
+        "md5": "42bccda292eca3c91eadf3eb781a224f",
+        "sha256": "383c39c10b5db83e8d150ac5b84d74bda96e3a1b06a30257f022dcbcd21f54b9"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 45393,
+      "upload-time": "2018-02-12T15:06:38.441257Z",
+      "url": "https://files.pythonhosted.org/packages/41/d8/a945da414f2adc1d9e2f7d6e7445b27f2be42766879062a2e63616ad4199/isort-4.3.4-py2-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": {
+        "sha256": "bd3a28432bb89f731dc82c08c1ee1497c874e85eb8290371547db13d3adc5a34"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "bd3a28432bb89f731dc82c08c1ee1497c874e85eb8290371547db13d3adc5a34"
+      },
+      "filename": "isort-4.3.4-py3-none-any.whl",
+      "hashes": {
+        "md5": "6c3b582d7782633ec23917b00a97a2fe",
+        "sha256": "5668dce9fb48544c57ed626982e190c8ea99e3a612850453e9c3b193b9fa2edc"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 45352,
+      "upload-time": "2018-02-12T15:06:20.089641Z",
+      "url": "https://files.pythonhosted.org/packages/1f/2c/22eee714d7199ae0464beda6ad5fedec8fee6a2f7ffd1e8f1840928fe318/isort-4.3.4-py3-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": false,
+      "data-dist-info-metadata": false,
+      "filename": "isort-4.3.4.tar.gz",
+      "hashes": {
+        "md5": "9244631852cf8bd8559f7ab78bf4ec78",
+        "sha256": "234ad07e1e2780c27fa56364eefa734bee991b0d744337ef7e7ce3d5b1b59f39"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 56070,
+      "upload-time": "2018-02-12T15:06:16.498194Z",
+      "url": "https://files.pythonhosted.org/packages/b1/de/a628d16fdba0d38cafb3d7e34d4830f2c9cb3881384ce5c08c44762e1846/isort-4.3.4.tar.gz",
+      "yanked": false
+    }
+  ],
+  "meta": {
+    "_last-serial": 0,
+    "api-version": "1.4"
+  },
+  "name": "isort",
+  "project-status": {
+    "status": "active"
+  },
+  "versions": [
+    "4.3.4"
+  ]
+}

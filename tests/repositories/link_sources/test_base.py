@@ -1,0 +1,196 @@
+from __future__ import annotations
+
+import urllib.parse
+
+from collections import defaultdict
+from functools import cached_property
+from typing import TYPE_CHECKING
+from unittest.mock import PropertyMock
+
+import pytest
+
+from packaging.utils import canonicalize_name
+from poetry.core.constraints.version import Version
+from poetry.core.packages.package import Package
+from poetry.core.packages.utils.link import Link
+
+from poetry.repositories.link_sources.base import LinkSource
+from poetry.repositories.link_sources.base import SimpleRepositoryRootPage
+from poetry.repositories.link_sources.base import make_absolute_url
+
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from pytest_mock import MockerFixture
+
+
+@pytest.fixture
+def root_page() -> SimpleRepositoryRootPage:
+    class TestRootPage(SimpleRepositoryRootPage):
+        @cached_property
+        def package_names(self) -> list[str]:
+            return ["poetry", "poetry-core", "requests", "urllib3"]
+
+    return TestRootPage()
+
+
+@pytest.fixture
+def link_source(mocker: MockerFixture) -> LinkSource:
+    url = "https://example.org"
+    link_source = LinkSource(url)
+    mocker.patch(
+        f"{LinkSource.__module__}.{LinkSource.__qualname__}._link_factory_cache",
+        new_callable=PropertyMock,
+        return_value=defaultdict(
+            lambda: defaultdict(list),
+            {
+                canonicalize_name("demo"): defaultdict(
+                    list,
+                    {
+                        Version.parse("0.1.0"): [
+                            lambda: Link(f"{url}/demo-0.1.0.tar.gz"),
+                            lambda: Link(f"{url}/demo-0.1.0-py2.py3-none-any.whl"),
+                        ],
+                        Version.parse("0.1.1"): [
+                            lambda: Link(f"{url}/demo-0.1.1.tar.gz")
+                        ],
+                    },
+                ),
+            },
+        ),
+    )
+    return link_source
+
+
+@pytest.mark.parametrize(
+    "filename, expected",
+    [
+        ("demo-0.1.0-py2.py3-none-any.whl", Package("demo", "0.1.0")),
+        ("demo-0.1.0.tar.gz", Package("demo", "0.1.0")),
+        ("demo-0.1.0.egg", Package("demo", "0.1.0")),
+        ("demo-0.1.0_invalid-py2.py3-none-any.whl", None),  # invalid version
+        ("demo-0.1.0_invalid.egg", None),  # invalid version
+        ("no-package-at-all.txt", None),
+    ],
+)
+def test_link_package_data(filename: str, expected: Package | None) -> None:
+    link = Link(f"https://example.org/{filename}")
+    assert LinkSource.link_package_data(link) == expected
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("demo", {Version.parse("0.1.0"), Version.parse("0.1.1")}),
+        ("invalid", set()),
+    ],
+)
+def test_versions(name: str, expected: set[Version], link_source: LinkSource) -> None:
+    assert set(link_source.versions(canonicalize_name(name))) == expected
+
+
+def test_packages(link_source: LinkSource) -> None:
+    expected = {
+        Package("demo", "0.1.0"),
+        Package("demo", "0.1.0"),
+        Package("demo", "0.1.1"),
+    }
+    assert set(link_source.packages) == expected
+
+
+@pytest.mark.parametrize(
+    "version_string, filenames",
+    [
+        ("0.1.0", ["demo-0.1.0.tar.gz", "demo-0.1.0-py2.py3-none-any.whl"]),
+        ("0.1.1", ["demo-0.1.1.tar.gz"]),
+        ("0.1.2", []),
+    ],
+)
+def test_links_for_version(
+    version_string: str, filenames: Iterable[str], link_source: LinkSource
+) -> None:
+    version = Version.parse(version_string)
+    expected = {Link(f"{link_source.url}/{name}") for name in filenames}
+    assert (
+        set(link_source.links_for_version(canonicalize_name("demo"), version))
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("poetry", ["poetry", "poetry-core"]),
+        (["requests", "urllib3"], ["requests", "urllib3"]),
+        ("lib", ["urllib3"]),
+        ("nonexistent", []),
+    ],
+)
+def test_root_page_search(
+    root_page: SimpleRepositoryRootPage, query: str | list[str], expected: list[str]
+) -> None:
+    assert root_page.search(query) == expected
+
+
+@pytest.mark.parametrize(
+    ("url", "base_url", "expected", "urljoin_called"),
+    [
+        (
+            "https://files.example.org/demo-1.0.0.whl",
+            "https://example.org/simple/demo/",
+            "https://files.example.org/demo-1.0.0.whl",
+            False,
+        ),
+        (
+            "file:///tmp/demo-1.0.0.tar.gz",
+            "https://example.org/simple/demo/",
+            "file:///tmp/demo-1.0.0.tar.gz",
+            False,
+        ),
+        (
+            "demo-1.0.0.tar.gz",
+            "https://example.org/simple/demo/",
+            "https://example.org/simple/demo/demo-1.0.0.tar.gz",
+            True,
+        ),
+        (
+            "/packages/demo-1.0.0.tar.gz",
+            "https://example.org/simple/demo/",
+            "https://example.org/packages/demo-1.0.0.tar.gz",
+            True,
+        ),
+        (
+            "../demo-1.0.0.tar.gz",
+            "https://example.org/simple/demo/",
+            "https://example.org/simple/demo-1.0.0.tar.gz",
+            True,
+        ),
+        (
+            "//cdn.example.org/demo-1.0.0.whl",
+            "https://example.org/simple/demo/",
+            "https://cdn.example.org/demo-1.0.0.whl",
+            True,
+        ),
+        (
+            "ftp://files.example.org/demo-1.0.0.whl",
+            "https://example.org/simple/demo/",
+            "ftp://files.example.org/demo-1.0.0.whl",
+            True,
+        ),
+    ],
+)
+def test_make_absolute_url(
+    url: str,
+    base_url: str,
+    expected: str,
+    urljoin_called: bool,
+    mocker: MockerFixture,
+) -> None:
+    urljoin_spy = mocker.spy(urllib.parse, "urljoin")
+
+    assert make_absolute_url(url, base_url) == expected
+    if urljoin_called:
+        urljoin_spy.assert_called_once_with(base_url, url)
+    else:
+        urljoin_spy.assert_not_called()

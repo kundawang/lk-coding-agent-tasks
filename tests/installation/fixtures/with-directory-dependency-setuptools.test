@@ -1,0 +1,40 @@
+[[package]]
+name = "cachy"
+version = "0.2.0"
+description = ""
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = []
+
+[[package]]
+name = "pendulum"
+version = "1.4.4"
+description = ""
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = []
+
+[[package]]
+name = "project-with-setup"
+version = "0.1.2"
+develop = false
+description = "Demo project."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = []
+
+[package.source]
+type = "directory"
+url = "project"
+
+[package.dependencies]
+cachy = {version = ">=0.2.0", extras = ["msgpack"]}
+pendulum = ">=1.4.4"
+
+[metadata]
+python-versions = "*"
+lock-version = "2.1"
+content-hash = "123456789"

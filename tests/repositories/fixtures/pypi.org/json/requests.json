@@ -1,0 +1,214 @@
+{
+  "files": [
+    {
+      "core-metadata": {
+        "sha256": "4beb28df7dccdb2c54530560738dda249189e114357a69d5e5e7f06a2a019197"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "4beb28df7dccdb2c54530560738dda249189e114357a69d5e5e7f06a2a019197"
+      },
+      "filename": "requests-2.18.0-py2.py3-none-any.whl",
+      "hashes": {
+        "sha256": "5e88d64aa56ac0fda54e77fb9762ebc65879e171b746d5479a33c4082519d6c6"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 563596,
+      "upload-time": "2017-06-14T15:44:35.080617Z",
+      "url": "https://files.pythonhosted.org/packages/e2/f0/c81405acbf53d0412b984eb3fc578cdd10e347374e1aec074638a500c186/requests-2.18.0-py2.py3-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": false,
+      "data-dist-info-metadata": false,
+      "filename": "requests-2.18.0.tar.gz",
+      "hashes": {
+        "sha256": "cd0189f962787284bff715fddaad478eb4d9c15aa167bd64e52ea0f661e7ea5c"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 124085,
+      "upload-time": "2017-06-14T15:44:37.484470Z",
+      "url": "https://files.pythonhosted.org/packages/e0/97/e2f972b6826c9cfe57b6934e3773d2783733bc2d345d810bafd309df3d15/requests-2.18.0.tar.gz",
+      "yanked": false
+    },
+    {
+      "core-metadata": {
+        "sha256": "4e4599f783a6950eb72a9d78fecb2f3438f07237e83708a587beda8a335b5f94"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "4e4599f783a6950eb72a9d78fecb2f3438f07237e83708a587beda8a335b5f94"
+      },
+      "filename": "requests-2.18.1-py2.py3-none-any.whl",
+      "hashes": {
+        "sha256": "6afd3371c1f4c1970497cdcace5c5ecbbe58267bf05ca1abd93d99d170803ab7"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 88107,
+      "upload-time": "2017-06-14T17:51:25.096686Z",
+      "url": "https://files.pythonhosted.org/packages/5a/58/671011e3ff4a06e2969322267d78dcfda1bf4d1576551df1cce93cd7239d/requests-2.18.1-py2.py3-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": false,
+      "data-dist-info-metadata": false,
+      "filename": "requests-2.18.1.tar.gz",
+      "hashes": {
+        "sha256": "c6f3bdf4a4323ac7b45d01e04a6f6c20e32a052cd04de81e05103abc049ad9b9"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 124229,
+      "upload-time": "2017-06-14T17:51:28.960131Z",
+      "url": "https://files.pythonhosted.org/packages/2c/b5/2b6e8ef8dd18203b6399e9f28c7d54f6de7b7549853fe36d575bd31e29a7/requests-2.18.1.tar.gz",
+      "yanked": false
+    },
+    {
+      "core-metadata": {
+        "sha256": "2f28a31e586b7d1d382e1b64b48ce26d5ff18781f9eca0fba7654b55d7a76549"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "2f28a31e586b7d1d382e1b64b48ce26d5ff18781f9eca0fba7654b55d7a76549"
+      },
+      "filename": "requests-2.18.2-py2.py3-none-any.whl",
+      "hashes": {
+        "sha256": "414459f05392835d4d653b57b8e58f98aea9c6ff2782e37de0a1ee92891ce900"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 88342,
+      "upload-time": "2017-07-25T15:23:15.338694Z",
+      "url": "https://files.pythonhosted.org/packages/cf/fa/31b222e4b44975de1b5ac3e1a725abdfeb00e0d761567ab426ee28a7fc73/requests-2.18.2-py2.py3-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": false,
+      "data-dist-info-metadata": false,
+      "filename": "requests-2.18.2.tar.gz",
+      "hashes": {
+        "sha256": "5b26fcc5e72757a867e4d562333f841eddcef93548908a1bb1a9207260618da9"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 125381,
+      "upload-time": "2017-07-25T15:23:18.103843Z",
+      "url": "https://files.pythonhosted.org/packages/07/2e/81fdfdfac91cf3cb2518fb149ac67caf0e081b485eab68e9aee63396f7e8/requests-2.18.2.tar.gz",
+      "yanked": false
+    },
+    {
+      "core-metadata": {
+        "sha256": "b486edffe7b597477bf5645377f50ad2cd4db97413c3e74df3051d9b0db41ac4"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "b486edffe7b597477bf5645377f50ad2cd4db97413c3e74df3051d9b0db41ac4"
+      },
+      "filename": "requests-2.18.3-py2.py3-none-any.whl",
+      "hashes": {
+        "sha256": "b62be4ec5999c24d10c98d248a136e7db20ca6616a2b65060cd9399417331e8a"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 88626,
+      "upload-time": "2017-08-02T13:23:31.998938Z",
+      "url": "https://files.pythonhosted.org/packages/ba/92/c35ed010e8f96781f08dfa6d9a6a19445a175a9304aceedece77cd48b68f/requests-2.18.3-py2.py3-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": false,
+      "data-dist-info-metadata": false,
+      "filename": "requests-2.18.3.tar.gz",
+      "hashes": {
+        "sha256": "fb68a7baef4965c12d9cd67c0f5a46e6e28be3d8c7b6910c758fbcc99880b518"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 126008,
+      "upload-time": "2017-08-02T13:23:35.599515Z",
+      "url": "https://files.pythonhosted.org/packages/c3/38/d95ddb6cc8558930600be088e174a2152261a1e0708a18bf91b5b8c90b22/requests-2.18.3.tar.gz",
+      "yanked": false
+    },
+    {
+      "core-metadata": {
+        "sha256": "37a7c01ccfdf63746e53a70d20723cb095be3f8048582ce38673adc640d14dfd"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "37a7c01ccfdf63746e53a70d20723cb095be3f8048582ce38673adc640d14dfd"
+      },
+      "filename": "requests-2.18.4-py2.py3-none-any.whl",
+      "hashes": {
+        "md5": "e770e65750c42f40b97b0ed738d0f859",
+        "sha256": "098be851f30be5bcb2c7537798d44314f576e53818ba9def25141ae4dce8b25d"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 88704,
+      "upload-time": "2017-08-15T13:23:43.489631Z",
+      "url": "https://files.pythonhosted.org/packages/49/df/50aa1999ab9bde74656c2919d9c0c085fd2b3775fd3eca826012bef76d8c/requests-2.18.4-py2.py3-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": false,
+      "data-dist-info-metadata": false,
+      "filename": "requests-2.18.4.tar.gz",
+      "hashes": {
+        "md5": "942a6a383dc94da90cf58f5adcf028a4",
+        "sha256": "ec62f7e0e9d4814656b0172dbd592fea06127c6556ff5651eb5d2c8768671fd4"
+      },
+      "provenance": null,
+      "requires-python": null,
+      "size": 126224,
+      "upload-time": "2017-08-15T13:23:46.348325Z",
+      "url": "https://files.pythonhosted.org/packages/b0/e1/eab4fc3752e3d240468a8c0b284607899d2fbfb236a56b7377a329aa8d09/requests-2.18.4.tar.gz",
+      "yanked": false
+    },
+    {
+      "core-metadata": {
+        "sha256": "e022ab2bfbbfbf3b77f29b8bc3115eb5b202c651b9b928ec9c0b7ef9a16070f3"
+      },
+      "data-dist-info-metadata": {
+        "sha256": "e022ab2bfbbfbf3b77f29b8bc3115eb5b202c651b9b928ec9c0b7ef9a16070f3"
+      },
+      "filename": "requests-2.19.0-py2.py3-none-any.whl",
+      "hashes": {
+        "sha256": "421cfc8d9dde7d6aff68196420afd86b88c65d77d8da9cf83f4ecad785d7b9d6"
+      },
+      "provenance": null,
+      "requires-python": ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+      "size": 91865,
+      "upload-time": "2018-06-12T14:46:15.289074Z",
+      "url": "https://files.pythonhosted.org/packages/cc/15/e1c318dbc20032ffbe5628837ca0de2d5b116ffd1b849c699634010f6a5d/requests-2.19.0-py2.py3-none-any.whl",
+      "yanked": false
+    },
+    {
+      "core-metadata": false,
+      "data-dist-info-metadata": false,
+      "filename": "requests-2.19.0.tar.gz",
+      "hashes": {
+        "sha256": "cc408268d0e21589bcc2b2c248e42932b8c4d112f499c12c92e99e2178a6134c"
+      },
+      "provenance": null,
+      "requires-python": ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
+      "size": 130875,
+      "upload-time": "2018-06-12T14:46:17.223245Z",
+      "url": "https://files.pythonhosted.org/packages/75/27/82da3fa4ea7a8c3526c48eaafe427352ff9c931633b917c2251826a43697/requests-2.19.0.tar.gz",
+      "yanked": false
+    }
+  ],
+  "meta": {
+    "_last-serial": 0,
+    "api-version": "1.4"
+  },
+  "name": "requests",
+  "project-status": {
+    "status": "active"
+  },
+  "versions": [
+    "2.18.0",
+    "2.18.1",
+    "2.18.2",
+    "2.18.3",
+    "2.18.4",
+    "2.19.0"
+  ]
+}
