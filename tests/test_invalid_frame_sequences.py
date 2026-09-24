@@ -423,6 +423,59 @@ class TestInvalidFrameSequences:
         assert c.data_to_send() == expected_frame.serialize()
 
     @pytest.mark.parametrize("request_headers", [example_request_headers, example_request_headers_bytes])
+    def test_error_on_conflicting_content_length(self, frame_factory, request_headers) -> None:
+        """
+        When multiple content-length headers with differing values are
+        received, a ProtocolError is thrown.
+        """
+        c = h2.connection.H2Connection(config=self.server_config)
+        c.initiate_connection()
+        c.receive_data(frame_factory.preamble())
+        c.clear_outbound_data_buffer()
+
+        f = frame_factory.build_headers_frame(
+            stream_id=1,
+            headers=[
+                *request_headers,
+                ("content-length", "15"),
+                ("content-length", "42"),
+            ],
+        )
+        with pytest.raises(h2.exceptions.ProtocolError):
+            c.receive_data(f.serialize())
+
+        expected_frame = frame_factory.build_goaway_frame(
+            last_stream_id=1,
+            error_code=h2.errors.ErrorCodes.PROTOCOL_ERROR,
+        )
+        assert c.data_to_send() == expected_frame.serialize()
+
+    @pytest.mark.parametrize("request_headers", [example_request_headers, example_request_headers_bytes])
+    def test_identical_content_length_headers_allowed(self, frame_factory, request_headers) -> None:
+        """
+        Multiple content-length headers with identical values are accepted.
+        """
+        c = h2.connection.H2Connection(config=self.server_config)
+        c.initiate_connection()
+        c.receive_data(frame_factory.preamble())
+        c.clear_outbound_data_buffer()
+
+        f = frame_factory.build_headers_frame(
+            stream_id=1,
+            headers=[
+                *request_headers,
+                ("content-length", "15"),
+                ("content-length", "15"),
+            ],
+        )
+        events = c.receive_data(f.serialize())
+
+        assert len(events) == 1
+        event = events[0]
+        assert isinstance(event, h2.events.RequestReceived)
+        assert event.stream_id == 1
+
+    @pytest.mark.parametrize("request_headers", [example_request_headers, example_request_headers_bytes])
     def test_invalid_header_data_protocol_error(self, frame_factory, request_headers) -> None:
         """
         If an invalid header block is received, we raise a ProtocolError.
