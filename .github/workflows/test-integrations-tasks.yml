@@ -1,0 +1,101 @@
+# Do not edit this YAML file. This file is generated automatically by executing
+# python scripts/split_tox_gh_actions/split_tox_gh_actions.py
+# The template responsible for it is in
+# scripts/split_tox_gh_actions/templates/base.jinja
+name: Test Tasks
+# Reusable workflow. It is invoked by the top-level `test.yml` orchestrator.
+on:
+  workflow_call:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  test-tasks:
+    name: Tasks
+    timeout-minutes: 30
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.6","3.7","3.8","3.9","3.10","3.11","3.12","3.13","3.14","3.14t","3.15","3.15t"]
+        os: [ubuntu-22.04]
+    services:
+      redis:
+        image: ghcr.io/getsentry/image-mirror-library-redis:7.0.8-bullseye
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    env:
+      # 3.6/3.7 run in the python:X.Y container; tell uv to use that system Python.
+      TOX_UV_PYTHON_PREFERENCE: ${{ (matrix.python-version == '3.6' || matrix.python-version == '3.7') && 'only-system' || 'managed' }}
+      SENTRY_PYTHON_TEST_REDIS_HOST: ${{ (matrix.python-version == '3.6' || matrix.python-version == '3.7') && 'redis' || 'localhost' }}
+    container: ${{ (matrix.python-version == '3.6' || matrix.python-version == '3.7') && format('python:{0}', matrix.python-version) || null }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: false
+      - name: Install Java
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Mark workspace safe for git (3.6/3.7 container)
+        # needed to make git rev-parse work in the containers
+        # subprocesses (e.g. sentry_sdk.utils.get_git_revision) can run git.
+        if: ${{ matrix.python-version == '3.6' || matrix.python-version == '3.7' }}
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Setup Test Env
+        run: |
+          uv sync
+      - name: Test arq
+        run: |
+          set -x # print commands that are executed
+          ./scripts/runtox.sh "py${{ matrix.python-version }}-arq"
+      - name: Test beam
+        run: |
+          set -x # print commands that are executed
+          ./scripts/runtox.sh "py${{ matrix.python-version }}-beam"
+      - name: Test celery
+        run: |
+          set -x # print commands that are executed
+          ./scripts/runtox.sh "py${{ matrix.python-version }}-celery"
+      - name: Test dramatiq
+        run: |
+          set -x # print commands that are executed
+          ./scripts/runtox.sh "py${{ matrix.python-version }}-dramatiq"
+      - name: Test huey
+        run: |
+          set -x # print commands that are executed
+          ./scripts/runtox.sh "py${{ matrix.python-version }}-huey"
+      - name: Test ray
+        run: |
+          set -x # print commands that are executed
+          ./scripts/runtox.sh "py${{ matrix.python-version }}-ray"
+      - name: Test rq
+        run: |
+          set -x # print commands that are executed
+          ./scripts/runtox.sh "py${{ matrix.python-version }}-rq"
+      - name: Test spark
+        run: |
+          set -x # print commands that are executed
+          ./scripts/runtox.sh "py${{ matrix.python-version }}-spark"
+      - name: Upload coverage data
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-tasks-${{ matrix.python-version }}
+          # .coverage-* / .junitxml-* are dotfiles, excluded by default
+          include-hidden-files: true
+          path: |
+            .coverage-sentry-*
+            .junitxml-*
+          if-no-files-found: 'ignore'
+          retention-days: 1
+          overwrite: true

@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - release/**
+
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint Sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: 3.14
+
+      - name: Ruff check
+        run: uv run ruff check tests sentry_sdk
+
+      - name: Ruff format
+        run: uv run ruff format --check tests sentry_sdk
+
+      - name: Find raise from None
+        run: uv run python scripts/find_raise_from_none.py
+
+      - name: Mypy
+        run: uv run --group typing mypy sentry_sdk
+
+  build_lambda_layer:
+    name: Build Package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: 3.14
+      - name: Build Packages
+        run: |
+          echo "Building SDK dist wheel and tar.gz"
+          uv build
+          echo "Building AWS Lambda Layer"
+          uv run --group aws --with-editable . python scripts/build_aws_lambda_layer.py
+      - name: Upload Python Packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: artifact-build_lambda_layer
+          path: |
+            dist/*
+          if-no-files-found: 'error'
+
+  docs:
+    name: Build SDK API Doc
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: 3.14
+
+      - run: |
+          rm -rf docs/_build
+          uv run --group docs sphinx-build -vv -W -b html docs/ docs/_build
+          cd docs/_build && zip -r gh-pages ./
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: artifact-docs
+          path: |
+            docs/_build/gh-pages.zip
+          if-no-files-found: 'error'

@@ -1,0 +1,281 @@
+# DON'T EDIT THIS FILE BY HAND. This file has been generated from a template by
+# `scripts/populate_tox/populate_tox.py`.
+#
+# Any changes to the test matrix should be made
+# - either in the script config in `scripts/populate_tox/config.py` (if you want
+#   to change the auto-generated part)
+# - or in the template in `scripts/populate_tox/tox.jinja` (if you want to change
+#   a hardcoded part of the file)
+#
+# This file (and all resulting CI YAMLs) then needs to be regenerated via
+# `scripts/generate-test-files.sh`.
+#
+# See also `scripts/populate_tox/README.md` for more info.
+
+[tox]
+requires =
+    tox-uv
+envlist =
+    # === Common ===
+    {py3.6,py3.7,py3.8,py3.9,py3.10,py3.11,py3.12,py3.13,py3.14,py3.14t,py3.15,py3.15t}-common
+
+    # === Gevent ===
+    {py3.6,py3.8,py3.10,py3.11,py3.12}-gevent
+
+    # === Integration Deactivation ===
+    {py3.9,py3.10,py3.11,py3.12,py3.13,py3.14}-integration_deactivation
+
+    # === Shadowed Module ===
+    {py3.7,py3.8,py3.9,py3.10,py3.11,py3.12,py3.13,py3.14,py3.14t,py3.15,py3.15t}-shadowed_module
+
+    # === Integrations ===
+
+    # Asgi
+    {py3.7,py3.12,py3.13,py3.14,py3.14t,py3.15,py3.15t}-asgi
+
+    # AWS Lambda
+    {py3.8,py3.9,py3.11,py3.13}-aws_lambda
+
+    # Cloud Resource Context
+    {py3.6,py3.12,py3.13}-cloud_resource_context
+
+    # GCP
+    {py3.7}-gcp
+
+    # OpenTelemetry (OTel)
+    {py3.7,py3.9,py3.12,py3.13,py3.14,py3.14t}-opentelemetry
+
+    # OpenTelemetry with OTLP
+    {py3.7,py3.9,py3.12,py3.13,py3.14}-otlp
+
+    # OpenTelemetry Experimental (POTel)
+    {py3.8,py3.9,py3.10,py3.11,py3.12,py3.13}-potel
+
+    # === Integrations - Auto-generated ===
+    # These come from the populate_tox.py script.
+
+    {% for group, integrations in groups.items() %}
+    # ~~~ {{ group }} ~~~
+    {% for integration in integrations %}
+    {% for release in integration.releases %}
+    {{ release.rendered_python_versions }}-{{ integration.name }}-v{{ release }}
+    {% endfor %}
+    {% if integration.latest_stable %}
+    {{ integration.latest_stable.rendered_python_versions }}-{{ integration.name }}-latest
+    {% endif %}
+
+    {% endfor %}
+
+    {% endfor %}
+
+[testenv]
+; SDK is installed via deps below to resolve all deps at once (tox-uv limitation)
+package = skip
+dependency_groups = test
+deps =
+    # === Common ===
+    py3.8-common: hypothesis
+    common: brotli
+    common: executing
+    common: httpcore[asyncio,http2]
+    common: jsonschema
+    common: pysocks
+    common: pytest-asyncio
+    common: pytest-forked
+    common: pytest-timeout
+    common: pytest_localserver
+    common: socksio
+    common: werkzeug
+    # See https://github.com/pytest-dev/pytest/issues/9621
+    # and https://github.com/pytest-dev/pytest-forked/issues/67
+    # for justification of the upper bound on pytest
+    {py3.6,py3.7}-common: pytest<7.0.0
+    # Handled by importlib.metadata on Python 3.8+
+    {py3.6,py3.7}-common: setuptools<82
+    {py3.8,py3.9,py3.10,py3.11,py3.12,py3.13,py3.14,py3.14t,py3.15,py3.15t}-common: pytest
+    # coverage 7.11.1-7.11.3 makes some of our tests flake
+    {py3.14,py3.14t,py3.15,py3.15t}-common: coverage==7.11.0
+
+    # === Gevent ===
+    {py3.6,py3.7,py3.8,py3.9,py3.10,py3.11}-gevent: gevent>=22.10.0, <22.11.0
+    {py3.12}-gevent: gevent
+    # See https://github.com/pytest-dev/pytest/issues/9621
+    # and https://github.com/pytest-dev/pytest-forked/issues/67
+    # for justification of the upper bound on pytest
+    {py3.6,py3.7}-gevent: pytest<7.0.0
+    {py3.8,py3.9,py3.10,py3.11,py3.12}-gevent: pytest
+    gevent: brotli
+    gevent: executing
+    gevent: httpcore[http2]
+    gevent: jsonschema
+    gevent: pysocks
+    gevent: pytest-asyncio
+    gevent: pytest-forked
+    gevent: pytest-timeout
+    gevent: pytest_localserver
+    gevent: setuptools<82
+    gevent: socksio
+    gevent: werkzeug
+    {py3.10,py3.11}-gevent: zope.event<5.0.0
+    {py3.10,py3.11}-gevent: zope.interface<8.0
+
+    # === Integration Deactivation ===
+    integration_deactivation: openai
+    integration_deactivation: anthropic
+    integration_deactivation: langchain
+
+    # === Integrations ===
+
+    # Asgi
+    asgi: pytest-asyncio
+    asgi: async-asgi-testclient
+
+    # AWS Lambda
+    aws_lambda: aws-cdk-lib
+    aws_lambda: boto3
+    aws_lambda: docker
+    aws_lambda: fastapi
+    aws_lambda: requests
+    aws_lambda: uvicorn
+    aws_lambda: pyyaml
+
+    # OpenTelemetry (OTel)
+    opentelemetry: opentelemetry-distro
+    opentelemetry: pytest-forked
+
+    # OpenTelemetry with OTLP
+    otlp: opentelemetry-distro[otlp]
+    otlp: responses
+
+    # OpenTelemetry Experimental (POTel)
+    potel: opentelemetry-distro
+    potel: pytest-forked
+
+    # === Integrations - Auto-generated ===
+    # These come from the populate_tox.py script.
+
+    {% for group, integrations in groups.items() %}
+    # ~~~ {{ group }} ~~~
+    {% for integration in integrations %}
+    {% for release in integration.releases %}
+    {% if integration.extra %}
+    {{ integration.name }}-v{{ release }}: {{ integration.package }}[{{ integration.extra }}]=={{ release }}
+    {% else %}
+    {{ integration.name }}-v{{ release }}: {{ integration.package }}=={{ release }}
+    {% endif %}
+
+    {% for dependency_group in release.transitive_dependencies if dependency_group %}
+    {% for dep in dependency_group %}
+    {{ dep }}
+    {% endfor %}
+
+    {% endfor %}
+    {% endfor %}
+    {% if integration.latest_stable %}
+    {% if integration.extra %}
+    {{ integration.name }}-latest: {{ integration.package }}[{{ integration.extra }}]=={{ integration.latest_stable }}
+    {% else %}
+    {{ integration.name }}-latest: {{ integration.package }}=={{ integration.latest_stable }}
+    {% endif %}
+
+    {% for dependency_group in integration.latest_transitive_dependencies if dependency_group %}
+    {% for dep in dependency_group %}
+    {{ dep }}
+    {% endfor %}
+
+    {% endfor %}
+    {% endif %}
+    {% for dep in integration.dependencies %}
+    {{ dep }}
+    {% endfor %}
+    {% for dep in integration.latest_dependencies %}
+    {{ dep }}
+    {% endfor %}
+
+    {% endfor %}
+
+    {% endfor %}
+
+    ; Install the SDK in deps so uv resolves runtime deps together with
+    ; everything above in a single pass.
+    ; uv only supports PEP 660 editables; py3.6's max setuptools (~59) predates
+    ; PEP 660, so fall back to a non-editable install there.
+    !py3.6: -e .
+    py3.6: .
+
+setenv =
+    PYTHONDONTWRITEBYTECODE=1
+    OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
+    COVERAGE_FILE=.coverage-sentry-{envname}
+    UV_CACHE_DIR={env:HOME}/.cache/uv/{envname}
+
+    UV_PRERELEASE=if-necessary-or-explicit
+    {% for group, integrations in groups.items() %}
+    {% for integration in integrations %}
+    {% for line in integration.prerelease_setenv %}
+    {{ line }}
+    {% endfor %}
+    {% endfor %}
+    {% endfor %}
+
+    py3.6: COVERAGE_RCFILE=.coveragerc36
+
+    django: DJANGO_SETTINGS_MODULE=tests.integrations.django.myapp.settings
+    spark-v{3.0.3,3.5.6}: JAVA_HOME=/usr/lib/jvm/temurin-11-jdk-amd64
+
+    # Ray 2.43+ auto-detects `uv run` drivers and spawns workers via uv,
+    # which targets the workspace `.venv` instead of the tox env and hangs.
+    ray: RAY_ENABLE_UV_RUN_RUNTIME_ENV=0
+
+    # Avoid polluting test suite with imports
+    common: PYTEST_ADDOPTS="--ignore=tests/test_shadowed_module.py"
+    gevent: PYTEST_ADDOPTS="--ignore=tests/test_shadowed_module.py"
+
+    # TESTPATH definitions for test suites not managed by toxgen
+    common: _TESTPATH=tests
+    gevent: _TESTPATH=tests
+    integration_deactivation: _TESTPATH=tests/test_ai_integration_deactivation.py
+    shadowed_module: _TESTPATH=tests/test_shadowed_module.py
+    asgi: _TESTPATH=tests/integrations/asgi
+    aws_lambda: _TESTPATH=tests/integrations/aws_lambda
+    cloud_resource_context: _TESTPATH=tests/integrations/cloud_resource_context
+    gcp: _TESTPATH=tests/integrations/gcp
+    opentelemetry: _TESTPATH=tests/integrations/opentelemetry
+    otlp: _TESTPATH=tests/integrations/otlp
+    potel: _TESTPATH=tests/integrations/opentelemetry
+    socket: _TESTPATH=tests/integrations/socket
+
+    # These TESTPATH definitions are auto-generated by toxgen
+    {% for integration, testpath in testpaths %}
+    {{ integration }}: _TESTPATH={{ testpath }}
+    {% endfor %}
+
+passenv =
+    SENTRY_PYTHON_TEST_POSTGRES_HOST
+    SENTRY_PYTHON_TEST_POSTGRES_USER
+    SENTRY_PYTHON_TEST_POSTGRES_PASSWORD
+    SENTRY_PYTHON_TEST_POSTGRES_NAME
+    SENTRY_PYTHON_TEST_REDIS_HOST
+    SENTRY_PYTHON_TEST_MYSQL_USER
+    SENTRY_PYTHON_TEST_MYSQL_PASSWORD
+    TESTPATH
+
+basepython =
+    py3.6: python3.6
+    py3.7: python3.7
+    py3.8: python3.8
+    py3.9: python3.9
+    py3.10: python3.10
+    py3.11: python3.11
+    py3.12: python3.12
+    py3.13: python3.13
+    py3.14: python3.14
+    py3.14t: python3.14t
+    py3.15: python3.15
+    py3.15t: python3.15t
+
+commands =
+    ; Running `pytest` as an executable suffers from an import error
+    ; when loading tests in scenarios. In particular, django fails to
+    ; load the settings from the test module.
+    python -m pytest -W error::pytest.PytestUnraisableExceptionWarning {env:TESTPATH:{env:_TESTPATH}} -o junit_suite_name={envname} --junitxml=.junitxml-{envname} {posargs}

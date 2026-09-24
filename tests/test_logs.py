@@ -1,0 +1,957 @@
+import os
+import sys
+import time
+from unittest import mock
+
+import pytest
+
+import sentry_sdk
+import sentry_sdk.logger
+from sentry_sdk import get_client
+from sentry_sdk.consts import SPANDATA, VERSION
+
+minimum_python_37 = pytest.mark.skipif(
+    sys.version_info < (3, 7), reason="Asyncio tests need Python >= 3.7"
+)
+
+
+@minimum_python_37
+def test_logs_enabled_by_default(sentry_init, capture_envelopes):
+    sentry_init()
+
+    envelopes = capture_envelopes()
+
+    sentry_sdk.logger.trace("This is a 'trace' log.")
+    sentry_sdk.logger.debug("This is a 'debug' log...")
+    sentry_sdk.logger.info("This is a 'info' log...")
+    sentry_sdk.logger.warning("This is a 'warning' log...")
+    sentry_sdk.logger.error("This is a 'error' log...")
+    sentry_sdk.logger.fatal("This is a 'fatal' log...")
+
+    sentry_sdk.flush()
+
+    assert envelopes
+
+
+@minimum_python_37
+def test_enable_logs_noop(sentry_init, capture_envelopes):
+    sentry_init(enable_logs=False)
+
+    envelopes = capture_envelopes()
+
+    sentry_sdk.logger.trace("This is a 'trace' log.")
+    sentry_sdk.logger.debug("This is a 'debug' log...")
+    sentry_sdk.logger.info("This is a 'info' log...")
+    sentry_sdk.logger.warning("This is a 'warning' log...")
+    sentry_sdk.logger.error("This is a 'error' log...")
+    sentry_sdk.logger.fatal("This is a 'fatal' log...")
+
+    sentry_sdk.flush()
+
+    assert envelopes
+
+
+@minimum_python_37
+def test_logs_basics(sentry_init, capture_items):
+    sentry_init()
+    items = capture_items("log")
+
+    sentry_sdk.logger.trace("This is a 'trace' log...")
+    sentry_sdk.logger.debug("This is a 'debug' log...")
+    sentry_sdk.logger.info("This is a 'info' log...")
+    sentry_sdk.logger.warning("This is a 'warn' log...")
+    sentry_sdk.logger.error("This is a 'error' log...")
+    sentry_sdk.logger.fatal("This is a 'fatal' log...")
+
+    get_client().flush()
+    logs = [item.payload for item in items]
+    assert logs[0]["attributes"]["sentry.severity_text"] == "trace"
+    assert logs[0]["attributes"]["sentry.severity_number"] == 1
+
+    assert logs[1]["attributes"]["sentry.severity_text"] == "debug"
+    assert logs[1]["attributes"]["sentry.severity_number"] == 5
+
+    assert logs[2]["attributes"]["sentry.severity_text"] == "info"
+    assert logs[2]["attributes"]["sentry.severity_number"] == 9
+
+    assert logs[3]["attributes"]["sentry.severity_text"] == "warn"
+    assert logs[3]["attributes"]["sentry.severity_number"] == 13
+
+    assert logs[4]["attributes"]["sentry.severity_text"] == "error"
+    assert logs[4]["attributes"]["sentry.severity_number"] == 17
+
+    assert logs[5]["attributes"]["sentry.severity_text"] == "fatal"
+    assert logs[5]["attributes"]["sentry.severity_number"] == 21
+
+
+@minimum_python_37
+def test_logs_before_send_log(sentry_init, capture_items):
+    before_log_called = False
+
+    def _before_log(record, hint):
+        nonlocal before_log_called
+
+        assert set(record.keys()) == {
+            "severity_text",
+            "severity_number",
+            "body",
+            "attributes",
+            "time_unix_nano",
+            "trace_id",
+            "span_id",
+        }
+
+        if record["severity_text"] in ["fatal", "error"]:
+            return None
+
+        before_log_called = True
+
+        return record
+
+    sentry_init(
+        before_send_log=_before_log,
+    )
+    items = capture_items("log")
+
+    sentry_sdk.logger.trace("This is a 'trace' log...")
+    sentry_sdk.logger.debug("This is a 'debug' log...")
+    sentry_sdk.logger.info("This is a 'info' log...")
+    sentry_sdk.logger.warning("This is a 'warning' log...")
+    sentry_sdk.logger.error("This is a 'error' log...")
+    sentry_sdk.logger.fatal("This is a 'fatal' log...")
+
+    get_client().flush()
+    logs = [item.payload for item in items]
+    assert len(logs) == 4
+
+    assert logs[0]["attributes"]["sentry.severity_text"] == "trace"
+    assert logs[1]["attributes"]["sentry.severity_text"] == "debug"
+    assert logs[2]["attributes"]["sentry.severity_text"] == "info"
+    assert logs[3]["attributes"]["sentry.severity_text"] == "warn"
+    assert before_log_called is True
+
+
+@minimum_python_37
+def test_logs_before_send_log_experimental_option_still_works(
+    sentry_init, capture_items
+):
+    before_log_called = False
+
+    def _before_log(record, hint):
+        nonlocal before_log_called
+        before_log_called = True
+
+        return record
+
+    sentry_init(
+        _experiments={
+            "before_send_log": _before_log,
+        },
+    )
+    items = capture_items("log")
+
+    sentry_sdk.logger.error("This is an error log...")
+
+    get_client().flush()
+    logs = [item.payload for item in items]
+    assert len(logs) == 1
+
+    assert logs[0]["attributes"]["sentry.severity_text"] == "error"
+    assert before_log_called is True
+
+
+@minimum_python_37
+@pytest.mark.tests_internal_exceptions
+def test_logs_before_send_log_raises_does_not_crash_application(
+    sentry_init, capture_items
+):
+    def _before_log(record, hint):
+        raise ValueError("before_send_log error")
+
+    sentry_init(
+        before_send_log=_before_log,
+    )
+    items = capture_items("log")
+
+    sentry_sdk.logger.error("This is an error log...")
+
+    get_client().flush()
+    logs = [item.payload for item in items]
+
+    # The exception in before_send_log is swallowed and the log is dropped.
+    assert not logs
+
+
+@minimum_python_37
+def test_logs_attributes(sentry_init, capture_items):
+    """
+    Passing arbitrary attributes to log messages.
+    """
+    sentry_init(server_name="test-server")
+    items = capture_items("log")
+
+    attrs = {
+        "attr_int": 1,
+        "attr_float": 2.0,
+        "attr_bool": True,
+        "attr_string": "string attribute",
+    }
+
+    sentry_sdk.logger.warning(
+        "The recorded value was '{my_var}'", my_var="some value", attributes=attrs
+    )
+
+    get_client().flush()
+    logs = [item.payload for item in items]
+    assert logs[0]["body"] == "The recorded value was 'some value'"
+
+    for k, v in attrs.items():
+        assert logs[0]["attributes"][k] == v
+    assert logs[0]["attributes"]["sentry.environment"] == "production"
+    if sentry_sdk.get_client().options.get("release") is not None:
+        assert "sentry.release" in logs[0]["attributes"]
+    assert logs[0]["attributes"]["sentry.message.parameter.my_var"] == "some value"
+    assert logs[0]["attributes"][SPANDATA.SERVER_ADDRESS] == "test-server"
+    assert logs[0]["attributes"]["sentry.sdk.name"].startswith("sentry.python")
+    assert logs[0]["attributes"]["sentry.sdk.version"] == VERSION
+
+
+@minimum_python_37
+def test_logs_message_params(sentry_init, capture_items):
+    """
+    This is the official way of how to pass vars to log messages.
+    """
+    sentry_init()
+    items = capture_items("log")
+
+    sentry_sdk.logger.warning("The recorded value was '{int_var}'", int_var=1)
+    sentry_sdk.logger.warning("The recorded value was '{float_var}'", float_var=2.0)
+    sentry_sdk.logger.warning("The recorded value was '{bool_var}'", bool_var=False)
+    sentry_sdk.logger.warning(
+        "The recorded value was '{string_var}'", string_var="some string value"
+    )
+    sentry_sdk.logger.error(
+        "The recorded error was '{error}'", error=Exception("some error")
+    )
+    sentry_sdk.logger.warning("The recorded value was hardcoded.")
+
+    get_client().flush()
+    logs = [item.payload for item in items]
+
+    assert logs[0]["body"] == "The recorded value was '1'"
+    assert logs[0]["attributes"]["sentry.message.parameter.int_var"] == 1
+    assert (
+        logs[0]["attributes"]["sentry.message.template"]
+        == "The recorded value was '{int_var}'"
+    )
+
+    assert logs[1]["body"] == "The recorded value was '2.0'"
+    assert logs[1]["attributes"]["sentry.message.parameter.float_var"] == 2.0
+    assert (
+        logs[1]["attributes"]["sentry.message.template"]
+        == "The recorded value was '{float_var}'"
+    )
+
+    assert logs[2]["body"] == "The recorded value was 'False'"
+    assert logs[2]["attributes"]["sentry.message.parameter.bool_var"] is False
+    assert (
+        logs[2]["attributes"]["sentry.message.template"]
+        == "The recorded value was '{bool_var}'"
+    )
+
+    assert logs[3]["body"] == "The recorded value was 'some string value'"
+    assert (
+        logs[3]["attributes"]["sentry.message.parameter.string_var"]
+        == "some string value"
+    )
+    assert (
+        logs[3]["attributes"]["sentry.message.template"]
+        == "The recorded value was '{string_var}'"
+    )
+
+    assert logs[4]["body"] == "The recorded error was 'some error'"
+    assert (
+        logs[4]["attributes"]["sentry.message.parameter.error"]
+        == "Exception('some error')"
+    )
+    assert (
+        logs[4]["attributes"]["sentry.message.template"]
+        == "The recorded error was '{error}'"
+    )
+
+    assert logs[5]["body"] == "The recorded value was hardcoded."
+    assert "sentry.message.template" not in logs[5]["attributes"]
+
+
+@minimum_python_37
+def test_logs_tied_to_transactions(sentry_init, capture_items):
+    """
+    Log messages are also tied to transactions.
+    """
+    sentry_init(traces_sample_rate=1.0)
+    items = capture_items("log")
+
+    with sentry_sdk.start_transaction(name="test-transaction") as trx:
+        sentry_sdk.logger.warning("This is a log tied to a transaction")
+
+    get_client().flush()
+    logs = [item.payload for item in items]
+
+    assert "span_id" in logs[0]
+    assert logs[0]["span_id"] == trx.span_id
+
+
+@minimum_python_37
+def test_logs_tied_to_segments(sentry_init, capture_items):
+    """
+    Log messages are also tied to segments.
+    """
+    sentry_init(traces_sample_rate=1.0, trace_lifecycle="stream")
+    items = capture_items("log")
+
+    with sentry_sdk.traces.start_span(name="test-segment") as sgmt:
+        sentry_sdk.logger.warning("This is a log tied to a segment")
+
+    sentry_sdk.flush()
+    logs = [item.payload for item in items]
+
+    assert "span_id" in logs[0]
+    assert logs[0]["span_id"] == sgmt.span_id
+
+
+@minimum_python_37
+def test_logs_no_span_id_without_active_span(sentry_init, capture_items):
+    """
+    Per the metrics spec, span_id is only attached when a span is active
+    when the telemetry is emitted. The propagation context's synthesized
+    span_id must not be used as a fallback.
+    """
+    sentry_init()
+    items = capture_items("log")
+
+    sentry_sdk.logger.warning("This is a log without an active span")
+
+    get_client().flush()
+    logs = [item.payload for item in items]
+    assert logs[0]["trace_id"] is not None
+    assert "span_id" not in logs[0]
+
+
+@minimum_python_37
+def test_logs_tied_to_spans(sentry_init, capture_items):
+    """
+    Log messages are also tied to spans.
+    """
+    sentry_init(traces_sample_rate=1.0)
+    items = capture_items("log")
+
+    with sentry_sdk.start_transaction(name="test-transaction"):
+        with sentry_sdk.start_span(name="test-span") as span:
+            sentry_sdk.logger.warning("This is a log tied to a span")
+
+    get_client().flush()
+    logs = [item.payload for item in items]
+    assert logs[0]["span_id"] == span.span_id
+
+
+@minimum_python_37
+def test_logs_tied_to_spans_span_streaming(sentry_init, capture_items):
+    """
+    Log messages are also tied to spans.
+    """
+    sentry_init(traces_sample_rate=1.0, trace_lifecycle="stream")
+    items = capture_items("log")
+
+    with sentry_sdk.traces.start_span(name="test-segment"):
+        with sentry_sdk.traces.start_span(name="test-span") as span:
+            sentry_sdk.logger.warning("This is a log tied to a span")
+
+    sentry_sdk.flush()
+    logs = [item.payload for item in items]
+    assert logs[0]["span_id"] == span.span_id
+
+
+@minimum_python_37
+def test_auto_flush_logs_after_100(sentry_init, capture_envelopes):
+    """
+    If you log >100 logs, it should automatically trigger a flush.
+    """
+    sentry_init()
+    envelopes = capture_envelopes()
+
+    for i in range(200):
+        sentry_sdk.logger.warning("log")
+
+    for _ in range(500):
+        time.sleep(1.0 / 100.0)
+        if len(envelopes) > 0:
+            return
+
+    raise AssertionError("200 logs were never flushed after five seconds")
+
+
+@minimum_python_37
+def test_log_user_attributes(sentry_init, capture_items):
+    """User attributes are sent if send_default_pii is True."""
+    sentry_init(send_default_pii=True)
+
+    sentry_sdk.set_user({"id": "1", "email": "test@example.com", "username": "test"})
+    items = capture_items("log")
+
+    sentry_sdk.logger.warning("Hello, world!")
+
+    get_client().flush()
+
+    logs = [item.payload for item in items]
+    (log,) = logs
+
+    # Check that all expected user attributes are present.
+    assert log["attributes"].items() >= {
+        ("user.id", "1"),
+        ("user.email", "test@example.com"),
+        ("user.name", "test"),
+    }
+
+
+@minimum_python_37
+def test_log_no_user_attributes_if_no_pii(sentry_init, capture_items):
+    """User attributes are not if PII sending is off."""
+    sentry_init(send_default_pii=False)
+
+    sentry_sdk.set_user({"id": "1", "email": "test@example.com", "username": "test"})
+    items = capture_items("log")
+
+    sentry_sdk.logger.warning("Hello, world!")
+
+    get_client().flush()
+
+    logs = [item.payload for item in items]
+    (log,) = logs
+
+    assert "user.id" not in log["attributes"]
+    assert "user.email" not in log["attributes"]
+    assert "user.name" not in log["attributes"]
+
+
+@minimum_python_37
+def test_auto_flush_logs_after_5s(sentry_init, capture_envelopes):
+    """
+    If you log a single log, it should automatically flush after 5 seconds, at most 10 seconds.
+    """
+    sentry_init()
+    envelopes = capture_envelopes()
+
+    sentry_sdk.logger.warning("log")
+
+    for _ in range(100):
+        time.sleep(1.0 / 10.0)
+        if len(envelopes) > 0:
+            return
+
+    raise AssertionError("1 logs was never flushed after 10 seconds")
+
+
+@minimum_python_37
+@pytest.mark.parametrize(
+    "message,expected_body,params",
+    [
+        ("any text with {braces} in it", "any text with {braces} in it", None),
+        (
+            'JSON data: {"key": "value", "number": 42}',
+            'JSON data: {"key": "value", "number": 42}',
+            None,
+        ),
+        ("Multiple {braces} {in} {message}", "Multiple {braces} {in} {message}", None),
+        ("Nested {{braces}}", "Nested {{braces}}", None),
+        ("Empty braces: {}", "Empty braces: {}", None),
+        ("Braces with params: {user}", "Braces with params: alice", {"user": "alice"}),
+        (
+            "Braces with partial params: {user1} {user2}",
+            "Braces with partial params: alice {user2}",
+            {"user1": "alice"},
+        ),
+    ],
+)
+def test_logs_with_literal_braces(
+    sentry_init, capture_items, message, expected_body, params
+):
+    """
+    Test that log messages with literal braces (like JSON) work without crashing.
+    This is a regression test for issue #4975.
+    """
+    sentry_init()
+    items = capture_items("log")
+
+    if params:
+        sentry_sdk.logger.info(message, **params)
+    else:
+        sentry_sdk.logger.info(message)
+
+    get_client().flush()
+    logs = [item.payload for item in items]
+
+    assert len(logs) == 1
+    assert logs[0]["body"] == expected_body
+
+    # Verify template is only stored when there are parameters
+    if params:
+        assert logs[0]["attributes"]["sentry.message.template"] == message
+    else:
+        assert "sentry.message.template" not in logs[0]["attributes"]
+
+
+@minimum_python_37
+def test_transport_format(sentry_init, capture_envelopes):
+    sentry_init(server_name="test-server", release="1.0.0")
+
+    envelopes = capture_envelopes()
+
+    sentry_sdk.logger.warning("This is a log...")
+
+    sentry_sdk.get_client().flush()
+
+    assert len(envelopes) == 1
+    assert len(envelopes[0].items) == 1
+    item = envelopes[0].items[0]
+
+    assert item.type == "log"
+    assert item.headers == {
+        "type": "log",
+        "item_count": 1,
+        "content_type": "application/vnd.sentry.items.log+json",
+    }
+    assert item.payload.json == {
+        "version": 2,
+        "items": [
+            {
+                "body": "This is a log...",
+                "level": "warn",
+                "timestamp": mock.ANY,
+                "trace_id": mock.ANY,
+                "attributes": {
+                    "sentry.environment": {
+                        "type": "string",
+                        "value": "production",
+                    },
+                    "sentry.release": {
+                        "type": "string",
+                        "value": "1.0.0",
+                    },
+                    "sentry.sdk.name": {
+                        "type": "string",
+                        "value": mock.ANY,
+                    },
+                    "sentry.sdk.version": {
+                        "type": "string",
+                        "value": VERSION,
+                    },
+                    "sentry.severity_number": {
+                        "type": "integer",
+                        "value": 13,
+                    },
+                    "process.runtime.name": {
+                        "type": "string",
+                        "value": mock.ANY,
+                    },
+                    "process.runtime.version": {
+                        "type": "string",
+                        "value": mock.ANY,
+                    },
+                    "sentry.severity_text": {
+                        "type": "string",
+                        "value": "warn",
+                    },
+                    "server.address": {
+                        "type": "string",
+                        "value": "test-server",
+                    },
+                },
+            }
+        ],
+    }
+
+
+@minimum_python_37
+def test_batcher_drops_logs(sentry_init, monkeypatch):
+    sentry_init(server_name="test-server", release="1.0.0")
+    client = sentry_sdk.get_client()
+
+    def no_op_flush():
+        pass
+
+    monkeypatch.setattr(client.log_batcher, "_flush", no_op_flush)
+
+    lost_event_calls = []
+
+    def record_lost_event(reason, data_category=None, item=None, *, quantity=1):
+        lost_event_calls.append((reason, data_category, item, quantity))
+
+    monkeypatch.setattr(client.log_batcher, "_record_lost_func", record_lost_event)
+
+    for i in range(1_005):  # 5 logs over the hard limit
+        sentry_sdk.logger.info("This is a 'info' log...")
+
+    assert len(lost_event_calls) == 5
+
+    for lost_event_call in lost_event_calls:
+        reason, data_category, item, quantity = lost_event_call
+
+        assert reason == "queue_overflow"
+        assert data_category == "log_item"
+        assert quantity == 1
+
+        assert item.type == "log"
+        assert item.headers == {
+            "type": "log",
+            "item_count": 1,
+            "content_type": "application/vnd.sentry.items.log+json",
+        }
+        assert item.payload.json == {
+            "version": 2,
+            "items": [
+                {
+                    "body": "This is a 'info' log...",
+                    "level": "info",
+                    "timestamp": mock.ANY,
+                    "trace_id": mock.ANY,
+                    "attributes": {
+                        "sentry.environment": {
+                            "type": "string",
+                            "value": "production",
+                        },
+                        "sentry.release": {
+                            "type": "string",
+                            "value": "1.0.0",
+                        },
+                        "sentry.sdk.name": {
+                            "type": "string",
+                            "value": mock.ANY,
+                        },
+                        "sentry.sdk.version": {
+                            "type": "string",
+                            "value": VERSION,
+                        },
+                        "sentry.severity_number": {
+                            "type": "integer",
+                            "value": 9,
+                        },
+                        "process.runtime.name": {
+                            "type": "string",
+                            "value": mock.ANY,
+                        },
+                        "process.runtime.version": {
+                            "type": "string",
+                            "value": mock.ANY,
+                        },
+                        "sentry.severity_text": {
+                            "type": "string",
+                            "value": "info",
+                        },
+                        "server.address": {
+                            "type": "string",
+                            "value": "test-server",
+                        },
+                    },
+                }
+            ],
+        }
+
+
+@minimum_python_37
+def test_log_gets_attributes_from_scopes(sentry_init, capture_items):
+    sentry_init()
+
+    items = capture_items("log")
+
+    global_scope = sentry_sdk.get_global_scope()
+    global_scope.set_attribute("global.attribute", "value")
+
+    with sentry_sdk.new_scope() as scope:
+        scope.set_attribute("current.attribute", "value")
+        sentry_sdk.logger.warning("Hello, world!")
+
+    sentry_sdk.logger.warning("Hello again!")
+
+    get_client().flush()
+
+    logs = [item.payload for item in items]
+    (log1, log2) = logs
+
+    assert log1["attributes"]["global.attribute"] == "value"
+    assert log1["attributes"]["current.attribute"] == "value"
+
+    assert log2["attributes"]["global.attribute"] == "value"
+    assert "current.attribute" not in log2["attributes"]
+
+
+@minimum_python_37
+def test_log_attributes_override_scope_attributes(sentry_init, capture_items):
+    sentry_init()
+
+    items = capture_items("log")
+
+    with sentry_sdk.new_scope() as scope:
+        scope.set_attribute("durable.attribute", "value1")
+        scope.set_attribute("temp.attribute", "value1")
+        sentry_sdk.logger.warning(
+            "Hello, world!", attributes={"temp.attribute": "value2"}
+        )
+
+    get_client().flush()
+
+    logs = [item.payload for item in items]
+    (log,) = logs
+
+    assert log["attributes"]["durable.attribute"] == "value1"
+    assert log["attributes"]["temp.attribute"] == "value2"
+
+
+@minimum_python_37
+def test_log_array_attributes(sentry_init, capture_envelopes):
+    """Test homogeneous list and tuple attributes, and fallback for inhomogeneous collections."""
+
+    sentry_init()
+
+    envelopes = capture_envelopes()
+
+    with sentry_sdk.new_scope() as scope:
+        scope.set_attribute("string_list", ["value1", "value2"])
+        scope.set_attribute("int_tuple", (3, 2, 1, 4))
+        scope.set_attribute("inhomogeneous_tuple", (3, 2.0, 1, 4))  # type: ignore[arg-type]
+
+        sentry_sdk.logger.warning(
+            "Hello, world!",
+            attributes={
+                "float_list": [3.0, 3.5, 4.2],
+                "bool_tuple": (False, False, True),
+                "inhomogeneous_list": [3.2, True, None],
+            },
+        )
+
+    get_client().flush()
+
+    assert len(envelopes) == 1
+    assert len(envelopes[0].items) == 1
+    item = envelopes[0].items[0]
+    serialized_attributes = item.payload.json["items"][0]["attributes"]
+
+    assert serialized_attributes["string_list"] == {
+        "value": ["value1", "value2"],
+        "type": "array",
+    }
+    assert serialized_attributes["int_tuple"] == {
+        "value": [3, 2, 1, 4],
+        "type": "array",
+    }
+    assert serialized_attributes["inhomogeneous_tuple"] == {
+        "value": "(3, 2.0, 1, 4)",
+        "type": "string",
+    }
+
+    assert serialized_attributes["float_list"] == {
+        "value": [3.0, 3.5, 4.2],
+        "type": "array",
+    }
+    assert serialized_attributes["bool_tuple"] == {
+        "value": [False, False, True],
+        "type": "array",
+    }
+    assert serialized_attributes["inhomogeneous_list"] == {
+        "value": "[3.2, True, None]",
+        "type": "string",
+    }
+
+
+@minimum_python_37
+def test_attributes_preserialized_in_before_send(sentry_init, capture_items):
+    """We don't surface user-held references to objects in attributes."""
+
+    def before_send_log(log, _):
+        assert isinstance(log["attributes"]["instance"], str)
+        assert isinstance(log["attributes"]["dictionary"], str)
+        assert isinstance(log["attributes"]["inhomogeneous_list"], str)
+        assert isinstance(log["attributes"]["inhomogeneous_tuple"], str)
+
+        return log
+
+    sentry_init(before_send_log=before_send_log)
+
+    items = capture_items("log")
+
+    class Cat:
+        pass
+
+    instance = Cat()
+    dictionary = {"color": "tortoiseshell"}
+
+    sentry_sdk.logger.warning(
+        "Hello world!",
+        attributes={
+            "instance": instance,
+            "dictionary": dictionary,
+            "inhomogeneous_list": [3.2, True, None],
+            "inhomogeneous_tuple": (3, 2.0, 1, 4),
+        },
+    )
+
+    get_client().flush()
+
+    logs = [item.payload for item in items]
+    (log,) = logs
+
+    assert isinstance(log["attributes"]["instance"], str)
+    assert isinstance(log["attributes"]["dictionary"], str)
+    assert isinstance(log["attributes"]["inhomogeneous_list"], str)
+    assert isinstance(log["attributes"]["inhomogeneous_tuple"], str)
+
+
+@minimum_python_37
+def test_array_attributes_deep_copied_in_before_send(sentry_init, capture_envelopes):
+    """We don't surface user-held references to objects in attributes."""
+
+    strings = ["value1", "value2"]
+    ints = (3, 2, 1, 4)
+
+    def before_send_log(log, _):
+        assert log["attributes"]["string_list"] is not strings
+        assert log["attributes"]["int_tuple"] is not ints
+
+        return log
+
+    sentry_init(before_send_log=before_send_log)
+
+    sentry_sdk.logger.warning(
+        "Hello world!",
+        attributes={
+            "string_list": strings,
+            "int_tuple": ints,
+        },
+    )
+
+    get_client().flush()
+
+
+@minimum_python_37
+@pytest.mark.timeout(5)
+def test_reentrant_add_does_not_deadlock(sentry_init, capture_envelopes):
+    """Adding to the batcher from within a flush must not deadlock.
+
+    This covers the scenario where GC emits a ResourceWarning during
+    _add_to_envelope (or _flush_event.wait/set), and the warning is
+    routed through the logging integration back into batcher.add().
+    See https://github.com/getsentry/sentry-python/issues/5681
+    """
+    sentry_init()
+    capture_envelopes()
+
+    client = sentry_sdk.get_client()
+    batcher = client.log_batcher
+
+    reentrant_add_called = False
+    original_add_to_envelope = batcher._add_to_envelope
+
+    def add_to_envelope_with_reentrant_add(envelope):
+        nonlocal reentrant_add_called
+        # Simulate a GC warning routing back into add() during flush
+        batcher.add({"fake": "log"})
+        reentrant_add_called = True
+        original_add_to_envelope(envelope)
+
+    batcher._add_to_envelope = add_to_envelope_with_reentrant_add
+
+    sentry_sdk.logger.warning("test log")
+    client.flush()
+
+    assert reentrant_add_called
+    # If the re-entrancy guard didn't work, this test would hang and it'd
+    # eventually be timed out by pytest-timeout
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32"
+    or not hasattr(os, "fork")
+    or not hasattr(os, "register_at_fork"),
+    reason="requires POSIX fork and os.register_at_fork (Python 3.7+)",
+)
+def test_log_batcher_lock_reset_in_child_after_fork(sentry_init):
+    """Regression test for the LogBatcher fork-deadlock fix.
+
+    If os.fork() runs while another thread holds LogBatcher._lock, the
+    child inherits the lock locked. The holding thread does not exist in
+    the child, so the lock can never be released and _ensure_thread
+    deadlocks forever. The after-fork hook must replace the lock with a
+    fresh one in the child and reset
+    _flusher / _flusher_pid / _buffer / _active / _flush_event.
+    """
+    sentry_init()
+    batcher = sentry_sdk.get_client().log_batcher
+    assert batcher is not None
+
+    original_lock = batcher._lock
+    original_lock.acquire()
+
+    batcher._buffer.append(object())
+    batcher._active.flag = True
+    batcher._flush_event.set()
+    batcher._running = False
+
+    pid = os.fork()
+    if pid == 0:
+        replaced = batcher._lock is not original_lock
+        unheld = batcher._lock.acquire(blocking=False)
+
+        flusher_reset = batcher._flusher is None and batcher._flusher_pid is None
+        buffer_reset = len(batcher._buffer) == 0
+        active_reset = not getattr(batcher._active, "flag", False)
+
+        event_reset = not batcher._flush_event.is_set()
+        running_reset = batcher._running is True
+
+        os._exit(
+            0
+            if replaced
+            and unheld
+            and flusher_reset
+            and buffer_reset
+            and active_reset
+            and event_reset
+            and running_reset
+            else 1
+        )
+
+    original_lock.release()
+    _, status = os.waitpid(pid, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+
+
+@pytest.mark.tests_internal_exceptions
+def test_flush_loop_swallows_flush_exception():
+    """The flush loop must not let one failed flush kill the flusher thread.
+
+    Regression test for #7138: an unhandled exception inside _flush_loop
+    terminated the daemon flusher thread. After that logs silently stopped
+    being delivered and eventually got dropped at the queue cap. The loop must
+    swallow the error and keep running.
+
+    Driven synchronously on a bare batcher: _flush raises once and then stops
+    the loop, so _flush_loop returns cleanly on fixed code and propagates the
+    exception on unfixed code.
+    """
+    from sentry_sdk._batcher import Batcher
+
+    calls = []
+
+    class ExplodingBatcher(Batcher):
+        def _flush(self):
+            calls.append(1)
+            self._running = False  # exit the loop after this one iteration
+            raise RuntimeError("boom in flush")
+
+    batcher = ExplodingBatcher(
+        capture_func=lambda envelope: None,
+        record_lost_func=lambda *a, **k: None,
+    )
+    batcher._flush_event.set()  # so the loop's wait() returns at once
+    batcher._flush_loop()
+
+    assert calls == [1]
