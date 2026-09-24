@@ -82,9 +82,14 @@ def long_path(path):
 
 def download(repo, sha, dest, tok):
     """下载某个提交的源码快照。先解到 .part 目录，成功了再换过去，免得失败把旧内容清空。"""
-    marker = os.path.join(dest, ".codex-ready")
+    marker = dest + ".ready"
     if os.path.exists(marker):
         with open(marker, encoding="utf-8") as fh:
+            if fh.read().strip() == f"{repo} {sha}":
+                return dest
+    inner = os.path.join(dest, ".codex-ready")
+    if os.path.exists(inner):
+        with open(inner, encoding="utf-8") as fh:
             if fh.read().strip() == f"{repo} {sha}":
                 return dest
     staging = dest + ".part"
@@ -124,11 +129,12 @@ def download(repo, sha, dest, tok):
             except (OSError, ValueError):
                 skipped += 1
     os.remove(tar_path)
-    with open(os.path.join(staging, ".codex-ready"), "w", encoding="utf-8") as fh:
+    with open(staging + ".ready.tmp", "w", encoding="utf-8") as fh:
         fh.write(f"{repo} {sha}\n")
     if os.path.isdir(dest):
         shutil.rmtree(long_path(dest), ignore_errors=True)
     os.rename(long_path(staging), long_path(dest))
+    os.replace(staging + ".ready.tmp", marker)
     if skipped:
         print(f"   （{repo}: 跳过 {skipped} 个超长路径/特殊文件）")
     return dest
