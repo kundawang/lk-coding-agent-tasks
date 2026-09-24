@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-050",
+  "title": "themegen 图片取色生成主题（从 0 实现）",
+  "created_at": "2026-09-24T16:30:26",
+  "task_type": "0-1 代码生成",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, Canvas, 原生 ES module（无构建、无依赖）",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "无外部依赖",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-050/base",
+    "sha": "3c7d3ca879198e6fca80a03b9b32f2eb42d1da72",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/3c7d3ca879198e6fca80a03b9b32f2eb42d1da72"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-050/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-050/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": ""
+}
