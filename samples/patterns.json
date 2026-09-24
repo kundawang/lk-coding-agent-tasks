@@ -1,0 +1,10 @@
+{
+  "searches": [
+    { "name": "所有 console.log 调用", "find": "console.log($x)" },
+    { "name": "返回值里带乘法", "find": "return $a * $b" }
+  ],
+  "renames": [
+    { "from": "calcTotal", "to": "computeTotal", "scope": "project" },
+    { "from": "tmp", "to": "tempValue", "scope": "file" }
+  ]
+}
