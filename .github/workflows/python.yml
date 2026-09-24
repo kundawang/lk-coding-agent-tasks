@@ -1,0 +1,104 @@
+name: tests
+
+on:
+  push:
+    branches-ignore:
+    - 'wip-*'
+    paths-ignore:
+    - 'docs/**'
+    - 'README.md'
+  pull_request:
+    branches-ignore:
+    - 'wip-*'
+    paths-ignore:
+    - 'docs/**'
+
+env:
+  FORCE_COLOR: '1'
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        python:
+        - "3.10"
+        - "3.11"
+        - "3.12"
+        - "3.13"
+        - "3.14"
+        - "pypy3.11"
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+        cache-dependency-glob: pyproject.toml
+
+    - name: Set up Python ${{ matrix.python }}
+      run: uv python install ${{ matrix.python }}
+
+    - name: Install dependencies
+      run: uv sync --python ${{ matrix.python }} --group clients --group jose
+
+    - name: Test with coverage
+      run: uv run coverage run --source=authlib -m pytest tests
+
+    - name: Report coverage
+      run: |
+        uv run coverage report
+        uv run coverage xml
+
+    - name: Check diff coverage for modified files
+      if: github.event_name == 'pull_request'
+      run: uv run diff-cover coverage.xml --compare-branch=origin/${{ github.base_ref }} --fail-under=100 --format github-annotations:warning
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: ./coverage.xml
+        flags: unittests
+        name: GitHub
+
+    - name: SonarCloud Scan
+      uses: SonarSource/sonarqube-scan-action@v6
+      continue-on-error: true
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: Minimize cache
+      run: uv cache prune --ci
+
+  minversions:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+        cache-dependency-glob: pyproject.toml
+
+    - name: Set up Python 3.10
+      run: uv python install 3.10
+
+    - name: Install lowest direct versions
+      run: uv sync --python 3.10 --resolution lowest-direct --upgrade --group clients --group jose
+
+    - name: Test
+      run: uv run --no-sync pytest tests
+
+    - name: Minimize cache
+      run: uv cache prune --ci
