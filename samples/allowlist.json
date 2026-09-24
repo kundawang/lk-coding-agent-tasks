@@ -1,0 +1,11 @@
+{
+  "tags": {
+    "p": [],
+    "b": [], "strong": [], "i": [], "em": [],
+    "ul": [], "ol": [], "li": [],
+    "a": ["href", "title"],
+    "h1": [], "h2": [], "h3": [],
+    "blockquote": [], "code": [], "pre": []
+  },
+  "urlSchemes": ["http", "https", "mailto"]
+}
