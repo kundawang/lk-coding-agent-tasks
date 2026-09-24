@@ -1,0 +1,17 @@
+{
+  "name": "uuid-example-browser-rollup",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "rm -fr node_modules && npm install --no-package-lock && rm -rf dist && rollup -c",
+    "start": "npm run build && npx http-server . -o"
+  },
+  "dependencies": {
+    "uuid": "file:../../.build/uuid.tgz"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-terser": "0.4.4",
+    "rollup": "^4.19.0"
+  }
+}

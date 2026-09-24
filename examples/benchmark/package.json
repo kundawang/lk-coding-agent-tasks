@@ -1,0 +1,18 @@
+{
+  "name": "uuid-benchmark",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "true",
+    "start": "npm run build && npx http-server . -o",
+    "pretest": "rm -fr node_modules && npm install --no-package-lock",
+    "test": "node node.js"
+  },
+  "dependencies": {
+    "uuid": "file:../../.build/uuid.tgz"
+  },
+  "devDependencies": {
+    "benchmark": "^2.1.4"
+  },
+  "type": "module"
+}
