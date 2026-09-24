@@ -1,0 +1,29 @@
+{
+  "id": "intro",
+  "durationMs": 3000,
+  "fps": 60,
+  "elements": [
+    {
+      "id": "card",
+      "name": "卡片",
+      "tracks": {
+        "x": [
+          { "t": 0, "v": 0, "easing": "linear" },
+          { "t": 800, "v": 320, "easing": "easeOutCubic" },
+          { "t": 3000, "v": 320, "easing": "linear" }
+        ],
+        "opacity": [
+          { "t": 0, "v": 0, "easing": "linear" },
+          { "t": 400, "v": 1, "easing": "easeOutQuad" },
+          { "t": 2600, "v": 1, "easing": "linear" },
+          { "t": 3000, "v": 0, "easing": "easeInQuad" }
+        ],
+        "scale": [
+          { "t": 0, "v": 0.8, "easing": "easeOutQuad" },
+          { "t": 600, "v": 1, "easing": "easeInOutQuad" },
+          { "t": 3000, "v": 1.1, "easing": "linear" }
+        ]
+      }
+    }
+  ]
+}
