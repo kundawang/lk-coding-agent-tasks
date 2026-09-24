@@ -1,0 +1,23 @@
+{
+  "cases": [
+    { "name": "字面量", "pattern": "abc", "input": "xxabcxx", "expect": true },
+    { "name": "点号", "pattern": "a.c", "input": "abc", "expect": true },
+    { "name": "星号", "pattern": "ab*c", "input": "ac", "expect": true },
+    { "name": "加号", "pattern": "ab+c", "input": "ac", "expect": false },
+    { "name": "问号", "pattern": "ab?c", "input": "abc", "expect": true },
+    { "name": "计数重复", "pattern": "a{2,3}b", "input": "aaab", "expect": true },
+    { "name": "计数重复下界", "pattern": "a{2,3}b", "input": "ab", "expect": false },
+    { "name": "字符类区间", "pattern": "[a-c]x", "input": "bx", "expect": true },
+    { "name": "字符类取反", "pattern": "[^0-9]z", "input": "az", "expect": true },
+    { "name": "分组与选择", "pattern": "(ab|a)+b", "input": "aab", "expect": true },
+    { "name": "锚点首", "pattern": "^ab", "input": "abc", "expect": true },
+    { "name": "锚点尾", "pattern": "bc$", "input": "abc", "expect": true },
+    { "name": "锚点失败", "pattern": "^bc", "input": "abc", "expect": false },
+    { "name": "转义类", "pattern": "\\d{3}", "input": "id=123", "expect": true },
+    { "name": "转义点", "pattern": "a\\.c", "input": "a.c", "expect": true },
+    { "name": "转义点不匹配", "pattern": "a\\.c", "input": "abc", "expect": false },
+    { "name": "嵌套分组", "pattern": "((a|b)c)+", "input": "acbc", "expect": true },
+    { "name": "灾难性回溯", "pattern": "(a+)+c", "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab", "expect": false },
+    { "name": "空重复", "pattern": "(a*)*b", "input": "aaab", "expect": true }
+  ]
+}
