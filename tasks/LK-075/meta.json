@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-075",
+  "title": "urllib3 pyOpenSSL 加载未加密私钥时对密码抛 TypeError（真实开源 bug）",
+  "created_at": "2026-09-24T18:49:26",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, urllib3",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-075/base",
+    "sha": "7c341a91d8c6bebefb5d9eea6544a3b2b6cdcc59",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/7c341a91d8c6bebefb5d9eea6544a3b2b6cdcc59"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-075/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-075/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
