@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-146",
+  "title": "moshi 多态适配器缺标签 key 时不走 fallback（真实开源 bug）",
+  "created_at": "2026-09-25T00:16:41",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Kotlin, moshi",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-146/base",
+    "sha": "24ff2991091ecea96c6498c0800c374f04da4d6d",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/24ff2991091ecea96c6498c0800c374f04da4d6d"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-146/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-146/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
