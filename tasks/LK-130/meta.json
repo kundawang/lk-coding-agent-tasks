@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-130",
+  "title": "dayjs timezone 插件对非法值抛 RangeError（真实开源 bug）",
+  "created_at": "2026-09-24T23:32:58",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, dayjs",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-130/base",
+    "sha": "d7229181dc18cf73d4cee0bc0717dc3ad143e082",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/d7229181dc18cf73d4cee0bc0717dc3ad143e082"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-130/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-130/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
