@@ -1,0 +1,21 @@
+# Licensed under the Apache License: http://www.apache.org/licenses/LICENSE-2.0
+# For details: https://github.com/coveragepy/coveragepy/blob/main/NOTICE.txt
+
+# PyPI requirements input for building documentation for coverage.py
+# "make upgrade" turns this into doc/requirements.txt
+
+-c ../requirements/pins.txt
+
+cogapp
+doc8
+pyenchant
+scriv
+sphinx
+sphinx-autobuild
+sphinx-code-tabs
+sphinx-linklint
+sphinx-lint
+sphinx_rtd_theme
+sphinxcontrib-restbuilder
+sphinxcontrib-spelling
+sphinxext-rediraffe

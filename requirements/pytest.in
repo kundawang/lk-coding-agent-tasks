@@ -1,0 +1,21 @@
+# Licensed under the Apache License: http://www.apache.org/licenses/LICENSE-2.0
+# For details: https://github.com/coveragepy/coveragepy/blob/main/NOTICE.txt
+
+-c pins.txt
+
+# The pytest specifics used by coverage.py
+# "make upgrade" turns this into requirements/pytest.txt.
+
+diff-cover
+flaky
+# Hypothesis seems to only support PyPy if it's 3.11
+hypothesis; platform_python_implementation == "CPython" or python_version == "3.11"
+pygments    # so that pytest will syntax-color.
+pytest
+pytest-xdist
+
+# Pytest has a windows-only dependency on colorama:
+# https://github.com/pytest-dev/pytest/blob/main/setup.cfg#L49
+#   colorama;sys_platform=="win32"
+# We copy it here so it can get pinned.
+colorama
