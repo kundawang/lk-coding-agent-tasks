@@ -27,6 +27,7 @@ Tests of the various APIs with the Python Markdown library.
 import unittest
 import sys
 import os
+import time
 import markdown
 import warnings
 from markdown.__main__ import parse_options
@@ -1011,3 +1012,45 @@ Some +test+ and a [+link+](http://test.com)
 
         self.md.reset()
         self.assertEqual(self.md.convert(test), result)
+
+
+class TestInlinePerformance(unittest.TestCase):
+    """ Pathological input must not trigger quadratic inline processing. """
+
+    # Budget (seconds) for converting tens of thousands of pathological
+    # characters.
+    # Quadratic implementations need tens of seconds here, while linear
+    # ones take a small fraction of a second even on slow machines.
+    TIME_LIMIT = 10
+
+    def assertConvertsQuickly(self, text, expected):
+        """ Assert that `text` converts to `expected` HTML in linear time. """
+        start = time.time()
+        html = markdown.markdown(text)
+        elapsed = time.time() - start
+        self.assertEqual(html, expected)
+        self.assertLess(
+            elapsed, self.TIME_LIMIT,
+            f'Converting {len(text)} chars took {elapsed:.2f}s; '
+            'inline processing should scale linearly'
+        )
+
+    def testLongRunOfOpenBrackets(self):
+        """ A long run of `[` renders literally and in linear time. """
+        text = '[' * 20000
+        self.assertConvertsQuickly(text, f'<p>{text}</p>')
+
+    def testLongRunOfImageOpeners(self):
+        """ A long run of `![` renders literally and in linear time. """
+        text = '![' * 15000
+        self.assertConvertsQuickly(text, f'<p>{text}</p>')
+
+    def testLongRunOfUnclosedLinks(self):
+        """ A long run of `[a](` renders literally and in linear time. """
+        text = '[a](' * 25000
+        self.assertConvertsQuickly(text, f'<p>{text}</p>')
+
+    def testLongRunOfEmptyUnclosedLinks(self):
+        """ A long run of `[](` renders literally and in linear time. """
+        text = '[](' * 25000
+        self.assertConvertsQuickly(text, f'<p>{text}</p>')

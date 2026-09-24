@@ -781,11 +781,26 @@ class LinkInlineProcessor(InlineProcessor):
             index = m.end(0)
             handled = True
         elif m:
+            start_index = m.end()
+            index = start_index
+
+            # Fast path: with no quote characters in the scanned region the
+            # loop below reduces to plain parenthesis matching, which is
+            # answered in constant time from cached tables. This keeps
+            # pathological input (e.g. `[a](` repeated thousands of times)
+            # linear instead of quadratic.
+            close = self._closers(data, '()')[start_index]
+            quote_at = self._next_quote(data)[start_index]
+            if close is None:
+                if quote_at is None:
+                    return '', None, len(data), False
+            elif quote_at is None or quote_at >= close:
+                href = self.unescape(data[start_index:close - 1]).strip()
+                return href, None, close, True
+
             # Track bracket nesting and index in string
             bracket_count = 1
             backtrack_count = 1
-            start_index = m.end()
-            index = start_index
             last_bracket = -1
 
             # Primary (first found) quote tracking.
@@ -886,19 +901,66 @@ class LinkInlineProcessor(InlineProcessor):
         resolving nested square brackets.
 
         """
-        bracket_count = 1
-        text = []
-        for pos in range(index, len(data)):
-            c = data[pos]
-            if c == ']':
-                bracket_count -= 1
-            elif c == '[':
-                bracket_count += 1
-            index += 1
-            if bracket_count == 0:
-                break
-            text.append(c)
-        return ''.join(text), index, bracket_count == 0
+        closers = self._closers(data, '[]')
+        end = closers[index]
+        if end is None:
+            return data[index:], len(data), False
+        return data[index:end - 1], end, True
+
+    def _closers(self, data: str, brackets: str) -> list[int | None]:
+        """Return a table mapping each index in `data` to the position just
+        past the bracket which would close one opened just before that
+        index, or `None` if no such closing bracket exists. `brackets`
+        holds the opening and closing characters (e.g. `'[]'`).
+
+        The table is built in linear time and cached per source string, so
+        repeated lookups while scanning the same text (e.g. a long run of
+        `[` or `(`) stay linear overall instead of quadratic.
+
+        """
+        cache = getattr(self, '_closers_cache', None)
+        if cache is None:
+            cache = self._closers_cache = {}
+        cached = cache.get(brackets)
+        if cached is not None and cached[0] is data:
+            return cached[1]
+        opener, closer = brackets
+        # `prefix[i]` is the bracket balance (openers minus closers) of
+        # `data[:i]`.
+        prefix = [0] * (len(data) + 1)
+        balance = 0
+        for i, c in enumerate(data):
+            if c == opener:
+                balance += 1
+            elif c == closer:
+                balance -= 1
+            prefix[i + 1] = balance
+        # A bracket opened before `index` is closed at the first position
+        # after `index` where the balance drops to `prefix[index] - 1`.
+        # Scanning right to left, `seen` maps each balance to the nearest
+        # position to the right where it occurs.
+        closers: list[int | None] = [None] * (len(data) + 1)
+        seen: dict[int, int] = {}
+        for i in range(len(data), -1, -1):
+            closers[i] = seen.get(prefix[i] - 1)
+            seen[prefix[i]] = i
+        cache[brackets] = (data, closers)
+        return closers
+
+    def _next_quote(self, data: str) -> list[int | None]:
+        """Return a table mapping each index in `data` to the position of
+        the nearest quote character (`'` or `"`) at or after that index,
+        or `None` if there is none. Cached per source string.
+
+        """
+        cache = getattr(self, '_quote_cache', None)
+        if cache is not None and cache[0] is data:
+            return cache[1]
+        nearest: list[int | None] = [None] * (len(data) + 1)
+        for i in range(len(data) - 1, -1, -1):
+            nearest[i] = i if data[i] in ('"', "'") else nearest[i + 1]
+        self._quote_cache = (data, nearest)
+        return nearest
 
 
 class ImageInlineProcessor(LinkInlineProcessor):
