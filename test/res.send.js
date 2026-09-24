@@ -615,6 +615,88 @@ describe('res', function(){
           .expect(utils.shouldHaveHeader('Transfer-Encoding'))
           .expect(200, '', done);
       })
+
+      it('should still generate ETag without Content-Length for a string body when Transfer-Encoding header is equal to ' + encoding, function(done){
+        var app = express();
+
+        app.use(function(_, res){
+          res.status(200).set('Transfer-Encoding', encoding).send('hello, world!');
+        });
+
+        request(app)
+          .get('/')
+          .expect(utils.shouldNotHaveHeader('Content-Length'))
+          .expect(utils.shouldHaveHeader('Transfer-Encoding'))
+          .expect('ETag', 'W/"d-HwnTDHB9U/PRbFMN1z1wps51lqk"')
+          .expect(200, 'hello, world!', done);
+      })
+
+      it('should still generate ETag without Content-Length for a Buffer body when Transfer-Encoding header is equal to ' + encoding, function(done){
+        var app = express();
+
+        app.use(function(_, res){
+          res.status(200).set('Transfer-Encoding', encoding).send(Buffer.from('hey'));
+        });
+
+        request(app)
+          .get('/')
+          .expect(utils.shouldNotHaveHeader('Content-Length'))
+          .expect(utils.shouldHaveHeader('Transfer-Encoding'))
+          .expect('ETag', 'W/"3-f1UKn0xEFzo3Zk2TjxNV8PkqR6c"')
+          .expect(utils.shouldHaveBody(Buffer.from('hey')))
+          .expect(200, done);
+      })
     });
+
+    it('should generate the same ETag as a response without Transfer-Encoding', function(done){
+      var app = express();
+
+      app.use(function(req, res){
+        if (req.path === '/chunked') {
+          res.set('Transfer-Encoding', 'chunked').send('hello, world!');
+        } else {
+          res.send('hello, world!');
+        }
+      });
+
+      var server = request(app);
+
+      server
+        .get('/')
+        .expect(function(res) {
+          var etag = res.headers.etag;
+
+          return server
+            .get('/chunked')
+            .expect(utils.shouldNotHaveHeader('Content-Length'))
+            .expect('ETag', etag)
+            .expect(200, 'hello, world!');
+        })
+        .expect(200, done);
+    })
+
+    it('should generate an ETag enabling 304 responses for a chunked response', function(done){
+      var app = express();
+
+      app.use(function(req, res){
+        res.set('Transfer-Encoding', 'chunked').send('hello, world!');
+      });
+
+      var server = request(app);
+
+      server
+        .get('/')
+        .expect(200, function(err, res) {
+          if (err) return done(err);
+
+          server
+            .get('/')
+            .set('If-None-Match', res.headers.etag)
+            .expect(function(res) {
+              res.res.resume();
+            })
+            .expect(304, done);
+        });
+    })
   })
 })

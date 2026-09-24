@@ -2,7 +2,8 @@
 
 var express = require('../')
   , request = require('supertest')
-  , assert = require('node:assert');
+  , assert = require('node:assert')
+  , utils = require('./support/utils');
 
 describe('res', function(){
   describe('.json(object)', function(){
@@ -180,6 +181,24 @@ describe('res', function(){
         .get('/')
         .expect('Content-Type', 'application/json; charset=utf-8')
         .expect(200, '{\n  "name": "tobi",\n  "age": 2\n}', done)
+      })
+    })
+
+    describe('when Transfer-Encoding header is present', function(){
+      it('should generate an ETag without a Content-Length header', function(done){
+        var app = express();
+
+        app.use(function(req, res){
+          res.set('Transfer-Encoding', 'chunked').json({ foo: 'bar' });
+        });
+
+        request(app)
+        .get('/')
+        .expect('Content-Type', 'application/json; charset=utf-8')
+        .expect(utils.shouldNotHaveHeader('Content-Length'))
+        .expect(utils.shouldHaveHeader('Transfer-Encoding'))
+        .expect(utils.shouldHaveHeader('ETag'))
+        .expect(200, '{"foo":"bar"}', done)
       })
     })
   })
