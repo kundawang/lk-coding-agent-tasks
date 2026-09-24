@@ -1,0 +1,19 @@
+{
+  "id": "n-1",
+  "name": "项目根目录",
+  "type": "folder",
+  "children": [
+    { "id": "n-2", "name": "src", "type": "folder", "children": [
+      { "id": "n-3", "name": "main.js", "type": "file", "children": [] },
+      { "id": "n-4", "name": "util.js", "type": "file", "children": [] },
+      { "id": "n-5", "name": "components", "type": "folder", "children": [
+        { "id": "n-6", "name": "button.js", "type": "file", "children": [] },
+        { "id": "n-7", "name": "modal.js", "type": "file", "children": [] }
+      ]}
+    ]},
+    { "id": "n-8", "name": "docs", "type": "folder", "children": [
+      { "id": "n-9", "name": "readme.md", "type": "file", "children": [] }
+    ]},
+    { "id": "n-10", "name": "package.json", "type": "file", "children": [] }
+  ]
+}
