@@ -1,0 +1,18 @@
+"""Stubs for urllib3"""
+
+from urllib3.connection import HTTPConnection, VerifiedHTTPSConnection
+
+from ..stubs import VCRHTTPConnection, VCRHTTPSConnection
+
+# urllib3 defines its own HTTPConnection classes. It includes some polyfills
+# for newer features missing in older pythons.
+
+
+class VCRRequestsHTTPConnection(VCRHTTPConnection, HTTPConnection):
+    _baseclass = HTTPConnection
+    is_multiplexed = False
+
+
+class VCRRequestsHTTPSConnection(VCRHTTPSConnection, VerifiedHTTPSConnection):
+    _baseclass = VerifiedHTTPSConnection
+    is_multiplexed = False
