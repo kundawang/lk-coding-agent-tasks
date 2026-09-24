@@ -1,0 +1,7 @@
+{
+  "notes": [
+    { "id": "n-001", "title": "开会记录", "body": "1. 周三对需求\n2. 接口先定字段名", "updatedAt": 1789700005000, "rev": 3, "deleted": false },
+    { "id": "n-002", "title": "待办", "body": "- 补单元测试\n- 看一下缓存命中率", "updatedAt": 1789700010000, "rev": 1, "deleted": false },
+    { "id": "n-003", "title": "已经不要了", "body": "这条应该被当成已删除处理", "updatedAt": 1789700020000, "rev": 2, "deleted": true }
+  ]
+}
