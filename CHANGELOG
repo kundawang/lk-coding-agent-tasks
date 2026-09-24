@@ -1,0 +1,161 @@
+Freezegun Changelog
+===================
+
+1.5.3
+-----
+ * Fix compatibility with pytest 8.4.0 when using fixtures
+ * Add (back) class-decorator overload to guarantee Pytype understands it
+
+1.5.2
+-----
+ * Remove support for Python 3.7
+ * Explicitly marks support for Python 3.13
+ * Improved project documentation
+
+1.5.1
+-----
+ * Fix the typing of the `tick()` method, and improve it's behaviour.
+
+1.5.0
+----
+ * The default ignore list now contains the `queue`-package
+ * Added a missing `move_to`-function when calling `freeze_time(tick=True)`
+ * Fixes a rounding error in `time.time_ns()`
+ * Fixed a bug where the default ignore list could not be empty (`configure(default_ignore_list=[])`)
+ * All `tick()` methods now return the new datetime (instead of None)
+ * Type improvements
+
+1.4.0
+-----
+ * `asyncio`-support from 1.3.x introduced quite a few  bugs, so that functionality is now hidden behind a flag:
+   `with freeze_time('1970-01-02', real_asyncio=True):`
+ * Added documentation for the `real_asyncio` parameter in the `README.rst` file.
+
+1.3.1
+-----
+ * Fixed the release number in the build
+
+1.3.0
+-----
+
+* Fixed `asyncio` support to avoid `await asyncio.sleep(1)` hanging forever.
+
+* Added support for Python 3.12
+
+
+1.2.2
+-----
+
+* Removes Python 3.6 support, which reached its EOL on 2021-12-23 (https://devguide.python.org/versions/?highlight=End-of-life#unsupported-versions).
+
+* Improved static typing definitions
+
+* Don't freeze pytest timings. This avoids class-level decorator usage messing with pytest timings.
+
+* Pass through all setUp and tearDown arguments
+
+
+1.2.1
+-----
+
+* Added missing typeshed types from distribution
+
+* Pass all arguments on recursive freeze_time calls
+
+
+1.2.0
+-----
+
+* Add support for `time.perf_counter` (and `…_ns`)
+
+* Added typeshed types
+
+* Dropped support for python 3.5
+
+1.1.0
+-----
+
+* Add support for `time.monotonic` (and `…_ns`)
+
+* Allow to configure default ignore list, and also to just extend the default
+
+* Fixed when accessing from thread after stop()
+
+
+1.0.0
+------
+
+* Dropped Py2 support
+* Added as_kwarg argument in order to have the frozen time object passed with the name provided in as_kwarg argument
+
+0.3.15
+------
+
+* Fix locale timestamp bug. CC #328
+
+0.3.14
+------
+
+* Fix calendar.timegm behavior
+
+0.3.13
+------
+
+* Fix for Py3.8
+* Reset time.time_ns on stop
+
+0.3.12
+------
+
+* Refactor classes to functions
+* Ignore Selenium
+* Move to pytest
+* Conditionally patch time.clock
+* Patch time.time_ns added in Python 3.7
+
+0.3.11
+------
+
+* Performance improvements
+* Fix nesting time.time
+* Add nanosecond property
+
+0.3.10
+------
+
+* Performance improvements
+* Coroutine support
+
+0.3.9
+-----
+
+* If no time to be frozen, use current time
+* Fix uuid1 issues
+* Add support for python 3.6
+
+0.3.8
+-----
+
+* Bugfix for old-style classes
+* Ignore warnings when patching
+* Add `move_to` method to change time
+
+0.3.7
+-----
+
+* Fix CPython detection
+
+0.3.6
+-----
+
+* Catch TypeError when fetching attribute values
+* Speed improvements
+* Add manual tick increment
+
+
+0.3.5
+-----
+
+* Add `tick` argument to allow time to move forward
+* Performance improvements
+* Fix timezone example in README
