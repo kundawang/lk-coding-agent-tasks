@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>querybench · JSONL SQL 查询面板</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>querybench</h1>
+    <div class="data-bar">
+      <span id="data-status">正在加载数据…</span>
+      <label class="file-btn">
+        换数据（.jsonl）
+        <input type="file" id="file-input" accept=".jsonl,.json,.txt">
+      </label>
+    </div>
+  </header>
+
+  <main>
+    <section class="editor-pane">
+      <div class="pane-title">
+        <span>SQL</span>
+        <span class="pane-actions">
+          <select id="example-select"><option value="">示例查询…</option></select>
+          <button id="run-btn" title="Ctrl+Enter">运行 ▶</button>
+        </span>
+      </div>
+      <textarea id="sql-input" spellcheck="false" placeholder="SELECT * FROM orders LIMIT 10;"></textarea>
+      <div id="error-box" class="hidden">
+        <div id="error-msg"></div>
+        <pre id="error-loc"></pre>
+      </div>
+    </section>
+
+    <section class="explain-pane">
+      <div class="pane-title"><span>解释 · 解析结果</span></div>
+      <div id="explain-box" class="explain-box">运行一条查询后，这里会显示解析出来的结构。</div>
+    </section>
+
+    <section class="result-pane">
+      <div class="pane-title">
+        <span>结果</span>
+        <span id="result-meta"></span>
+      </div>
+      <div id="result-box" class="result-box"></div>
+    </section>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
