@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-068",
+  "title": "virtualenv 的 batch 激活脚本对 ^ 和 ! 路径生成坏的脚本（真实开源 bug）",
+  "created_at": "2026-09-24T18:48:59",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, virtualenv",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-068/base",
+    "sha": "5f29bcdbf917af4253bd6976838ffe89c1898fc3",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/5f29bcdbf917af4253bd6976838ffe89c1898fc3"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-068/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-068/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
