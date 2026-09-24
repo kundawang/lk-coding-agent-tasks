@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-046",
+  "title": "html2md HTML 转 Markdown（从 0 实现）",
+  "created_at": "2026-09-24T16:30:19",
+  "task_type": "0-1 代码生成",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, 原生 ES module（无构建、无依赖）",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "无外部依赖",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-046/base",
+    "sha": "c36ae610ba6ef37ac2069c2d32f36f774ee9962f",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/c36ae610ba6ef37ac2069c2d32f36f774ee9962f"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-046/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-046/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": ""
+}
