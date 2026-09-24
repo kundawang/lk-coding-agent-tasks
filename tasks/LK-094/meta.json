@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-094",
+  "title": "mistune 传自定义 renderer 时 escape 开关失效（真实开源 bug）",
+  "created_at": "2026-09-24T19:17:22",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, mistune",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-094/base",
+    "sha": "6d64f1a8ea3442acb4dde5f9728b234338802d16",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/6d64f1a8ea3442acb4dde5f9728b234338802d16"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-094/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-094/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
