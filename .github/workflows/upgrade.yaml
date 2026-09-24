@@ -1,0 +1,79 @@
+name: Upgrade embedded dependencies
+on:
+  schedule:
+    - cron: "0 10 * * *" # daily at 10:00 UTC
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  upgrade:
+    name: Upgrade embedded pip/setuptools/wheel
+    if: github.repository_owner == 'pypa'
+    runs-on: ubuntu-24.04
+    environment: upgrade
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - name: Install tox
+        run: uv tool install --python-preference only-managed --python 3.14 "tox>=4.32" --with tox-uv
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.DEPLOY_KEY }} # zizmor: ignore[artipacked]
+      - name: Fetch upstream tags for versioning
+        run: git fetch --force --tags https://github.com/pypa/virtualenv.git
+      - name: Run upgrade
+        id: upgrade
+        env:
+          UPGRADE_ADVISORY: "1"
+        run: |
+          tox run -e upgrade
+          if [ -n "$(git diff --name-only)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "### Embedded dependency changes" >> "$GITHUB_STEP_SUMMARY"
+            git diff --stat >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "### All embedded dependencies are up to date" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Check PyPI release age
+        if: steps.upgrade.outputs.changed == 'true'
+        id: age-check
+        run: |
+          python tasks/check_wheel_age.py >> "$GITHUB_OUTPUT"
+      - name: Create Pull Request
+        if: steps.upgrade.outputs.changed == 'true' && steps.age-check.outputs.skip != 'true'
+        id: cpr
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8
+        with:
+          commit-message: "Upgrade embedded dependencies"
+          branch: auto/upgrade-embedded-deps
+          delete-branch: true
+          title: "Upgrade embedded pip/setuptools/wheel"
+          body: |
+            Automated upgrade of embedded pip, setuptools, and wheel dependencies.
+
+            This PR was created automatically by the [upgrade workflow](https://github.com/${{ github.repository }}/actions/workflows/upgrade.yaml).
+          labels: |
+            dependencies
+      - name: Rename changelog with PR number
+        if: steps.cpr.outputs.pull-request-number
+        run: |
+          pr_number="${STEPS_CPR_OUTPUTS_PULL_REQUEST_NUMBER}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin auto/upgrade-embedded-deps
+          git checkout -B auto/upgrade-embedded-deps FETCH_HEAD
+          if [ ! -f docs/changelog/u.bugfix.rst ]; then
+            exit 0
+          fi
+          mv docs/changelog/u.bugfix.rst "docs/changelog/${pr_number}.bugfix.rst"
+          git add docs/changelog/
+          git commit -m "Rename changelog to ${pr_number}.bugfix.rst"
+          git push origin HEAD:auto/upgrade-embedded-deps
+        env:
+          STEPS_CPR_OUTPUTS_PULL_REQUEST_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}

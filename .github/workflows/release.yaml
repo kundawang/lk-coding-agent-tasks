@@ -1,0 +1,127 @@
+name: Release
+on:
+  push:
+    tags: ["*.*.*"]
+env:
+  dists-artifact-name: python-package-distributions
+permissions: {}
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          enable-cache: false
+          cache-dependency-glob: "pyproject.toml"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Python
+        run: uv python install 3.14
+      - name: Pin build timestamps to the release commit for reproducible artifacts
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --pretty=%ct)" >> "$GITHUB_ENV"
+      - name: Build sdist and wheel
+        run: uv build --python 3.14 --python-preference only-managed --sdist --wheel . --out-dir dist
+      - name: Extract the SBOM the wheel build embedded
+        run: python -m zipfile -e dist/*.whl sbom-extract/ && cp sbom-extract/*.dist-info/sboms/virtualenv.cdx.json .
+      - name: Attest the SBOM against the sdist and wheel
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*
+          sbom-path: virtualenv.cdx.json
+      - name: Build zipapp
+        run: uv tool run --with tox-uv tox r -e zipapp
+      - name: Attest provenance for the zipapp
+        id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: virtualenv.pyz
+      - name: Rename provenance bundle to the release asset name
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE_PATH" virtualenv.pyz.intoto.jsonl
+      - name: Store the distribution packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ env.dists-artifact-name }}
+          path: dist/*
+      - name: Store the SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: virtualenv-sbom
+          path: virtualenv.cdx.json
+      - name: Store the zipapp
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: virtualenv-zipapp
+          path: |
+            virtualenv.pyz
+            virtualenv.pyz.intoto.jsonl
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: release
+      url: https://pypi.org/project/virtualenv/${{ github.ref_name }}
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Download all the dists
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ env.dists-artifact-name }}
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          attestations: true
+      - name: Download the zipapp
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: virtualenv-zipapp
+      - name: Create GitHub Release
+        run: gh release create "$GITHUB_REF_NAME" virtualenv.pyz virtualenv.pyz.intoto.jsonl --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Update get-virtualenv
+        env:
+          GH_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+        run: |
+          git clone https://x-access-token:${GH_TOKEN}@github.com/pypa/get-virtualenv.git
+          cp virtualenv.pyz get-virtualenv/public/virtualenv.pyz
+          echo -n "${GITHUB_REF_NAME}" > get-virtualenv/public/version.txt
+          cd get-virtualenv
+          user_info=$(gh api /user)
+          git config user.name "$(echo "$user_info" | jq -r '.name // .login')"
+          git config user.email "$(echo "$user_info" | jq -r '.id')+$(echo "$user_info" | jq -r '.login')@users.noreply.github.com"
+          git add public/virtualenv.pyz public/version.txt
+          git commit -m "update virtualenv to ${GITHUB_REF_NAME}"
+          git push origin main
+  recovery:
+    if: ${{ always() && needs.build.result == 'success' && needs.publish.result == 'failure' }}
+    needs:
+      - build
+      - publish
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Report partial publication
+        run: |
+          echo "::error::Publication failed. Inspect PyPI, the GitHub release, and get-virtualenv before retrying."
+          echo "Publication may have succeeded on some destinations. Keep the release tag and commit." >> "$GITHUB_STEP_SUMMARY"
+          echo "Follow the partial-publication recovery instructions in docs/development.rst." >> "$GITHUB_STEP_SUMMARY"
