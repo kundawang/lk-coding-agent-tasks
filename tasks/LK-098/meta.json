@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-098",
+  "title": "bandit B106 在多行调用里报错行号（真实开源 bug）",
+  "created_at": "2026-09-24T22:39:06",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, bandit",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-098/base",
+    "sha": "db21e3282111e5022593b90a1eb4add296f78891",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/db21e3282111e5022593b90a1eb4add296f78891"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-098/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-098/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
