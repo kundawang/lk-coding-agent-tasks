@@ -1,0 +1,10 @@
+{
+  "queries": [
+    { "q": "部署", "expect": ["deploy.md", "release.md"] },
+    { "q": "缓存 失效", "expect": ["cache.md"] },
+    { "q": "\"缓存穿透\"", "expect": ["cache.md"] },
+    { "q": "超时*", "expect": ["timeout.md"] },
+    { "q": "部署 -回滚", "expect": ["deploy.md"] },
+    { "q": "", "expect": [] }
+  ]
+}
