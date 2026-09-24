@@ -54,6 +54,25 @@ def test_missing_record(wheel_path: Path) -> None:
     exc.match("^Missing test-1.0.dist-info/RECORD file$")
 
 
+def test_dist_info_case_mismatch(tmp_path: Path) -> None:
+    # The casing of the .dist-info directory inside the archive is allowed
+    # (per PEP 427) to differ from the name/version part of the wheel
+    # filename. The actual name used in the archive should be used instead of
+    # the one derived from the filename.
+    wheel_path = tmp_path / "Django-3.2.5-py3-none-any.whl"
+    with ZipFile(wheel_path, "w") as zf:
+        zf.writestr("django/__init__.py", "VERSION = (3, 2, 5)\n")
+        zf.writestr(
+            "django-3.2.5.dist-info/RECORD",
+            "django/__init__.py,sha256=h9NoXWKJDLTVVbygr6tXdWMrv8UMvHxojPIjzxEkGJc,20",
+        )
+
+    with WheelFile(wheel_path) as wf:
+        assert wf.dist_info_path == "django-3.2.5.dist-info"
+        assert wf.record_path == "django-3.2.5.dist-info/RECORD"
+        assert wf.read("django/__init__.py") == b"VERSION = (3, 2, 5)\n"
+
+
 def test_unsupported_hash_algorithm(wheel_path: Path) -> None:
     with ZipFile(wheel_path, "w") as zf:
         zf.writestr("hello/héllö.py", 'print("Héllö, w0rld!")\n')

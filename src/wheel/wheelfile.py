@@ -82,6 +82,19 @@ class WheelFile(ZipFile):
         self._file_hashes: dict[str, tuple[None, None] | tuple[int, bytes]] = {}
         self._file_sizes = {}
         if mode == "r":
+            # The name of the .dist-info directory inside the archive may use
+            # different casing than the one derived from the wheel filename
+            # (which is permitted by PEP 427), so find it from the actual
+            # member names instead.
+            expected_record_path = self.record_path.lower()
+            for info in self.infolist():
+                if info.filename.lower() == expected_record_path:
+                    self.record_path = info.filename
+                    self.dist_info_path = info.filename.removesuffix("RECORD").rstrip(
+                        "/"
+                    )
+                    break
+
             # Ignore RECORD and any embedded wheel signatures
             self._file_hashes[self.record_path] = None, None
             self._file_hashes[self.record_path + ".jws"] = None, None

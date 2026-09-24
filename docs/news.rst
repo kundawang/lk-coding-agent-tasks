@@ -5,6 +5,10 @@ Release Notes
 
 - Added the ``wheel info`` subcommand to display metadata about wheel files without
   unpacking them (`#639 <https://github.com/pypa/wheel/issues/639>`_)
+- Fixed ``wheel unpack`` (and the ``info``/``tags`` commands) failing on wheels where
+  the casing of the internal ``.dist-info`` directory differs from the name in the
+  wheel filename (e.g. ``Django-3.2.5-...whl`` containing
+  ``django-3.2.5.dist-info``)
 
 **0.46.3 (2026-01-22)**
 

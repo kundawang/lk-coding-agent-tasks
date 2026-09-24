@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import base64
+import hashlib
 import platform
 import stat
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 from pytest import TempPathFactory
@@ -10,6 +13,40 @@ from pytest import TempPathFactory
 from wheel.wheelfile import WheelFile
 
 from .util import run_command
+
+
+def _sha256_record(data: bytes) -> str:
+    digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=")
+    return f"sha256={digest.decode('ascii')},{len(data)}"
+
+
+def test_unpack_dist_info_case_mismatch(tmp_path_factory: TempPathFactory) -> None:
+    # The wheel filename starts with an uppercase name (Django-...) while the
+    # .dist-info directory inside the archive is all lowercase. Both casings
+    # are valid per PEP 427, so unpacking should still work.
+    wheel_path = tmp_path_factory.mktemp("build") / "Django-3.2.5-py3-none-any.whl"
+    init_source = b"VERSION = (3, 2, 5)\n"
+    metadata = b"Metadata-Version: 2.4\nName: Django\nVersion: 3.2.5\n"
+    with ZipFile(wheel_path, "w") as zf:
+        zf.writestr("django/__init__.py", init_source)
+        zf.writestr("django-3.2.5.dist-info/METADATA", metadata)
+        zf.writestr(
+            "django-3.2.5.dist-info/RECORD",
+            f"django/__init__.py,{_sha256_record(init_source)}\n"
+            f"django-3.2.5.dist-info/METADATA,{_sha256_record(metadata)}\n"
+            "django-3.2.5.dist-info/RECORD,,\n",
+        )
+
+    extract_root = tmp_path_factory.mktemp("extract")
+    output = run_command("unpack", "--dest", extract_root, wheel_path)
+    assert output == f"Unpacking to: {extract_root / 'Django-3.2.5'}...OK\n"
+
+    extract_path = extract_root / "Django-3.2.5"
+    assert (
+        extract_path.joinpath("django-3.2.5.dist-info", "METADATA").read_bytes()
+        == metadata
+    )
+    assert extract_path.joinpath("django", "__init__.py").read_bytes() == init_source
 
 
 def test_unpack(tmp_path_factory: TempPathFactory) -> None:
