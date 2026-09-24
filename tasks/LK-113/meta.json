@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-113",
+  "title": "marshmallow 的 URL 校验器不认空路径后跟 fragment（真实开源 bug）",
+  "created_at": "2026-09-24T23:18:08",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, marshmallow",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-113/base",
+    "sha": "8bd7409c32c86e5450c65912a484280637d910b1",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/8bd7409c32c86e5450c65912a484280637d910b1"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-113/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-113/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
