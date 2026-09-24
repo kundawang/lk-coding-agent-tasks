@@ -1,0 +1,12 @@
+{
+  "startedAt": 1789700000000,
+  "events": [
+    { "t": 0, "type": "click", "target": "#open", "x": 12, "y": 8 },
+    { "t": 420, "type": "input", "target": "#name", "value": "张三" },
+    { "t": 700, "type": "input", "target": "#note", "value": "客户要求周五前到" },
+    { "t": 900, "type": "drag", "target": "#slider", "from": [20, 10], "to": [140, 10] },
+    { "t": 1200, "type": "click", "target": "#tab-detail", "x": 30, "y": 12 },
+    { "t": 1500, "type": "scroll", "target": "#list", "top": 480 },
+    { "t": 1800, "type": "click", "target": "#missing-element", "x": 5, "y": 5 }
+  ]
+}
