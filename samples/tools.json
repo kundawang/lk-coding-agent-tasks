@@ -1,0 +1,4 @@
+{
+  "tools": ["select", "rect", "polygon", "line", "text"],
+  "scale": { "enabled": true, "unit": "mm", "pixelsPerUnit": 4 }
+}
