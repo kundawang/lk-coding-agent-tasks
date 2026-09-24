@@ -1,0 +1,31 @@
+<h1>部署手册</h1>
+<p>这份文档说明<b>生产环境</b>的部署流程，重点看 <code>deploy.sh</code> 这个脚本。</p>
+<h2>准备</h2>
+<ul>
+  <li>确认配置</li>
+  <li>备份数据库
+    <ul>
+      <li>全量备份</li>
+      <li>增量备份</li>
+    </ul>
+  </li>
+  <li>通知相关同学</li>
+</ul>
+<h2>步骤</h2>
+<ol start="3">
+  <li>上传包</li>
+  <li>重启服务</li>
+</ol>
+<pre><code class="language-bash">#!/bin/bash
+set -e
+
+echo "deploying..."
+npm run build</code></pre>
+<table>
+  <thead><tr><th>环境</th><th>地址</th><th>备注</th></tr></thead>
+  <tbody>
+    <tr><td>预发</td><td><a href="https://pre.example.com">pre.example.com</a></td><td>每天重置</td></tr>
+    <tr><td>生产</td><td><a href="https://example.com">example.com</a></td><td>需审批</td></tr>
+  </tbody>
+</table>
+<blockquote><p>注意：<em>重启前必须先备份</em>。</p></blockquote>
