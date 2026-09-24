@@ -1,0 +1,106 @@
+import { parse } from "@babel/parser";
+
+import traverse, { visitors } from "../lib/index.js";
+
+describe("visitors", () => {
+  describe("merge", () => {
+    it("should set `_verified` and `_exploded` to `true` if merging catch-all visitors", () => {
+      const visitor = visitors.merge([{ enter() {} }, { enter() {} }]);
+      expect(visitor._verified).toBe(true);
+      expect(visitor._exploded).toBe(true);
+    });
+
+    it("should work when merging node type visitors", () => {
+      const ast = parse("1");
+      const visitor = visitors.merge([
+        { ArrayExpression() {} },
+        { ArrayExpression() {} },
+      ]);
+      traverse(ast, visitor);
+      expect(visitor).toMatchInlineSnapshot(`
+        {
+          "ArrayExpression": {
+            "enter": [
+              [Function],
+              [Function],
+            ],
+          },
+          "_exploded": true,
+          "_verified": true,
+        }
+      `);
+    });
+
+    it("enter", () => {
+      const ast = parse("1");
+      const visitor = visitors.merge([{ enter() {} }, { enter() {} }]);
+      traverse(ast, visitor);
+      expect(visitor).toMatchInlineSnapshot(`
+        {
+          "_exploded": true,
+          "_verified": true,
+          "enter": [
+            [Function],
+            [Function],
+          ],
+        }
+      `);
+    });
+
+    it("enter with states", () => {
+      const ast = parse("1");
+      const visitor = visitors.merge(
+        [{ enter() {} }, { enter() {} }],
+        [{}, {}],
+      );
+      traverse(ast, visitor);
+      expect(visitor).toMatchInlineSnapshot(`
+        {
+          "_exploded": true,
+          "_verified": true,
+          "enter": [
+            [Function],
+            [Function],
+          ],
+        }
+      `);
+    });
+
+    it("enter with wrapper", () => {
+      const ast = parse("1");
+      const visitor = visitors.merge(
+        [{ enter() {} }, { enter() {} }],
+        [{}, {}],
+        (stateKey, key, fn) => fn,
+      );
+      traverse(ast, visitor);
+      expect(visitor).toMatchInlineSnapshot(`
+        {
+          "_exploded": true,
+          "_verified": true,
+          "enter": [
+            [Function],
+            [Function],
+          ],
+        }
+      `);
+    });
+  });
+
+  describe("deprecated option handling", () => {
+    it("should throw when using deprecated blacklist without denylist", () => {
+      expect(() => {
+        visitors.explode({ blacklist: ["MemberExpression"], enter() {} });
+      }).toThrow(/blacklist.*renamed.*denylist/);
+    });
+
+    it("should not throw when both blacklist and denylist are provided", () => {
+      const visitor = visitors.explode({
+        blacklist: ["MemberExpression"],
+        denylist: ["MemberExpression"],
+        enter() {},
+      });
+      expect(visitor._exploded).toBe(true);
+    });
+  });
+});

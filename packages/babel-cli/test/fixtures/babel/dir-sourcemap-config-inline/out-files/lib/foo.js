@@ -1,0 +1,6 @@
+"use strict";
+
+arr.map(function (x) {
+  return x * MULTIPLIER;
+});
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6W10sInNvdXJjZXMiOlsiLi4vc3JjL2Zvby5qcyJdLCJzb3VyY2VzQ29udGVudCI6WyJhcnIubWFwKHggPT4geCAqIE1VTFRJUExJRVIpOyJdLCJtYXBwaW5ncyI6Ijs7QUFBQSxHQUFHLENBQUMsR0FBRyxDQUFDLFdBQUM7RUFBQSxPQUFJLENBQUMsR0FBRyxVQUFVO0FBQUEsRUFBQyIsImlnbm9yZUxpc3QiOltdfQ==

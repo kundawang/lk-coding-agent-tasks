@@ -1,0 +1,8 @@
+{
+  "plugins": [
+    ["transform-react-jsx-development", { "sourceSelf": true }],
+    "syntax-typescript",
+    "syntax-jsx"
+  ],
+  "sourceType": "module"
+}

@@ -1,0 +1,64 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`builders flow createTypeAnnotationBasedOnTypeof bigint is valid 1`] = `
+{
+  "type": "AnyTypeAnnotation",
+}
+`;
+
+exports[`builders flow createTypeAnnotationBasedOnTypeof function is valid 1`] = `
+{
+  "id": {
+    "name": "Function",
+    "type": "Identifier",
+  },
+  "type": "GenericTypeAnnotation",
+  "typeParameters": null,
+}
+`;
+
+exports[`builders flow createTypeAnnotationBasedOnTypeof number is valid 1`] = `
+{
+  "type": "NumberTypeAnnotation",
+}
+`;
+
+exports[`builders flow createTypeAnnotationBasedOnTypeof object is valid 1`] = `
+{
+  "id": {
+    "name": "Object",
+    "type": "Identifier",
+  },
+  "type": "GenericTypeAnnotation",
+  "typeParameters": null,
+}
+`;
+
+exports[`builders flow createTypeAnnotationBasedOnTypeof string is valid 1`] = `
+{
+  "type": "StringTypeAnnotation",
+}
+`;
+
+exports[`builders flow createTypeAnnotationBasedOnTypeof symbol is valid 1`] = `
+{
+  "id": {
+    "name": "Symbol",
+    "type": "Identifier",
+  },
+  "type": "GenericTypeAnnotation",
+  "typeParameters": null,
+}
+`;
+
+exports[`builders flow createTypeAnnotationBasedOnTypeof true is valid 1`] = `
+{
+  "type": "BooleanTypeAnnotation",
+}
+`;
+
+exports[`builders flow createTypeAnnotationBasedOnTypeof undefined is valid 1`] = `
+{
+  "type": "VoidTypeAnnotation",
+}
+`;

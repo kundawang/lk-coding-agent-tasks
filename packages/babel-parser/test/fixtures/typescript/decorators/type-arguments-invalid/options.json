@@ -1,0 +1,4 @@
+{
+  "plugins": ["typescript", "decorators"],
+  "throws": "Unexpected token, expected \"(\" (2:0)"
+}

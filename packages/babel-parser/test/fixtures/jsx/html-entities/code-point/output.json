@@ -1,0 +1,52 @@
+{
+  "type": "File",
+  "start":0,"end":127,"loc":{"start":{"line":1,"column":0,"index":0},"end":{"line":8,"column":4,"index":127}},
+  "program": {
+    "type": "Program",
+    "start":0,"end":127,"loc":{"start":{"line":1,"column":0,"index":0},"end":{"line":8,"column":4,"index":127}},
+    "sourceType": "script",
+    "interpreter": null,
+    "body": [
+      {
+        "type": "ExpressionStatement",
+        "start":0,"end":127,"loc":{"start":{"line":1,"column":0,"index":0},"end":{"line":8,"column":4,"index":127}},
+        "expression": {
+          "type": "JSXElement",
+          "start":0,"end":127,"loc":{"start":{"line":1,"column":0,"index":0},"end":{"line":8,"column":4,"index":127}},
+          "openingElement": {
+            "type": "JSXOpeningElement",
+            "start":0,"end":3,"loc":{"start":{"line":1,"column":0,"index":0},"end":{"line":1,"column":3,"index":3}},
+            "name": {
+              "type": "JSXIdentifier",
+              "start":1,"end":2,"loc":{"start":{"line":1,"column":1,"index":1},"end":{"line":1,"column":2,"index":2}},
+              "name": "a"
+            },
+            "attributes": [],
+            "selfClosing": false
+          },
+          "closingElement": {
+            "type": "JSXClosingElement",
+            "start":123,"end":127,"loc":{"start":{"line":8,"column":0,"index":123},"end":{"line":8,"column":4,"index":127}},
+            "name": {
+              "type": "JSXIdentifier",
+              "start":125,"end":126,"loc":{"start":{"line":8,"column":2,"index":125},"end":{"line":8,"column":3,"index":126}},
+              "name": "a"
+            }
+          },
+          "children": [
+            {
+              "type": "JSXText",
+              "start":3,"end":123,"loc":{"start":{"line":1,"column":3,"index":3},"end":{"line":8,"column":0,"index":123}},
+              "extra": {
+                "rawValue": "\n    Ӓ\n    ઼\n    Ӓ\n    ઼\n    \u0000\n    􏿿\n",
+                "raw": "\n    &#1234;\n    &#xABC;\n    &#00000000000000000000001234;\n    &#x0000000000000000000000ABC;\n    &#0000;\n    &#x10ffff;\n"
+              },
+              "value": "\n    Ӓ\n    ઼\n    Ӓ\n    ઼\n    \u0000\n    􏿿\n"
+            }
+          ]
+        }
+      }
+    ],
+    "directives": []
+  }
+}

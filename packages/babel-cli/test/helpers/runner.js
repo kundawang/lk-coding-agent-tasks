@@ -1,0 +1,56 @@
+import {
+  buildProcessTests,
+  buildParallelProcessTests,
+} from "@babel/helper-transform-fixture-test-runner";
+import path from "node:path";
+import { commonJS } from "$repo-utils";
+
+const { __dirname } = commonJS(import.meta.url);
+
+const rootDir = path.resolve(__dirname, "../../../..");
+
+const getPath = name => path.join(rootDir, "packages", name, "lib/index.js");
+
+const presetLocs = ["babel-preset-react"].map(getPath).join(",");
+
+const pluginLocs = [
+  "babel-plugin-transform-arrow-functions",
+  "babel-plugin-transform-strict-mode",
+  "babel-plugin-transform-modules-commonjs",
+]
+  .map(getPath)
+  .join(",");
+
+const normalizeOutput = function (str, cwd) {
+  let result = str
+    .replaceAll(/\(\d+ms\)/g, "(123ms)")
+    .replaceAll(cwd, "<CWD>")
+    // (non-win32) /foo/babel/packages -> <CWD>/packages
+    // (win32) C:\foo\babel\packages -> <CWD>\packages
+    .replaceAll(rootDir, "<ROOTDIR>");
+  if (process.platform === "win32") {
+    result = result
+      // C:\\foo\\babel\\packages -> <CWD>\\packages (in js string literal)
+      .replaceAll(rootDir.replaceAll("\\", "\\\\"), "<ROOTDIR>");
+  }
+  return result;
+};
+
+export const runParallel = buildParallelProcessTests(
+  "babel-cli",
+  buildProcessTests(
+    new URL("../fixtures", import.meta.url),
+    function (test) {
+      test.binLoc = path.join(__dirname, "../../lib", test.suiteName);
+      if (!test.opts.noDefaultPlugins) {
+        test.opts.args.push("--presets", presetLocs, "--plugins", pluginLocs);
+      }
+    },
+    function (test, tmpDir, stdout, stderr) {
+      return {
+        stdout: normalizeOutput(stdout, tmpDir),
+        stderr: normalizeOutput(stderr, tmpDir),
+      };
+    },
+  ),
+);

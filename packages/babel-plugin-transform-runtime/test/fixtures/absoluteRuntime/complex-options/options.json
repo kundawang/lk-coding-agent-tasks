@@ -1,0 +1,14 @@
+{
+  "externalHelpers": false,
+  "presets": ["env"],
+  "plugins": [
+    [
+      "transform-runtime",
+      {
+        "corejs": false,
+        "absoluteRuntime": true,
+        "version": "7.100.0"
+      }
+    ]
+  ]
+}

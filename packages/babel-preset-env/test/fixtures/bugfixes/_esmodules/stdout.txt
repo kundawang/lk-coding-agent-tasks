@@ -1,0 +1,25 @@
+@babel/preset-env: `DEBUG` option
+
+Using targets:
+{
+  "android": "148",
+  "chrome": "109",
+  "edge": "147",
+  "firefox": "140",
+  "ios": "18.5",
+  "opera": "127",
+  "opera_mobile": "80",
+  "safari": "26.3",
+  "samsung": "29"
+}
+
+Using modules transform: auto
+
+Using plugins:
+  transform-explicit-resource-management { chrome < 141, firefox < 141, ios, opera, opera_mobile, safari, samsung }
+  transform-duplicate-named-capturing-groups-regex { chrome < 126, opera_mobile, samsung }
+  transform-regexp-modifiers { chrome < 125, ios, opera_mobile, safari }
+  transform-unicode-sets-regex { chrome < 112 }
+  transform-export-namespace-from { }
+
+Using polyfills: No polyfills were added, since the `useBuiltIns` option was not set.

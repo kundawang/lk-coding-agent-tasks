@@ -1,0 +1,202 @@
+FLOW_COMMIT = ce660230358806c4d210ad24c170b02f5395bfce
+TEST262_COMMIT = 419d3e0a2273ba01a3bfcbec423f2801425b8e93
+TYPESCRIPT_COMMIT = 2dfdbbabae955186f821925c629a37d8df76bab2
+
+SOURCES = packages codemods eslint
+
+COMMA := ,
+EMPTY :=
+SPACE := $(EMPTY) $(EMPTY)
+COMMA_SEPARATED_SOURCES = $(subst $(SPACE),$(COMMA),$(SOURCES))
+
+YARN := yarn
+NODE := $(YARN) node
+MAKEJS := node Makefile.js
+
+
+.PHONY: build build-dist watch lint fix clean test-clean test-only test test-ci publish bootstrap
+
+Makefile.js: Makefile.source.ts yarn.lock .yarn/install-state.gz
+	$(NODE) ./scripts/pack-script.ts
+
+build:
+	$(MAKEJS) build
+
+build-bundle:
+	$(MAKEJS) build-bundle
+
+build-no-bundle:
+	$(MAKEJS) build-no-bundle
+
+generate-tsconfig:
+	$(MAKEJS) generate-tsconfig
+
+generate-type-helpers:
+	$(MAKEJS) generate-type-helpers
+
+bundle-babel-parser-dts:
+	$(MAKEJS) bundle-babel-parser-dts
+
+build-flow-typings:
+	$(MAKEJS) build-flow-typings
+
+# For TypeScript older than 3.7
+build-typescript-legacy-typings:
+	$(MAKEJS) build-typescript-legacy-typings
+
+build-standalone:
+	$(MAKEJS) build-standalone
+
+build-standalone-ci: build-no-bundle-ci
+	$(MAKEJS) build-standalone
+
+prepublish-build-standalone:
+	$(MAKEJS) prepublish-build-standalone
+
+build-dist: build-plugin-transform-runtime-dist
+
+build-plugin-transform-runtime-dist:
+	$(MAKEJS) build-plugin-transform-runtime-dist
+
+watch:
+	$(MAKEJS) watch
+
+code-quality: lint
+
+tscheck:
+	$(MAKEJS) tscheck
+
+clean-ts:
+	$(MAKEJS) clean-ts
+
+lint-ci:
+	$(MAKEJS) lint-ci
+
+generate-readme:
+	$(NODE) scripts/generators/readmes.ts
+
+lint:
+	$(MAKEJS) lint
+
+fix: fix-json fix-js
+
+fix-js:
+	$(MAKEJS) fix-js
+
+fix-json:
+	$(MAKEJS) fix-json
+
+clean:
+	$(MAKEJS) clean
+
+test-cov:
+	$(MAKEJS) test-cov
+
+test: lint test-only
+
+clone-license:
+	$(MAKEJS) clone-license
+
+prepublish-prepare-dts:
+	$(MAKEJS) prepublish-prepare-dts
+
+prepublish-build:
+	$(MAKEJS) prepublish-build
+
+prepublish:
+	$(MAKEJS) prepublish
+
+bootstrap-only:
+	$(MAKEJS) bootstrap-only
+
+bootstrap:
+	$(MAKEJS) bootstrap
+
+clean-lib:
+	$(MAKEJS) clean-lib
+
+clean-node-modules:
+	$(MAKEJS) clean-node-modules
+
+clean-runtime-helpers:
+	$(MAKEJS) clean-runtime-helpers
+
+clean-all:
+	$(MAKEJS) clean-all
+
+
+build-no-bundle-ci: bootstrap-only
+	$(MAKE) bundle-babel-parser-dts
+	$(YARN) gulp build-dev
+	$(MAKE) build-flow-typings
+	$(MAKE) build-dist
+
+# Does not work on Windows; use "$(YARN) jest" instead
+test-only:
+	BABEL_ENV=test ./scripts/test.sh
+	$(MAKE) test-clean
+
+check-compat-data:
+	cd packages/babel-compat-data; CHECK_COMPAT_DATA=true $(YARN) run build-data
+
+build-compat-data:
+	cd packages/babel-compat-data; $(YARN) run build-data
+
+update-env-corejs-fixture:
+	rm -rf packages/babel-preset-env/node_modules/core-js-compat
+	$(YARN)
+	$(MAKE) build-bundle
+	OVERWRITE=true $(YARN) jest packages/babel-preset-env
+
+test-ci: build-standalone-ci
+	BABEL_ENV=test $(YARN) jest --maxWorkers=100% --ci
+	$(MAKE) test-clean
+
+test-ci-coverage:
+	BABEL_ENV=test $(MAKE) bootstrap
+	BABEL_ENV=test BABEL_COVERAGE=true $(YARN) c8 jest --maxWorkers=100% --ci
+	rm -rf coverage/tmp
+
+bootstrap-flow:
+	$(MAKEJS) bootstrap-flow
+
+test-flow:
+	$(NODE) scripts/parser-tests/flow
+
+test-flow-update-allowlist:
+	$(NODE) scripts/parser-tests/flow --update-allowlist
+
+bootstrap-typescript:
+	$(MAKEJS) bootstrap-typescript
+
+test-typescript:
+	$(NODE) scripts/parser-tests/typescript
+
+test-typescript-update-allowlist:
+	$(NODE) scripts/parser-tests/typescript --update-allowlist
+
+bootstrap-test262:
+	$(MAKEJS) bootstrap-test262
+
+test-test262:
+	$(NODE) scripts/parser-tests/test262
+
+test-test262-update-allowlist:
+	$(NODE) scripts/parser-tests/test262 --update-allowlist
+
+
+new-version-checklist:
+	$(MAKEJS) new-version-checklist
+
+new-version:
+	$(MAKEJS) new-version
+
+publish-test:
+ifneq ("$(I_AM_USING_VERDACCIO)", "I_AM_SURE")
+	echo "You probably don't know what you are doing"
+	exit 1
+endif
+	$(YARN) release-tool version $(VERSION) --all --yes --tag-version-prefix="version-e2e-test-"
+	$(MAKE) prepublish
+	YARN_NPM_PUBLISH_REGISTRY=http://localhost:4873 $(YARN) release-tool publish --yes --tag-version-prefix="version-e2e-test-"
+	$(MAKE) clean

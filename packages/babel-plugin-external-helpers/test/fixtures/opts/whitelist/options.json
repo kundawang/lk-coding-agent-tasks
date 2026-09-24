@@ -1,0 +1,12 @@
+{
+  "externalHelpers": false,
+  "plugins": [
+    [
+      "external-helpers",
+      {
+        "allowlist": ["createClass"]
+      }
+    ],
+    "transform-classes"
+  ]
+}
