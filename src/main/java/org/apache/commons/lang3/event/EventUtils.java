@@ -1,0 +1,149 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.commons.lang3.event;
+
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.reflect.MethodUtils;
+
+/**
+ * Provides some useful event-based utility methods.
+ *
+ * @since 3.0
+ */
+public class EventUtils {
+
+    private static final class EventBindingInvocationHandler implements InvocationHandler {
+        private final Object target;
+        private final String methodName;
+        private final Set<String> eventTypes;
+
+        /**
+         * Creates a new instance of {@link EventBindingInvocationHandler}.
+         *
+         * @param target The target object for method invocations.
+         * @param methodName The name of the method to be invoked.
+         * @param eventTypes The names of the supported event types.
+         */
+        EventBindingInvocationHandler(final Object target, final String methodName, final String[] eventTypes) {
+            this.target = target;
+            this.methodName = methodName;
+            this.eventTypes = new HashSet<>(Arrays.asList(eventTypes));
+        }
+
+        /**
+         * Tests whether a method for the passed in parameters can be found.
+         *
+         * @param method The listener method invoked.
+         * @return A flag whether the parameters could be matched.
+         */
+        private boolean hasMatchingParametersMethod(final Method method) {
+            return MethodUtils.getAccessibleMethod(target.getClass(), methodName, method.getParameterTypes()) != null;
+        }
+
+        /**
+         * Handles a method invocation on the proxy object.
+         *
+         * @param proxy The proxy instance.
+         * @param method The method to be invoked.
+         * @param parameters The parameters for the method invocation.
+         * @return The result of the method call.
+         * @throws SecurityException Thrown if an underlying accessible object's method denies the request.
+         * @see SecurityManager#checkPermission
+         * @throws Throwable Thrown if an error occurs.
+         */
+        @Override
+        public Object invoke(final Object proxy, final Method method, final Object[] parameters) throws Throwable {
+            if (method.getDeclaringClass() == Object.class) {
+                // Handle Object methods locally instead of dispatching them to the bound target,
+                // mirroring java.beans.EventHandler: routine host actions (hash-based collections,
+                // logging, equality checks during listener de-registration) must not invoke the
+                // target method and must not return null into an unboxing context.
+                switch (method.getName()) {
+                case "hashCode":
+                    return Integer.valueOf(System.identityHashCode(proxy));
+                case "equals":
+                    return Boolean.valueOf(proxy == parameters[0]);
+                default: // toString
+                    return ObjectUtils.identityToString(proxy);
+                }
+            }
+            if (eventTypes.isEmpty() || eventTypes.contains(method.getName())) {
+                if (hasMatchingParametersMethod(method)) {
+                    return MethodUtils.invokeMethod(target, methodName, parameters);
+                }
+                return MethodUtils.invokeMethod(target, methodName);
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Adds an event listener to the specified source.  This looks for an "add" method corresponding to the event
+     * type (addActionListener, for example).
+     *
+     * @param eventSource   The event source.
+     * @param listenerType  The event listener type.
+     * @param listener      The listener.
+     * @param <L>           the event listener type.
+     * @throws IllegalArgumentException Thrown if the object doesn't support the listener type.
+     */
+    public static <L> void addEventListener(final Object eventSource, final Class<L> listenerType, final L listener) {
+        try {
+            MethodUtils.invokeMethod(eventSource, "add" + listenerType.getSimpleName(), listener);
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalArgumentException("Unable to add listener for class " + eventSource.getClass().getName()
+                    + " and public add" + listenerType.getSimpleName()
+                    + " method which takes a parameter of type " + listenerType.getName() + ".");
+        }
+    }
+
+    /**
+     * Binds an event listener to a specific method on a specific object.
+     *
+     * @param <L>          the event listener type.
+     * @param target       The target object.
+     * @param methodName   The name of the method to be called.
+     * @param eventSource  The object which is generating events (JButton, JList, etc.).
+     * @param listenerType The listener interface (ActionListener.class, SelectionListener.class, etc.).
+     * @param eventTypes   The event types (method names) from the listener interface (if none specified, all will be
+     *                     supported).
+     */
+    public static <L> void bindEventsToMethod(final Object target, final String methodName, final Object eventSource,
+            final Class<L> listenerType, final String... eventTypes) {
+        final L listener = listenerType.cast(Proxy.newProxyInstance(target.getClass().getClassLoader(),
+                new Class[] { listenerType }, new EventBindingInvocationHandler(target, methodName, eventTypes)));
+        addEventListener(eventSource, listenerType, listener);
+    }
+
+    /**
+     * Make private in 4.0.
+     *
+     * @deprecated TODO Make private in 4.0.
+     */
+    @Deprecated
+    public EventUtils() {
+        // empty
+    }
+}
