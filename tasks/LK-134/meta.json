@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-134",
+  "title": "guice 不认 jakarta.inject.Scope（真实开源 bug）",
+  "created_at": "2026-09-24T23:46:43",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Java, guice",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-134/base",
+    "sha": "067cfd42d23801da7939acaab8b0c1f0fe41e5bc",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/067cfd42d23801da7939acaab8b0c1f0fe41e5bc"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-134/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-134/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
