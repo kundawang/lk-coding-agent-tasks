@@ -699,6 +699,35 @@ def test_escape_in_dimension_token():
     assert dimension.unit == '\udddf'
 
 
+def test_serialize_dimension_with_ambiguous_unit():
+    # Units that look like scientific notation must be escaped
+    # so that serializing and parsing again gives the same value.
+    for source, unit in (
+        ('1\\65 ', 'e'),
+        ('1\\45 ', 'E'),
+        ('1\\65 5', 'e5'),
+        ('1\\45 50', 'E50'),
+        ('1\\65 -5', 'e-5'),
+        ('1.5\\65 2', 'e2'),
+    ):
+        dimension, = parse_component_value_list(source)
+        assert dimension.type == 'dimension'
+        assert dimension.unit == unit
+        serialized = serialize([dimension])
+        reparsed, = parse_component_value_list(serialized)
+        assert reparsed.type == 'dimension'
+        assert reparsed.unit == dimension.unit
+        assert reparsed.value == dimension.value
+        assert reparsed.representation == dimension.representation
+
+
+def test_serialize_dimension_with_regular_unit():
+    # Regular units and unitless numbers are serialized as-is.
+    for source in ('1px', '1.5em', '2%', '4', '1e5', '1e-5'):
+        token, = parse_component_value_list(source)
+        assert serialize([token]) == source
+
+
 def test_escape_in_function_name():
     function, = parse_component_value_list('\\dddf()')
     assert function.type == 'function'
