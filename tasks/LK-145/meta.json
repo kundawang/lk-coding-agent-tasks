@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-145",
+  "title": "netty io_uring 读取没有按 entry 容量截断（真实开源 bug）",
+  "created_at": "2026-09-25T00:16:13",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Java, netty",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-145/base",
+    "sha": "307d98cff8f311cad9ec7fb95a5765a17a82d4d5",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/307d98cff8f311cad9ec7fb95a5765a17a82d4d5"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-145/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-145/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
