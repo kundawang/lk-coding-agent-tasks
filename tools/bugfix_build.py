@@ -190,10 +190,9 @@ def print_material(task_id, record):
     issue = record.get("issue") or {}
     print(f"\n=== {task_id}  {record['repo']}  ({lang})  {record['changes']}行/"
           f"{len(record['files'])}文件 ===")
-    print(f"  文件: {', '.join(record['files'])}")
     print(f"  提交: {record['fix_message']}")
     if issue:
-        body = re.sub(r"\s+", " ", issue.get("body") or "")[:420]
+        body = re.sub(r"\s+", " ", issue.get("body") or "")[:220]
         print(f"  issue #{issue.get('number')}: {issue.get('title')}")
         if body:
             print(f"    {body}")
