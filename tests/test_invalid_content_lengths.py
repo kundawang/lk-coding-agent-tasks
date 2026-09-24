@@ -72,6 +72,136 @@ class TestInvalidContentLengths:
         )
         assert c.data_to_send() == expected_frame.serialize()
 
+    conflicting_request_headers = [
+        (":authority", "example.com"),
+        (":path", "/"),
+        (":scheme", "https"),
+        (":method", "POST"),
+        ("content-length", "15"),
+        ("content-length", "16"),
+    ]
+    conflicting_request_headers_bytes = [
+        (b":authority", b"example.com"),
+        (b":path", b"/"),
+        (b":scheme", b"https"),
+        (b":method", b"POST"),
+        (b"content-length", b"15"),
+        (b"content-length", b"16"),
+    ]
+
+    @pytest.mark.parametrize("request_headers", [conflicting_request_headers, conflicting_request_headers_bytes])
+    def test_conflicting_content_length_headers_request(self, frame_factory, request_headers) -> None:
+        """
+        Remote peers sending multiple content-length headers with different
+        values in a request causes Protocol Errors.
+        """
+        c = h2.connection.H2Connection(config=self.server_config)
+        c.initiate_connection()
+        c.receive_data(frame_factory.preamble())
+        c.clear_outbound_data_buffer()
+
+        headers = frame_factory.build_headers_frame(
+            headers=request_headers,
+        )
+        with pytest.raises(h2.exceptions.ProtocolError) as exp:
+            c.receive_data(headers.serialize())
+
+        assert "content-length" in str(exp.value)
+
+        expected_frame = frame_factory.build_goaway_frame(
+            last_stream_id=1,
+            error_code=h2.errors.ErrorCodes.PROTOCOL_ERROR,
+        )
+        assert c.data_to_send() == expected_frame.serialize()
+
+    get_request_headers = [
+        (":authority", "example.com"),
+        (":path", "/"),
+        (":scheme", "https"),
+        (":method", "GET"),
+    ]
+    conflicting_response_headers = [
+        (":status", "200"),
+        ("server", "fake-serv/0.1.0"),
+        ("content-length", "15"),
+        ("content-length", "16"),
+    ]
+    conflicting_response_headers_bytes = [
+        (b":status", b"200"),
+        (b"server", b"fake-serv/0.1.0"),
+        (b"content-length", b"15"),
+        (b"content-length", b"16"),
+    ]
+
+    @pytest.mark.parametrize("response_headers", [conflicting_response_headers, conflicting_response_headers_bytes])
+    def test_conflicting_content_length_headers_response(self, frame_factory, response_headers) -> None:
+        """
+        Remote peers sending multiple content-length headers with different
+        values in a response causes Protocol Errors.
+        """
+        c = h2.connection.H2Connection(
+            config=h2.config.H2Configuration(client_side=True),
+        )
+        c.initiate_connection()
+        c.send_headers(
+            stream_id=1, headers=self.get_request_headers, end_stream=True,
+        )
+        c.clear_outbound_data_buffer()
+
+        headers = frame_factory.build_headers_frame(
+            headers=response_headers,
+        )
+        with pytest.raises(h2.exceptions.ProtocolError) as exp:
+            c.receive_data(headers.serialize())
+
+        assert "content-length" in str(exp.value)
+
+        expected_frame = frame_factory.build_goaway_frame(
+            last_stream_id=0,
+            error_code=h2.errors.ErrorCodes.PROTOCOL_ERROR,
+        )
+        assert c.data_to_send() == expected_frame.serialize()
+
+    duplicate_request_headers = [
+        (":authority", "example.com"),
+        (":path", "/"),
+        (":scheme", "https"),
+        (":method", "POST"),
+        ("content-length", "15"),
+        ("content-length", "15"),
+    ]
+    duplicate_request_headers_bytes = [
+        (b":authority", b"example.com"),
+        (b":path", b"/"),
+        (b":scheme", b"https"),
+        (b":method", b"POST"),
+        (b"content-length", b"15"),
+        (b"content-length", b"15"),
+    ]
+
+    @pytest.mark.parametrize("request_headers", [duplicate_request_headers, duplicate_request_headers_bytes])
+    def test_duplicate_identical_content_length_headers(self, frame_factory, request_headers) -> None:
+        """
+        Multiple content-length headers with the same value are accepted and
+        behave like a single content-length header.
+        """
+        c = h2.connection.H2Connection(config=self.server_config)
+        c.initiate_connection()
+        c.receive_data(frame_factory.preamble())
+
+        headers = frame_factory.build_headers_frame(
+            headers=request_headers,
+        )
+        data = frame_factory.build_data_frame(
+            data=b"\x01"*15,
+            flags=["END_STREAM"],
+        )
+        events = c.receive_data(headers.serialize() + data.serialize())
+
+        assert isinstance(events[0], h2.events.RequestReceived)
+        assert isinstance(events[1], h2.events.DataReceived)
+        assert isinstance(events[2], h2.events.StreamEnded)
+
     @pytest.mark.parametrize("request_headers", [example_request_headers, example_request_headers_bytes])
     def test_insufficient_data(self, frame_factory, request_headers) -> None:
         """

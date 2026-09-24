@@ -1367,12 +1367,22 @@ class H2Stream:
         for n, v in headers:
             if n == b"content-length":
                 try:
-                    self._expected_content_length = int(v, 10)
+                    value = int(v, 10)
                 except ValueError as err:
                     msg = f"Invalid content-length header: {v!r}"
                     raise ProtocolError(msg) from err
 
-                return
+                if (
+                    self._expected_content_length is not None
+                    and self._expected_content_length != value
+                ):
+                    msg = (
+                        "Received multiple content-length headers with "
+                        "different values"
+                    )
+                    raise ProtocolError(msg)
+
+                self._expected_content_length = value
 
     def _track_content_length(self, length: int, end_stream: bool) -> None:
         """
