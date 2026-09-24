@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-124",
+  "title": "llm 直接构造 Prompt 时丢掉模型默认选项（真实开源 bug）",
+  "created_at": "2026-09-24T23:32:23",
+  "task_type": "Bug 修复",
+  "difficulty": "困难",
+  "language_framework": "Python, llm",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-124/base",
+    "sha": "fd6e94954b3d02137058c7d5d155b736b5843ea8",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/fd6e94954b3d02137058c7d5d155b736b5843ea8"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-124/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-124/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
