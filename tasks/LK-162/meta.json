@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-162",
+  "title": "prettier 读配置时去掉 UTF-8 BOM（真实开源 feature）",
+  "created_at": "2026-09-28T14:05:51",
+  "task_type": "功能迭代",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, prettier",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-162/base",
+    "sha": "194d9e41b2353f466031a7a2b57fcfccd5988762",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/194d9e41b2353f466031a7a2b57fcfccd5988762"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-162/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-162/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
