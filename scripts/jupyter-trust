@@ -1,0 +1,12 @@
+#!/usr/bin/env python
+from __future__ import annotations
+
+
+def main():
+    from nbformat.sign import TrustNotebookApp  # noqa: PLC0415
+
+    TrustNotebookApp.launch_instance()
+
+
+if __name__ == "__main__":
+    main()
