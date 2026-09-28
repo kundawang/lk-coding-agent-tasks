@@ -1,0 +1,863 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`character-after-closing-tokens.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{{ page.title
+}} a
+
+---
+
+{%
+ if user
+%} Hello, {{ user }}!
+{% endif %}
+
+=====================================output=====================================
+{{ page.title
+}} a
+
+---
+
+{%
+ if user
+%} Hello, {{ user }}!
+{% endif %}
+
+================================================================================
+`;
+
+exports[`character-after-closing-tokens.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{{ page.title
+}} a
+
+---
+
+{%
+ if user
+%} Hello, {{ user }}!
+{% endif %}
+
+=====================================output=====================================
+{{ page.title
+}} a
+
+---
+
+{%
+ if user
+%} Hello, {{ user }}!
+{% endif %}
+
+================================================================================
+`;
+
+exports[`example-1.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{% include_relative _installations/tarball.md %}
+
+{% cloudinary nice_prefix_-_for_the_filename.jpg %}
+
+# Userscripts <span>[{% img github.svg alt:"View on GitHub" title:"View on GitHub" %}](https://github.com/Charcoal-SE/Userscripts) [Build <span>status loading…</span>](//travis-ci.org/Charcoal-SE/userscripts){: .build}</span>
+
+{% css userscripts %}
+{% js userscripts %}
+
+{{ foo
+multiline
+where does it end }}
+
+=====================================output=====================================
+{% include_relative _installations/tarball.md %}
+
+{% cloudinary nice_prefix_-_for_the_filename.jpg %}
+
+# Userscripts <span>[{% img github.svg alt:"View on GitHub" title:"View on GitHub" %}](https://github.com/Charcoal-SE/Userscripts) [Build <span>status loading…</span>](//travis-ci.org/Charcoal-SE/userscripts){: .build}</span>
+
+{% css userscripts %}
+{% js userscripts %}
+
+{{ foo
+multiline
+where does it end }}
+
+================================================================================
+`;
+
+exports[`example-1.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{% include_relative _installations/tarball.md %}
+
+{% cloudinary nice_prefix_-_for_the_filename.jpg %}
+
+# Userscripts <span>[{% img github.svg alt:"View on GitHub" title:"View on GitHub" %}](https://github.com/Charcoal-SE/Userscripts) [Build <span>status loading…</span>](//travis-ci.org/Charcoal-SE/userscripts){: .build}</span>
+
+{% css userscripts %}
+{% js userscripts %}
+
+{{ foo
+multiline
+where does it end }}
+
+=====================================output=====================================
+{% include_relative _installations/tarball.md %}
+
+{% cloudinary nice_prefix_-_for_the_filename.jpg %}
+
+# Userscripts <span>[{% img github.svg alt:"View on GitHub" title:"View on GitHub" %}](https://github.com/Charcoal-SE/Userscripts) [Build <span>status loading…</span>](//travis-ci.org/Charcoal-SE/userscripts){: .build}</span>
+
+{% css userscripts %}
+{% js userscripts %}
+
+{{ foo
+multiline
+where does it end }}
+
+================================================================================
+`;
+
+exports[`example-2.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+# linebreak after opening brace
+
+{
+
+---
+
+# including empty lines
+
+{{ foo
+
+bar   baz
+
+qux }}
+
+---
+
+# line break after %
+
+{% foo %
+
+bar  baz %}
+
+=====================================output=====================================
+# linebreak after opening brace
+
+{
+
+---
+
+# including empty lines
+
+{{ foo
+
+bar   baz
+
+qux }}
+
+---
+
+# line break after %
+
+{% foo %
+
+bar  baz %}
+
+================================================================================
+`;
+
+exports[`example-2.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+# linebreak after opening brace
+
+{
+
+---
+
+# including empty lines
+
+{{ foo
+
+bar   baz
+
+qux }}
+
+---
+
+# line break after %
+
+{% foo %
+
+bar  baz %}
+
+=====================================output=====================================
+# linebreak after opening brace
+
+{
+
+---
+
+# including empty lines
+
+{{ foo
+
+bar   baz
+
+qux }}
+
+---
+
+# line break after %
+
+{% foo %
+
+bar  baz %}
+
+================================================================================
+`;
+
+exports[`issue-19386.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{{ rule({
+    categories: {
+    }
+}) }}
+
+=====================================output=====================================
+{{ rule({
+    categories: {
+    }
+}) }}
+
+================================================================================
+`;
+
+exports[`issue-19386.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{{ rule({
+    categories: {
+    }
+}) }}
+
+=====================================output=====================================
+{{ rule({
+    categories: {
+    }
+}) }}
+
+================================================================================
+`;
+
+exports[`issue-19488.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{{% blocks/cover
+title="Welcome"
+%}}
+
+This input uses Hugo shortcode. Prettier doesn't support this explicitly but it shouldn't break it either.
+
+{{% /blocks/cover %}}
+
+---
+
+{{% blocks/cover
+%}}
+
+{{% blocks/cover
+%%}}
+
+{{% blocks/cover
+}}}
+
+{{{% blocks/cover
+%}}
+
+{% blocks/cover
+%}}
+
+{{ blocks/cover
+%}}
+
+=====================================output=====================================
+{{% blocks/cover
+title="Welcome"
+%}}
+
+This input uses Hugo shortcode. Prettier doesn't support this explicitly but it
+shouldn't break it either.
+
+{{% /blocks/cover %}}
+
+---
+
+{{% blocks/cover
+%}}
+
+{{% blocks/cover
+%%}}
+
+{{% blocks/cover
+}}}
+
+{{{% blocks/cover
+%}}
+
+{% blocks/cover
+%}}
+
+{{ blocks/cover
+%}}
+
+================================================================================
+`;
+
+exports[`issue-19488.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{{% blocks/cover
+title="Welcome"
+%}}
+
+This input uses Hugo shortcode. Prettier doesn't support this explicitly but it shouldn't break it either.
+
+{{% /blocks/cover %}}
+
+---
+
+{{% blocks/cover
+%}}
+
+{{% blocks/cover
+%%}}
+
+{{% blocks/cover
+}}}
+
+{{{% blocks/cover
+%}}
+
+{% blocks/cover
+%}}
+
+{{ blocks/cover
+%}}
+
+=====================================output=====================================
+{{% blocks/cover
+title="Welcome"
+%}}
+
+This input uses Hugo shortcode. Prettier doesn't support this explicitly but it shouldn't break it either.
+
+{{% /blocks/cover %}}
+
+---
+
+{{% blocks/cover
+%}}
+
+{{% blocks/cover
+%%}}
+
+{{% blocks/cover
+}}}
+
+{{{% blocks/cover
+%}}
+
+{% blocks/cover
+%}}
+
+{{ blocks/cover
+%}}
+
+================================================================================
+`;
+
+exports[`issue-19724.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{% macro param_table(params=None) -%}
+| Argument | Type |
+| -------- | ---- |
+{% set default_params = {
+    "model": ["str"],
+} %}
+{% endmacro %}
+
+---
+
+> abc
+{% abc %}
+
+---
+
+Inline {{ liquid }} stays inline.
+
+---
+
+{% liquid %} followed by text
+
+=====================================output=====================================
+{% macro param_table(params=None) -%}
+| Argument | Type |
+| -------- | ---- |
+{% set default_params = {
+    "model": ["str"],
+} %}
+{% endmacro %}
+
+---
+
+> abc
+{% abc %}
+
+---
+
+Inline {{ liquid }} stays inline.
+
+---
+
+{% liquid %} followed by text
+
+================================================================================
+`;
+
+exports[`issue-19724.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{% macro param_table(params=None) -%}
+| Argument | Type |
+| -------- | ---- |
+{% set default_params = {
+    "model": ["str"],
+} %}
+{% endmacro %}
+
+---
+
+> abc
+{% abc %}
+
+---
+
+Inline {{ liquid }} stays inline.
+
+---
+
+{% liquid %} followed by text
+
+=====================================output=====================================
+{% macro param_table(params=None) -%}
+| Argument | Type |
+| -------- | ---- |
+{% set default_params = {
+    "model": ["str"],
+} %}
+{% endmacro %}
+
+---
+
+> abc
+{% abc %}
+
+---
+
+Inline {{ liquid }} stays inline.
+
+---
+
+{% liquid %} followed by text
+
+================================================================================
+`;
+
+exports[`issue-19985.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{% callout type="info" %}
+For the sake of example, the router's public address is 5.6.7.8 and its private address is 10.0.0.1.
+{% /callout %}
+
+=====================================output=====================================
+{% callout type="info" %}
+For the sake of example, the router's public address is 5.6.7.8 and its private
+address is 10.0.0.1.
+{% /callout %}
+
+================================================================================
+`;
+
+exports[`issue-19985.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+{% callout type="info" %}
+For the sake of example, the router's public address is 5.6.7.8 and its private address is 10.0.0.1.
+{% /callout %}
+
+=====================================output=====================================
+{% callout type="info" %}
+For the sake of example, the router's public address is 5.6.7.8 and its private address is 10.0.0.1.
+{% /callout %}
+
+================================================================================
+`;
+
+exports[`issue-20083.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+Taken from https://github.com/mdn/content/blob/3f221b9845703eb21db70cdc321f843d5c1c072b/files/en-us/webassembly/reference/javascript_interface/module/customsections_static/index.md?plain=1#L32-L33
+
+If \`module\` is not a [\`WebAssembly.Module\`](/en-US/docs/WebAssembly/Reference/JavaScript_interface/Module) object instance, a
+{{jsxref("TypeError")}} is thrown.
+
+---
+
+text
+{% comment %} here is comment {% endcomment %}
+
+---
+
+text
+{{ comment }} here is comment {{ endcomment }}
+
+---
+
+text
+{% comment %} text
+
+---
+
+text
+{{ comment }} text
+
+---
+
+text
+{{abc}}
+
+---
+
+text
+{% tag %}
+
+=====================================output=====================================
+Taken from
+https://github.com/mdn/content/blob/3f221b9845703eb21db70cdc321f843d5c1c072b/files/en-us/webassembly/reference/javascript_interface/module/customsections_static/index.md?plain=1#L32-L33
+
+If \`module\` is not a
+[\`WebAssembly.Module\`](/en-US/docs/WebAssembly/Reference/JavaScript_interface/Module)
+object instance, a {{jsxref("TypeError")}} is thrown.
+
+---
+
+text {% comment %} here is comment {% endcomment %}
+
+---
+
+text {{ comment }} here is comment {{ endcomment }}
+
+---
+
+text {% comment %} text
+
+---
+
+text {{ comment }} text
+
+---
+
+text
+{{abc}}
+
+---
+
+text
+{% tag %}
+
+================================================================================
+`;
+
+exports[`issue-20083.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+Taken from https://github.com/mdn/content/blob/3f221b9845703eb21db70cdc321f843d5c1c072b/files/en-us/webassembly/reference/javascript_interface/module/customsections_static/index.md?plain=1#L32-L33
+
+If \`module\` is not a [\`WebAssembly.Module\`](/en-US/docs/WebAssembly/Reference/JavaScript_interface/Module) object instance, a
+{{jsxref("TypeError")}} is thrown.
+
+---
+
+text
+{% comment %} here is comment {% endcomment %}
+
+---
+
+text
+{{ comment }} here is comment {{ endcomment }}
+
+---
+
+text
+{% comment %} text
+
+---
+
+text
+{{ comment }} text
+
+---
+
+text
+{{abc}}
+
+---
+
+text
+{% tag %}
+
+=====================================output=====================================
+Taken from https://github.com/mdn/content/blob/3f221b9845703eb21db70cdc321f843d5c1c072b/files/en-us/webassembly/reference/javascript_interface/module/customsections_static/index.md?plain=1#L32-L33
+
+If \`module\` is not a [\`WebAssembly.Module\`](/en-US/docs/WebAssembly/Reference/JavaScript_interface/Module) object instance, a
+{{jsxref("TypeError")}} is thrown.
+
+---
+
+text
+{% comment %} here is comment {% endcomment %}
+
+---
+
+text
+{{ comment }} here is comment {{ endcomment }}
+
+---
+
+text
+{% comment %} text
+
+---
+
+text
+{{ comment }} text
+
+---
+
+text
+{{abc}}
+
+---
+
+text
+{% tag %}
+
+================================================================================
+`;
+
+exports[`unbalanced-mismatched-braces.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+Braces {%  doesn't    match so   these   words should not   be   considered as *liquid node* }}
+
+=====================================output=====================================
+Braces {% doesn't match so these words should not be considered as _liquid node_
+}}
+
+================================================================================
+`;
+
+exports[`unbalanced-mismatched-braces.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+Braces {%  doesn't    match so   these   words should not   be   considered as *liquid node* }}
+
+=====================================output=====================================
+Braces {% doesn't match so these words should not be considered as _liquid node_ }}
+
+================================================================================
+`;
+
+exports[`unbalanced-object-close-only.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+
+Following brace doesn't   open  so these words    should not be   considered as *liquid node* }}
+
+=====================================output=====================================
+Following brace doesn't open so these words should not be considered as _liquid
+node_ }}
+
+================================================================================
+`;
+
+exports[`unbalanced-object-close-only.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+
+Following brace doesn't   open  so these words    should not be   considered as *liquid node* }}
+
+=====================================output=====================================
+Following brace doesn't open so these words should not be considered as _liquid node_ }}
+
+================================================================================
+`;
+
+exports[`unbalanced-object-open-only.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+
+This brace {{ doesn't   close  so these words    should not be   considered as *liquid node*
+
+=====================================output=====================================
+This brace {{ doesn't close so these words should not be considered as _liquid
+node_
+
+================================================================================
+`;
+
+exports[`unbalanced-object-open-only.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+
+This brace {{ doesn't   close  so these words    should not be   considered as *liquid node*
+
+=====================================output=====================================
+This brace {{ doesn't close so these words should not be considered as _liquid node_
+
+================================================================================
+`;
+
+exports[`unbalanced-template-close-only.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+
+Following brace doesn't   open  so these words    should not be   considered as *liquid node* %}
+
+=====================================output=====================================
+Following brace doesn't open so these words should not be considered as _liquid
+node_ %}
+
+================================================================================
+`;
+
+exports[`unbalanced-template-close-only.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+
+Following brace doesn't   open  so these words    should not be   considered as *liquid node* %}
+
+=====================================output=====================================
+Following brace doesn't open so these words should not be considered as _liquid node_ %}
+
+================================================================================
+`;
+
+exports[`unbalanced-template-open-only.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+
+This brace {% doesn't   close  so these words    should not be   considered as *liquid node*
+
+=====================================output=====================================
+This brace {% doesn't close so these words should not be considered as _liquid
+node_
+
+================================================================================
+`;
+
+exports[`unbalanced-template-open-only.md format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+
+This brace {% doesn't   close  so these words    should not be   considered as *liquid node*
+
+=====================================output=====================================
+This brace {% doesn't close so these words should not be considered as _liquid node_
+
+================================================================================
+`;

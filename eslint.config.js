@@ -1,0 +1,591 @@
+import url from "node:url";
+import eslintPluginJs from "@eslint/js";
+import eslintPluginStylistic from "@stylistic/eslint-plugin";
+import eslintPluginTypescriptEslint from "@typescript-eslint/eslint-plugin";
+import { isCI } from "ci-info";
+import eslintConfigPrettier from "eslint-config-prettier";
+import eslintPluginJest from "eslint-plugin-jest";
+import eslintPluginN from "eslint-plugin-n";
+import eslintPluginRegexp from "eslint-plugin-regexp";
+import eslintPluginSimpleImportSort from "eslint-plugin-simple-import-sort";
+import eslintPluginUnicorn from "eslint-plugin-unicorn";
+import globals from "globals";
+import eslintConfigNodeStyleText from "node-style-text/eslint-config";
+import eslintPluginPrettierInternalRules from "./scripts/tools/eslint-plugin-prettier-internal-rules/index.js";
+
+const toPath = (file) => url.fileURLToPath(new URL(file, import.meta.url));
+
+const ignores = `
+**/.tmp
+test*.*
+# Ignore directories and files in 'tests/format'
+tests/format/**/*
+# Unignore directories and 'format.test.js' file
+!tests/format/**/
+!tests/format/**/format.test.js
+tests/integration/cli/
+scripts/release/node_modules
+coverage/
+dist*/
+**/node_modules/**
+website/build/
+website/static/lib/
+website/static/playground/
+website/.docusaurus
+scripts/benchmark/*/
+**/.yarn/**
+**/.pnp.*
+vendors/**
+`
+  .split("\n")
+  .filter((pattern) => pattern && !pattern.startsWith("#"));
+
+const configs = [
+  { files: ["**/*.{js,mjs,cjs,jsx}"] },
+  eslintPluginJs.configs.recommended,
+  eslintPluginRegexp.configs.recommended,
+  eslintPluginUnicorn.configs.recommended,
+  eslintConfigPrettier,
+  eslintConfigNodeStyleText,
+  {
+    languageOptions: {
+      globals: { ...globals.builtin, ...globals.node },
+    },
+    plugins: {
+      "@stylistic": eslintPluginStylistic,
+      "@typescript-eslint": eslintPluginTypescriptEslint,
+      n: eslintPluginN,
+      "prettier-internal-rules": eslintPluginPrettierInternalRules,
+      "simple-import-sort": eslintPluginSimpleImportSort,
+    },
+    rules: {
+      "arrow-body-style": ["error", "as-needed"],
+      curly: "error",
+      "dot-notation": "error",
+      eqeqeq: "error",
+      "no-console": isCI ? "error" : "warn",
+      "no-constant-binary-expression": "error",
+      "no-duplicate-imports": "error",
+      "no-else-return": [
+        "error",
+        {
+          allowElseIf: false,
+        },
+      ],
+      "no-implicit-coercion": "error",
+      "no-inner-declarations": "error",
+      "no-lonely-if": "error",
+      "no-unneeded-ternary": "error",
+      "no-useless-return": "error",
+      "no-unused-expressions": [
+        "error",
+        {
+          allowShortCircuit: true,
+          allowTernary: true,
+        },
+      ],
+      "no-unused-vars": [
+        "error",
+        {
+          ignoreRestSiblings: true,
+        },
+      ],
+      "no-var": "error",
+      "object-shorthand": [
+        "error",
+        "always",
+        {
+          avoidExplicitReturnArrows: true,
+        },
+      ],
+      "one-var": ["error", "never"],
+      "prefer-arrow-callback": "error",
+      "prefer-const": [
+        "error",
+        {
+          destructuring: "all",
+        },
+      ],
+      "prefer-destructuring": [
+        "error",
+        {
+          VariableDeclarator: {
+            array: false,
+            object: true,
+          },
+          AssignmentExpression: {
+            array: false,
+            object: false,
+          },
+        },
+        {
+          enforceForRenamedProperties: false,
+        },
+      ],
+      "prefer-object-has-own": "error",
+      "prefer-object-spread": "error",
+      "prefer-rest-params": "error",
+      "prefer-spread": "error",
+      "require-await": "error",
+      // The `u` or `v` flag cause problems when dealing with non-ascii characters
+      // https://github.com/prettier/prettier/pull/18453
+      // https://github.com/prettier/prettier/pull/18455
+      "require-unicode-regexp": "off",
+      "symbol-description": "error",
+      yoda: [
+        "error",
+        "never",
+        {
+          exceptRange: true,
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        // Forbid `u` flag in regexp, kept for refactoring
+        // "Literal[regex.flags=/u/]",
+        // 'NewExpression[callee.name="RegExp"] > Literal.arguments:nth-child(2)[value=/u/]',
+      ],
+
+      // Internal rules
+      "prettier-internal-rules/jsx-identifier-case": "error",
+      "prettier-internal-rules/massage-ast-parameter-names": "error",
+      "prettier-internal-rules/no-identifier-n": "error",
+      "prettier-internal-rules/prefer-fs-promises-submodule": "error",
+      "prettier-internal-rules/no-useless-ast-path-callback-parameter": "error",
+
+      /* @stylistic/eslint-plugin */
+      "@stylistic/quotes": [
+        "error",
+        "double",
+        {
+          avoidEscape: true,
+        },
+      ],
+      "@stylistic/spaced-comment": "error",
+      "@stylistic/no-trailing-spaces": "error",
+
+      /* @typescript-eslint/eslint-plugin */
+      "@typescript-eslint/prefer-ts-expect-error": "error",
+
+      /* eslint-plugin-n */
+      "n/no-path-concat": "error",
+
+      /* eslint-plugin-regexp */
+      "regexp/match-any": [
+        "error",
+        {
+          allows: ["dotAll"],
+        },
+      ],
+      /* cspell:disable-next-line */
+      "regexp/no-extra-lookaround-assertions": "error",
+      "regexp/no-missing-g-flag": "error",
+      "regexp/no-useless-flag": [
+        "error",
+        {
+          strictTypes: false,
+        },
+      ],
+      /* cspell:disable-next-line */
+      "regexp/prefer-lookaround": [
+        "error",
+        {
+          strictTypes: false,
+        },
+      ],
+      "regexp/no-super-linear-backtracking": "off",
+      "regexp/unicode-property": [
+        "error",
+        {
+          generalCategory: "never",
+          key: "long",
+          property: {
+            binary: "long",
+            generalCategory: "long",
+            script: "long",
+          },
+        },
+      ],
+
+      /* eslint-plugin-simple-import-sort */
+      "simple-import-sort/imports": [
+        "error",
+        {
+          groups: [
+            // https://github.com/lydell/eslint-plugin-simple-import-sort/blob/20e25f3b83c713825f96b8494e2091e6600954d6/src/imports.js#L5-L19
+            // Side effect imports.
+            [String.raw`^\u0000`],
+            // Remove blank lines between groups
+            // https://github.com/lydell/eslint-plugin-simple-import-sort#how-do-i-remove-all-blank-lines-between-imports
+            [
+              // Node.js builtins prefixed with `node:`.
+              "^node:",
+              // Packages.
+              // Things that start with a letter (or digit or underscore), or `@` followed by a letter.
+              String.raw`^@?\w`,
+              // Absolute imports and other imports such as Vue-style `@/foo`.
+              // Anything not matched in another group.
+              "^",
+              // Relative imports.
+              // Anything that starts with a dot.
+              String.raw`^\.`,
+            ],
+          ],
+        },
+      ],
+      "simple-import-sort/exports": "error",
+
+      /* eslint-plugin-unicorn */
+      "unicorn/better-dom-traversing": "off",
+      "unicorn/catch-error-name": "off",
+      // Doesn't work for code and JSDoc in comments
+      "unicorn/comment-content": "off",
+      "unicorn/consistent-boolean-name": "off",
+      "unicorn/consistent-class-member-order": "off",
+      "unicorn/consistent-compound-words": "off",
+      "unicorn/consistent-conditional-object-spread": ["error", "ternary"],
+      "unicorn/consistent-destructuring": "off",
+      "unicorn/consistent-function-scoping": "off",
+      "unicorn/consistent-json-file-read": ["error", "buffer"],
+      "unicorn/default-export-style": "off",
+      "unicorn/escape-case": "off",
+      "unicorn/filename-case": [
+        "error",
+        {
+          checkDirectories: false,
+        },
+      ],
+      "unicorn/import-style": "off",
+      "unicorn/logical-assignment-operators": [
+        "error",
+        "always",
+        { enforceForIfStatements: true },
+      ],
+      "unicorn/max-nested-calls": "off",
+      "unicorn/name-replacements": "off",
+      "unicorn/no-array-callback-reference": "off",
+      "unicorn/no-array-method-this-argument": "off",
+      "unicorn/no-array-reduce": "off",
+      "unicorn/no-array-reverse": "off",
+      "unicorn/no-array-sort": "off",
+      "unicorn/no-array-splice": "off",
+      "unicorn/no-await-expression-member": "off",
+      "unicorn/no-break-in-nested-loop": "off",
+      "unicorn/no-computed-property-existence-check": "off",
+      // Disabled due to false positives
+      "unicorn/no-declarations-before-early-exit": "off",
+      "unicorn/no-for-loop": "off",
+      "unicorn/no-global-object-property-assignment": "off",
+      "unicorn/no-hex-escape": "off",
+      // Bug on `"\u{3000}"`
+      "unicorn/no-incorrect-template-string-interpolation": "off",
+      "unicorn/no-invalid-argument-count": "off",
+      "unicorn/no-negated-condition": "off",
+      "unicorn/no-nested-ternary": "off",
+      "unicorn/no-null": "off",
+      "unicorn/no-process-exit": "off",
+      "unicorn/no-thenable": "off",
+      "unicorn/no-this-outside-of-class": "off",
+      "unicorn/no-top-level-assignment-in-function": "off",
+      "unicorn/no-top-level-side-effects": "off",
+      "unicorn/no-undeclared-class-members": "off",
+      "unicorn/no-unnecessary-boolean-comparison": "off",
+      // Too slow and not useful
+      "unicorn/no-unnecessary-polyfills": "off",
+      "unicorn/no-unreadable-array-destructuring": "off",
+      "unicorn/no-unreadable-for-of-expression": "off",
+      "unicorn/no-unreadable-new-expression": "off",
+      "unicorn/no-unreadable-object-destructuring": "off",
+      "unicorn/no-unsafe-string-replacement": "off",
+      "unicorn/no-useless-concat": "off",
+      "unicorn/no-useless-recursion": "off",
+      "unicorn/no-useless-switch-case": "off",
+      "unicorn/no-useless-undefined": [
+        "error",
+        {
+          checkArrowFunctionBody: false,
+        },
+      ],
+      "unicorn/number-literal-case": "off",
+      "unicorn/numeric-separators-style": "off",
+      "unicorn/prefer-array-flat": [
+        "error",
+        {
+          functions: ["flat", "flatten"],
+        },
+      ],
+      "unicorn/prefer-add-event-listener": "off",
+      "unicorn/prefer-at": [
+        "error",
+        {
+          getLastElementFunctions: ["getLast"],
+        },
+      ],
+      "unicorn/prefer-await": "off",
+      "unicorn/prefer-boolean-return": "off",
+      "unicorn/prefer-code-point": "off",
+      "unicorn/prefer-combined-guards": "off",
+      "unicorn/prefer-continue": "off",
+      "unicorn/prefer-dom-node-append": "off",
+      "unicorn/prefer-dom-node-remove": "off",
+      "unicorn/prefer-early-return": "off",
+      "unicorn/prefer-export-from": [
+        "error",
+        {
+          checkUsedVariables: false,
+        },
+      ],
+      "unicorn/prefer-global-number-constants": "off",
+      "unicorn/prefer-global-this": "off",
+      "unicorn/prefer-https": "off",
+      // TODO: Enable
+      "unicorn/prefer-else-if": "off",
+      "unicorn/prefer-includes-over-repeated-comparisons": "off",
+      "unicorn/prefer-logical-operator-over-ternary": "off",
+      "unicorn/prefer-minimal-ternary": "off",
+      "unicorn/prefer-number-properties": [
+        "error",
+        {
+          checkInfinity: true,
+          checkNaN: true,
+        },
+      ],
+      "unicorn/prefer-query-selector": "off",
+      "unicorn/prefer-short-arrow-method": "off",
+      "unicorn/prefer-simple-condition-first": "off",
+      "unicorn/prefer-simplified-conditions": "off",
+      "unicorn/prefer-ternary": "off",
+      "unicorn/prefer-then-catch": "off",
+      "unicorn/prefer-unicode-code-point-escapes": "off",
+      "unicorn/relative-url-style": "off",
+      "unicorn/require-array-sort-compare": "off",
+      "unicorn/single-line-block-comment-style": "off",
+      "unicorn/switch-case-braces": ["error", "avoid"],
+      "unicorn/template-indent": "error",
+    },
+    linterOptions: {
+      reportUnusedDisableDirectives: "error",
+    },
+  },
+  {
+    ignores,
+  },
+  // CommonJS modules
+  {
+    files: ["**/*.cjs", "website/**/*.js"],
+    languageOptions: {
+      sourceType: "script",
+    },
+    rules: {
+      strict: ["error", "global"],
+      "unicorn/prefer-module": "off",
+      "unicorn/prefer-node-protocol": "off",
+    },
+  },
+  {
+    files: [
+      "scripts/**/*",
+      "benchmarks/**",
+      "tests/config/install-prettier.js",
+      "tests/config/browser-prettier/**/*",
+    ],
+    rules: {
+      "no-console": "off",
+    },
+  },
+  {
+    files: ["scripts/**/*.js"],
+    rules: {
+      "unicorn/prefer-top-level-await": "error",
+    },
+  },
+  {
+    files: [
+      "tests/config/**/*.js",
+      "tests/format/**/format.test.js",
+      "tests/integration/**/*.js",
+      "tests/unit/**/*.js",
+      "tests/dts/unit/**/*.js",
+      "scripts/release/__tests__/**/*.spec.js",
+    ],
+    plugins: { jest: eslintPluginJest },
+    languageOptions: {
+      globals: eslintPluginJest.environments.globals.globals,
+    },
+    rules: {
+      "@stylistic/quotes": [
+        "error",
+        "double",
+        {
+          avoidEscape: true,
+          allowTemplateLiterals: "always",
+        },
+      ],
+      "jest/valid-expect": [
+        "error",
+        {
+          alwaysAwait: true,
+        },
+      ],
+      "jest/prefer-to-be": "error",
+      "jest/prefer-strict-equal": "error",
+    },
+  },
+  {
+    files: ["tests/format/**/*.js"],
+    rules: {
+      "prettier-internal-rules/no-legacy-format-test": "error",
+    },
+  },
+  {
+    files: ["tests/integration/**/*.js"],
+    rules: {
+      "prettier-internal-rules/await-cli-tests": "error",
+    },
+  },
+  {
+    files: ["tests/**/*.{js,cjs}"],
+    rules: {
+      // TODO: Enable this when we drop support for Node.js v14
+      "unicorn/logical-assignment-operators": "off",
+      "unicorn/prefer-array-flat": "off",
+      "unicorn/prefer-array-flat-map": "off",
+      "unicorn/prefer-string-replace-all": "off",
+    },
+    languageOptions: {
+      globals: {
+        runCli: "readonly",
+        runFormatTest: "readonly",
+      },
+    },
+  },
+  {
+    files: ["src/cli/**/*.js"],
+    rules: {
+      "n/no-restricted-import": [
+        "error",
+        [
+          {
+            name: [
+              toPath("src/**"),
+              `!${toPath("src/cli/**")}`,
+              `!${toPath("src/index.js")}`,
+            ],
+            message: "Don't use code from other directory.",
+          },
+        ],
+      ],
+    },
+  },
+  {
+    files: ["src/language-js/parentheses/**"],
+    rules: {
+      "prettier-internal-rules/better-parent-property-check-in-parentheses-check":
+        "error",
+    },
+  },
+  {
+    files: ["src/**/*.js"],
+    rules: {
+      "prettier-internal-rules/flat-ast-path-call": "error",
+      "prettier-internal-rules/no-conflicting-comment-check-flags": "error",
+      "prettier-internal-rules/no-doc-public-import": "error",
+      "prettier-internal-rules/no-empty-flat-contents-for-if-break": "error",
+      "prettier-internal-rules/no-unnecessary-ast-path-call": "error",
+      "prettier-internal-rules/prefer-ast-path-each": "error",
+      "prettier-internal-rules/prefer-indent-if-break": "error",
+      "prettier-internal-rules/prefer-is-non-empty-array": "error",
+      "prettier-internal-rules/prefer-ast-path-getters": "error",
+    },
+  },
+  {
+    files: ["src/language-*/**/*.js"],
+    rules: {
+      "prettier-internal-rules/directly-loc-start-end": "error",
+      "prettier-internal-rules/print-function-parameter-order": "error",
+    },
+  },
+  {
+    files: ["src/language-js/**/*.js"],
+    ignores: ["src/language-js/parse/postprocess/*.js"],
+    rules: {
+      "prettier-internal-rules/no-node-comments": [
+        "error",
+        {
+          file: "src/language-js/utilities/comments.js",
+          functions: ["hasComment", "getComments"],
+        },
+        "src/language-js/pragma.js",
+        "src/language-js/parse/angular.js",
+        "src/language-js/parse/babel.js",
+        "src/language-js/parse/meriyah.js",
+        "src/language-js/parse/json.js",
+        "src/language-js/parse/acorn.js",
+        "src/language-js/parse/oxc.js",
+        "src/language-js/parse/yuku.js",
+        "src/language-js/parse/utilities/wrap-expression.js",
+      ],
+      "prettier-internal-rules/prefer-create-type-check-function": [
+        "error",
+        {
+          ignoreSingleType: true,
+          onlyTopLevelFunctions: true,
+        },
+      ],
+    },
+  },
+  {
+    files: ["website/src/pages/**/*.jsx", "website/playground/**/*.jsx"],
+    rules: {
+      // Doesn't know JSX
+      "no-unused-vars": "off",
+    },
+  },
+  {
+    files: ["website/**/*"],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.worker },
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+    rules: {
+      "unicorn/filename-case": "off",
+    },
+  },
+  {
+    files: ["website/docusaurus.config.js", "website/playground/**/*"],
+    languageOptions: {
+      sourceType: "module",
+    },
+  },
+  {
+    files: ["bin/prettier.cjs"],
+    languageOptions: {
+      ecmaVersion: 5,
+    },
+    rules: {
+      "no-var": "off",
+      "prefer-arrow-callback": "off",
+      "object-shorthand": "off",
+      "no-console": "off",
+    },
+  },
+  {
+    files: ["src/document/printer/printer.js"],
+    rules: {
+      "unicorn/name-replacements": [
+        "error",
+        {
+          replacements: {
+            doc: false,
+          },
+        },
+      ],
+    },
+  },
+];
+
+export default configs;

@@ -1,0 +1,31 @@
+runFormatTest(
+  {
+    importMeta: import.meta,
+    snippets: [
+      "import();",
+      "import(/* comment */);",
+      "new import('./a.mjs');",
+      "new import();",
+      'new import("foo").bar;',
+      'new import("foo")[bar];',
+      'new import("foo")`bar`;',
+      'new import("foo").bar(qux);',
+      'new import("foo")[bar](qux);',
+      'new import("foo")`bar`(qux);',
+    ],
+  },
+  [
+    "babel",
+    // "acorn",
+    // "espree",
+    "meriyah",
+    "typescript",
+    "babel-ts",
+    "oxc",
+    "oxc-ts",
+    "yuku",
+    "yuku-ts",
+    "flow",
+    // "hermes",
+  ],
+);

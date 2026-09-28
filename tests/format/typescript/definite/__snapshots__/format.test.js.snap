@@ -1,0 +1,37 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`asi.ts format 1`] = `
+====================================options=====================================
+parsers: ["typescript"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+let x
+!function() {};
+
+=====================================output=====================================
+let x;
+!function () {};
+
+================================================================================
+`;
+
+exports[`definite.ts format 1`] = `
+====================================options=====================================
+parsers: ["typescript"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+class MyComponent {
+ngModel!: ng.INgModelController;
+}
+
+var y!: MyComponent
+
+=====================================output=====================================
+class MyComponent {
+  ngModel!: ng.INgModelController;
+}
+
+var y!: MyComponent;
+
+================================================================================
+`;

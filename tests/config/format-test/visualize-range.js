@@ -1,0 +1,26 @@
+import indexToPosition from "index-to-position";
+import { codeFrameColumns } from "../../../vendors/babel-code-frame-for-test.js";
+
+const codeFrameColumnsOptions = {
+  linesAbove: Number.POSITIVE_INFINITY,
+  linesBelow: Number.POSITIVE_INFINITY,
+};
+
+const locationForRange = (text, range) => {
+  const [start, end] = [...range]
+    .sort((indexA, indexB) => indexA - indexB)
+    .map((index) => indexToPosition(text, index, { oneBasedLine: true }));
+
+  return { start, end };
+};
+
+const visualizeRange = (text, { rangeStart = 0, rangeEnd = text.length }) =>
+  codeFrameColumns(
+    text,
+    locationForRange(text, [rangeStart, rangeEnd]),
+    rangeStart > rangeEnd
+      ? { ...codeFrameColumnsOptions, message: "[Reversed range]" }
+      : codeFrameColumnsOptions,
+  );
+
+export default visualizeRange;

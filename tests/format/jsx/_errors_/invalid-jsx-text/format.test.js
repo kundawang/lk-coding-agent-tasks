@@ -1,0 +1,31 @@
+runFormatTest(
+  {
+    importMeta: import.meta,
+    snippets: [
+      "_ = <div>}</div>",
+      "_ = <div>></div>",
+      "_ = <div><</div>",
+      '_ = <div>{"foo"}}</div>',
+      '_ = <div>{"foo"}></div>',
+      '_ = <div>{"foo"}<</div>',
+      '_ = <div>}{"foo"}</div>',
+      '_ = <div>>{"foo"}</div>',
+      '_ = <div><{"foo"}</div>',
+    ],
+  },
+  [
+    "babel",
+    "babel-ts",
+    "acorn",
+    "espree",
+    "flow",
+    "meriyah",
+    "typescript",
+    // "hermes",
+    "oxc",
+    "oxc-ts",
+    "yuku",
+    "yuku-ts",
+    "__babel_estree",
+  ],
+);

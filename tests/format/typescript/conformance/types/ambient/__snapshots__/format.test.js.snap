@@ -1,0 +1,44 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`ambientDeclarations.ts format 1`] = `
+====================================options=====================================
+parsers: ["typescript"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+declare type a = true;
+declare function b(): 'hello';
+declare const foo = 'bar';
+declare var qux: boolean;
+declare enum YO {}
+declare interface c {}
+declare class d {}
+declare module e {}
+declare module "g" {}
+declare namespace f {}
+
+=====================================output=====================================
+declare type a = true;
+declare function b(): "hello";
+declare const foo = "bar";
+declare var qux: boolean;
+declare enum YO {}
+declare interface c {}
+declare class d {}
+declare module e {}
+declare module "g" {}
+declare namespace f {}
+
+================================================================================
+`;
+
+exports[`ambientDeclarations.ts format[babel-ts] 1`] = `
+"\`module ... {}\` declarations must have a string name. Use \`namespace ... {}\` instead. (8:16)
+   6 | declare interface c {}
+   7 | declare class d {}
+>  8 | declare module e {}
+     |                ^
+   9 | declare module "g" {}
+  10 | declare namespace f {}
+  11 |
+Cause: \`module ... {}\` declarations must have a string name. Use \`namespace ... {}\` instead. (8:15)"
+`;

@@ -1,0 +1,236 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`empty.hbs format 1`] = `
+====================================options=====================================
+parsers: ["glimmer"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+<div>
+  <style>
+
+
+
+  </style>
+</div>
+
+<style></style>
+
+=====================================output=====================================
+<div>
+  <style></style>
+</div>
+
+<style></style>
+================================================================================
+`;
+
+exports[`invalid-css.hbs format 1`] = `
+====================================options=====================================
+parsers: ["glimmer"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+<div>
+  <style>
+    .a {
+                    color: red;
+    }
+
+    invalid css
+  </style>
+</div>
+
+=====================================output=====================================
+<div>
+  <style>
+    .a {
+                    color: red;
+    }
+
+    invalid css
+  </style>
+</div>
+================================================================================
+`;
+
+exports[`test.hbs format 1`] = `
+====================================options=====================================
+parsers: ["glimmer"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+
+
+<div>
+  <style>
+
+
+    .a {color: red;
+    }
+
+
+  </style>
+</div>
+
+
+<div>
+  <style>
+    .a {
+
+
+
+      color: red;
+    }
+              .b { color:     blue
+
+};
+  </style>
+</div>
+
+<div>
+  <style>
+    .a { color: red; }
+  </style>
+</div>
+
+=====================================output=====================================
+<div>
+  <style>
+    .a {
+      color: red;
+    }
+  </style>
+</div>
+
+<div>
+  <style>
+    .a {
+      color: red;
+    }
+    .b {
+      color: blue;
+    }
+  </style>
+</div>
+
+<div>
+  <style>
+    .a {
+      color: red;
+    }
+  </style>
+</div>
+================================================================================
+`;
+
+exports[`with-lang-attribute.hbs format 1`] = `
+====================================options=====================================
+parsers: ["glimmer"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+<div>
+  <style lang="css">
+
+
+    .a { color: red;
+    }
+
+
+  </style>
+</div>
+
+<div>
+  <style lang>
+
+
+    .a { color: red;
+    }
+
+
+  </style>
+</div>
+
+<div>
+  <style lang="">
+
+
+    .a {color: red;
+    }
+
+
+  </style>
+</div>
+
+
+  <style lang="unknown">
+
+
+    .a {color: red;
+    }
+
+
+  </style>
+
+=====================================output=====================================
+<div>
+  <style lang="css">
+    .a {
+      color: red;
+    }
+  </style>
+</div>
+
+<div>
+  <style lang>
+    .a { color: red;
+    }
+  </style>
+</div>
+
+<div>
+  <style lang="">
+    .a {color: red;
+    }
+  </style>
+</div>
+
+<style lang="unknown">
+  .a {color: red;
+  }
+</style>
+================================================================================
+`;
+
+exports[`with-mustache.hbs format 1`] = `
+====================================options=====================================
+parsers: ["glimmer"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+<style>
+  a {
+    color: {{foo}}
+  }
+</style>
+
+<style>
+  .a { color: {{color}}; }
+  {{#if debug}}.b { color: red; }{{/if}}
+</style>
+
+<style>{{foo}}</style>
+
+=====================================output=====================================
+<style>
+  a { color:
+  {{foo}}
+  }
+</style>
+
+<style>
+  .a { color:
+  {{color}}; }
+  {{#if debug}}.b { color: red; }{{/if}}
+</style>
+
+<style>{{foo}}</style>
+================================================================================
+`;

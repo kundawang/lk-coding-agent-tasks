@@ -1,0 +1,23 @@
+const importSourceTests = [
+  "import-source-attributes-declaration.js",
+  "import-source-attributes-expression.js",
+  "import-source-binding-from.js",
+  "import-source-binding-source.js",
+  "import-source-dynamic-import.js",
+  "import-source.js",
+];
+const invalidSyntaxTests = ["no-namespace.js", "no-named.js"];
+
+runFormatTest(import.meta, ["babel"], {
+  errors: {
+    acorn: [...importSourceTests, ...invalidSyntaxTests],
+    espree: [...importSourceTests, ...invalidSyntaxTests],
+    meriyah: invalidSyntaxTests,
+    oxc: invalidSyntaxTests,
+    "oxc-ts": invalidSyntaxTests,
+    yuku: invalidSyntaxTests,
+    "yuku-ts": invalidSyntaxTests,
+    babel: invalidSyntaxTests,
+    __babel_estree: invalidSyntaxTests,
+  },
+});

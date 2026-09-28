@@ -1,0 +1,246 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`autolink.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+<https://www.example.com>
+
+<hello@example.com>
+
+<mailto:hello@example.com>
+
+=====================================output=====================================
+<https://www.example.com>
+
+<hello@example.com>
+
+<mailto:hello@example.com>
+
+================================================================================
+`;
+
+exports[`empty-url.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+[link](<> "title")
+
+[link](<>)
+
+[link]()
+
+---
+
+![link](<> "title")
+
+![link](<>)
+
+![link]()
+
+---
+
+[link]: <> "title"
+
+[link]: <>
+
+=====================================output=====================================
+[link](<> "title")
+
+[link](<>)
+
+[link](<>)
+
+---
+
+![link](<> "title")
+
+![link](<>)
+
+![link](<>)
+
+---
+
+[link]: <> "title"
+[link]: <>
+
+================================================================================
+`;
+
+exports[`encodedLink.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+[link](https://www.google.fr/()foo->bar)
+[link](https://www.google.fr/foo->bar)
+[link](https://www.google.fr/foo-%3Ebar)
+[link](https://www.google.fr/foo-<bar)
+[link](https://www.google.fr/foo-%3Cbar)
+[link](\\<)
+[link](\\()
+[link](\\\\)
+[link](<	>)
+
+![link](https://www.google.fr/()foo->bar)
+![link](https://www.google.fr/foo->bar)
+![link](https://www.google.fr/foo-%3Ebar)
+![link](https://www.google.fr/foo-<bar)
+![link](https://www.google.fr/foo-%3Cbar)
+![link](\\<)
+![link](\\()
+![link](\\\\)
+![link](<	>)
+
+[link]: https://www.google.fr/()foo->bar
+[link]: https://www.google.fr/foo->bar
+[link]: https://www.google.fr/foo-%3Ebar
+[link]: https://www.google.fr/foo-<bar
+[link]: https://www.google.fr/foo-%3Cbar
+[link]: \\<
+[link]: \\(
+[link]: \\\\
+[link]: <	>
+
+=====================================output=====================================
+[link](<https://www.google.fr/()foo-\\>bar>)
+[link](https://www.google.fr/foo->bar) [link](https://www.google.fr/foo-%3Ebar)
+[link](https://www.google.fr/foo-<bar) [link](https://www.google.fr/foo-%3Cbar)
+[link](<\\<>) [link](<(>) [link](\\\\) [link](<	>)
+
+![link](<https://www.google.fr/()foo-\\>bar>)
+![link](https://www.google.fr/foo->bar)
+![link](https://www.google.fr/foo-%3Ebar)
+![link](https://www.google.fr/foo-<bar)
+![link](https://www.google.fr/foo-%3Cbar) ![link](<\\<>) ![link](<(>) ![link](\\\\)
+![link](<	>)
+
+[link]: https://www.google.fr/()foo->bar
+[link]: https://www.google.fr/foo->bar
+[link]: https://www.google.fr/foo-%3Ebar
+[link]: https://www.google.fr/foo-<bar
+[link]: https://www.google.fr/foo-%3Cbar
+[link]: <\\<>
+[link]: <(>
+[link]: \\\\
+[link]: <	>
+
+================================================================================
+`;
+
+exports[`entity.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+[Test](http://localhost:8080/test?language=DE&currency=EUR)
+
+[Test](/a?x&quot\\;b)
+
+[Test](/a?x&#34\\;b)
+
+[Test](/a?x&#x22\\;b)
+
+![Test](/a?x&quot\\;b)
+
+[Test](/a "x&quot\\;b")
+
+[Test](</a b?x&quot\\;c>)
+
+[Test]: /a?x&quot\\;b
+
+[Test](/a?x\\&amp;b)
+
+[Test](/a?x\\&amp;quot;b)
+
+[Test](/a "x\\&amp;b")
+
+[Test](/a "x\\&amp;quot;b")
+
+[Test](/a?x&amp;b)
+
+[Test](/a?x&amp;quot;b)
+
+[Test](/a "/a?x&amp;quot;b")
+
+=====================================output=====================================
+[Test](http://localhost:8080/test?language=DE&currency=EUR)
+
+[Test](/a?x\\&quot;b)
+
+[Test](/a?x\\&#34;b)
+
+[Test](/a?x\\&#x22;b)
+
+![Test](/a?x\\&quot;b)
+
+[Test](/a "x\\&quot;b")
+
+[Test](</a b?x\\&quot;c>)
+
+[Test]: /a?x\\&quot;b
+
+[Test](/a?x\\&amp;b)
+
+[Test](/a?x\\&amp;quot;b)
+
+[Test](/a "x\\&amp;b")
+
+[Test](/a "x\\&amp;quot;b")
+
+[Test](/a?x&b)
+
+[Test](/a?x\\&quot;b)
+
+[Test](/a "/a?x\\&quot;b")
+
+================================================================================
+`;
+
+exports[`long.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+[podium context](https://github.schibsted.io/finn/podium/tree/master/packages/podium-context)
+
+=====================================output=====================================
+[podium context](https://github.schibsted.io/finn/podium/tree/master/packages/podium-context)
+
+================================================================================
+`;
+
+exports[`simple.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+[hello](#world)
+
+=====================================output=====================================
+[hello](#world)
+
+================================================================================
+`;
+
+exports[`url.md - {"proseWrap":"always"} format 1`] = `
+====================================options=====================================
+parsers: ["markdown"]
+proseWrap: "always"
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+https://www.example.com/
+
+=====================================output=====================================
+https://www.example.com/
+
+================================================================================
+`;

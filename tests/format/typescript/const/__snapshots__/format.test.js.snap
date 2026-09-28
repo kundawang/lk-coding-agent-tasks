@@ -1,0 +1,52 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`initializer-ambient-context.ts format 1`] = `
+====================================options=====================================
+parsers: ["typescript"]
+                                                      printWidth: 80 (default) |
+=====================================input======================================
+declare module N {
+  enum E {
+    ok = 0
+  }
+
+  export const string = "2";
+  export const number = 1.;
+  export const bigint = 0n;
+  export const negative_bigint = -0n;
+  export const negative_number = -1;
+  export const template = \`-2\`;
+  export const False = false;
+  export const True = true;
+  export const E_ok = E.ok;
+}
+
+=====================================output=====================================
+declare module N {
+  enum E {
+    ok = 0,
+  }
+
+  export const string = "2";
+  export const number = 1;
+  export const bigint = 0n;
+  export const negative_bigint = -0n;
+  export const negative_number = -1;
+  export const template = \`-2\`;
+  export const False = false;
+  export const True = true;
+  export const E_ok = E.ok;
+}
+
+================================================================================
+`;
+
+exports[`initializer-ambient-context.ts format[babel-ts] 1`] = `
+"\`module ... {}\` declarations must have a string name. Use \`namespace ... {}\` instead. (1:16)
+> 1 | declare module N {
+    |                ^
+  2 |   enum E {
+  3 |     ok = 0
+  4 |   }
+Cause: \`module ... {}\` declarations must have a string name. Use \`namespace ... {}\` instead. (1:15)"
+`;
