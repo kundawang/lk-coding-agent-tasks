@@ -21,6 +21,14 @@
       "submitter_field": "",
       "uid_base": 1,
       "uid_task_start": 53
+    },
+    "lk3": {
+      "_comment": "feature 迭代题的表（原表已有别人填的 27 行，新题从 UID 48 往后新建）",
+      "base_token": "HOvJbCEcbaLB5escq3NcwBlenFc",
+      "table_id": "tblVWMkScVCd34Ye",
+      "submitter_field": "",
+      "uid_base": 48,
+      "uid_task_start": 153
     }
   }
 }
