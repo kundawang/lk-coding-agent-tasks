@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-188",
+  "title": "wheel 在无 ctypes 环境也能打包（真实开源 feature）",
+  "created_at": "2026-09-28T14:35:12",
+  "task_type": "功能迭代",
+  "difficulty": "困难",
+  "language_framework": "Python, wheel",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-188/base",
+    "sha": "74c456ef6af4469135997a38d5ef15f26a91799b",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/74c456ef6af4469135997a38d5ef15f26a91799b"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-188/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-188/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
