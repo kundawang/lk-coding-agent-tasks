@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-195",
+  "title": "redis-py 的连接池支持 with（真实开源 feature）",
+  "created_at": "2026-09-28T14:44:10",
+  "task_type": "功能迭代",
+  "difficulty": "困难",
+  "language_framework": "Python, redis-py",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-195/base",
+    "sha": "e34e6f2f6f84d8c02ec94c6d2e76a43ad7d6a08b",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/e34e6f2f6f84d8c02ec94c6d2e76a43ad7d6a08b"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-195/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-195/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
