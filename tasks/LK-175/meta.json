@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-175",
+  "title": "nbconvert 兼容 mistune 3.1（真实开源 feature）",
+  "created_at": "2026-09-28T14:04:26",
+  "task_type": "功能迭代",
+  "difficulty": "困难",
+  "language_framework": "Python, nbconvert",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-175/base",
+    "sha": "f01367e6ea54fe807b20417364178902ed1e791f",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/f01367e6ea54fe807b20417364178902ed1e791f"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-175/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-175/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
