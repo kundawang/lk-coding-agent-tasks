@@ -1,0 +1,57 @@
+name: Run the test suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "pypy-3.9", "pypy-3.10"]
+        include:
+        - os: macos-latest
+          python-version: "3.8"
+        - os: windows-latest
+          python-version: "3.8"
+        - os: macos-latest
+          python-version: "3.12"
+        - os: windows-latest
+          python-version: "3.12"
+        - os: macos-latest
+          python-version: "pypy-3.10"
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        allow-prereleases: true
+        cache: pip
+        cache-dependency-path: pyproject.toml
+    - name: Install the project
+      run: pip install --no-binary=wheel .
+    - name: Install test dependencies
+      run: pip install .[test] coverage[toml]
+    - name: Include SDist check dependencies
+      if: matrix.python-version == '3.12'
+      run: pip install build flit
+    - name: Test with pytest
+      run: coverage run -m pytest -v
+      env:
+        PYTHONWARNDEFAULTENCODING: 1
+    - name: Generate coverage report
+      run: coverage xml
+    - name: Send coverage data to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: coverage.xml
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
