@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-179",
+  "title": "marshmallow 的 URL 校验支持 IDN（真实开源 feature）",
+  "created_at": "2026-09-28T14:09:59",
+  "task_type": "功能迭代",
+  "difficulty": "困难",
+  "language_framework": "Python, marshmallow",
+  "harness": "Codex CLI",
+  "harness_version": "0.155.0",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-179/base",
+    "sha": "ab76d929d704c40e223d695ebc96ea30755dbd98",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/ab76d929d704c40e223d695ebc96ea30755dbd98"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-179/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-179/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "从公开仓库的真实修复提交反推的题目"
+}
