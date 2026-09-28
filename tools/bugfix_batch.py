@@ -46,6 +46,8 @@ def main():
     ap.add_argument("--to", dest="end", type=int, default=0)
     ap.add_argument("--no-push", action="store_true")
     ap.add_argument("--only-fetch", action="store_true", help="只补齐工作区，不建题")
+    ap.add_argument("--task-type", default="Bug 修复", help="写进表格的任务类型")
+    ap.add_argument("--difficulty", default="困难")
     args = ap.parse_args()
 
     state = load_json(build.STATE, {})
@@ -94,7 +96,7 @@ def main():
         subprocess.run(["git", "clean", "-fdq"], cwd=build.REPO, capture_output=True)
         ns = argparse.Namespace(
             id=task_id.upper(), workspace=dest, prompt_file=prompt_file, title=title,
-            task_type="Bug 修复", difficulty="困难", lang=lang,
+            task_type=args.task_type, difficulty=args.difficulty, lang=lang,
             harness="Codex CLI", harness_version="0.155.0", os="Windows",
             env_level="有外部依赖，未容器化", notes="从公开仓库的真实修复提交反推的题目",
             root="", push=False)

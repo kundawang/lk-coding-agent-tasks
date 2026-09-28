@@ -36,6 +36,18 @@ SKIP_WORDS = re.compile(r"typo|readme|changelog|release|bump|version|lint|format
                         r"whitespace|revert|merge|translation|i18n|dependabot|upgrade|"
                         r"renovate|prettier|eslint|snapshot", re.I)
 
+# 「feature 迭代」用的词表：提交消息像是在加/放开某个能力
+FEATURE_WORDS = re.compile(
+    r"^(add|adds|added|support|supports|supported|implement|implements|implemented|introduce|"
+    r"introduces|allow|allows|enable|enables|expose|exposes|provide|provides|new|"
+    r"make .{0,30}(configurable|optional|overridable))\b|feature|enhancement|支持|新增|增加",
+    re.I)
+FEATURE_SKIP_WORDS = re.compile(
+    r"typo|readme|changelog|release notes|bump|version|lint|format|docs?\b|comment|"
+    r"whitespace|revert|merge|translation|i18n|dependabot|upgrade|renovate|prettier|"
+    r"eslint|snapshot|refactor|rename|cleanup|test only|annotation|typing|mypy|pyright|"
+    r"deprecat|breaking|ci\b", re.I)
+
 
 def token():
     for env in ("GH_TOKEN", "GITHUB_TOKEN"):
@@ -132,13 +144,15 @@ def issue_from_message(repo, message, client):
     return None
 
 
-def pick_candidate(repo, client, min_lines, max_lines, max_files):
+def pick_candidate(repo, client, min_lines, max_lines, max_files, kind="fix"):
     info = client.api(f"/repos/{repo}")
     lic = ((info.get("license") or {}).get("spdx_id") or "").strip()
     if lic not in OK_LICENSES:
         return None, "许可证 " + (lic or "未知")
     if info.get("archived"):
         return None, "仓库已归档"
+    words = FEATURE_WORDS if kind == "feature" else FIX_WORDS
+    skip = FEATURE_SKIP_WORDS if kind == "feature" else SKIP_WORDS
     branch = info.get("default_branch") or "main"
     stars = info.get("stargazers_count") or 0
 
@@ -150,7 +164,7 @@ def pick_candidate(repo, client, min_lines, max_lines, max_files):
             break
         for item in commits:
             msg = first_line(item["commit"]["message"])
-            if not FIX_WORDS.search(msg) or SKIP_WORDS.search(msg):
+            if not words.search(msg) or skip.search(msg):
                 continue
             if len(item.get("parents") or []) != 1:
                 continue
@@ -211,6 +225,8 @@ def main():
     ap.add_argument("--max-lines", type=int, default=120)
     ap.add_argument("--max-files", type=int, default=4)
     ap.add_argument("--plan", action="store_true", help="只打印仓库清单")
+    ap.add_argument("--kind", choices=("fix", "feature"), default="fix",
+                    help="fix=找 bug 修复提交；feature=找加功能的提交")
     args = ap.parse_args()
 
     repos = load_repos()
@@ -246,12 +262,14 @@ def main():
         if stop.is_set():
             return
         try:
-            record, why = pick_candidate(repo, client, args.min_lines, args.max_lines, args.max_files)
+            record, why = pick_candidate(repo, client, args.min_lines, args.max_lines,
+                                         args.max_files, kind=args.kind)
         except Exception as exc:
             record, why = None, "出错 " + str(exc)[:60]
         with lock:
             if record:
                 record["slug"] = repo.split("/")[1].lower().replace(".", "")
+                record["kind"] = args.kind
                 hits.append(record)
                 with open(args.out, "a", encoding="utf-8") as fh:
                     fh.write(json.dumps(record, ensure_ascii=False) + "\n")

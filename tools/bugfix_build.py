@@ -216,11 +216,12 @@ def main():
     ap.add_argument("--fetch", action="store_true", help="把已分配但还没下载好的工作区补齐")
     ap.add_argument("--show", default="", help="打印已分配题目的材料：如 lk-056,lk-057 或 all")
     ap.add_argument("--drop", default="", help="撤掉几个题号（素材不合适时用），如 lk-054,lk-055")
+    ap.add_argument("--pool", default=POOL, help="素材池文件（feature 那批用 work\\feature-pool.jsonl）")
     ap.add_argument("--only", default="", help="只从这些仓库里取（逗号分隔，按给定顺序）")
     ap.add_argument("--only-issue", action="store_true", help="只取带 issue 原文的素材")
     args = ap.parse_args()
 
-    with open(POOL, encoding="utf-8") as fh:
+    with open(args.pool, encoding="utf-8") as fh:
         pool = [json.loads(line) for line in fh if line.strip()]
     pool.sort(key=lambda r: (lang_of(r)[2], r["repo"].lower()))
 
