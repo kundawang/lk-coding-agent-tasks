@@ -1,6 +1,10 @@
 {
   "task_id": "LK-203",
   "title": "Netty HTTP/2 转 HTTP/1 前置字段校验（真实开源安全修复）",
+  "domain": "安全",
+  "subdomain": "其他",
+  "original_repo": "https://github.com/netty/netty",
+  "source_issue": "https://github.com/netty/netty/issues/17452",
   "created_at": "2026-11-12T14:05:42",
   "task_type": "Bugfix",
   "difficulty": "困难",
