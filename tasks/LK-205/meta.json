@@ -5,6 +5,8 @@
   "subdomain": "其他",
   "original_repo": "https://github.com/PrefectHQ/prefect",
   "source_issue": "https://github.com/PrefectHQ/prefect/issues/23614",
+  "submit_record_id": "reczz28YfOlrCXXr",
+  "submit_status": "已回填待执行首轮",
   "created_at": "2026-11-12T14:07:49",
   "task_type": "Bugfix",
   "difficulty": "困难",
