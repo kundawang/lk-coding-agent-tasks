@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-206",
+  "title": "Excalibur 圆形碰撞体射线背向命中修复",
+  "created_at": "2026-11-12T15:03:49",
+  "task_type": "Bugfix",
+  "difficulty": "困难",
+  "language_framework": "TypeScript, JavaScript, Excalibur.js, Vitest",
+  "harness": "Codex CLI",
+  "harness_version": "0.153.4",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-206/base",
+    "sha": "fdf3b2247bcdd87f4216fb80c0cc8166b17f5788",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/fdf3b2247bcdd87f4216fb80c0cc8166b17f5788"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-206/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-206/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "来源：https://github.com/excaliburjs/Excalibur/issues/3895；上游基线 0bdca288e5cd1d1794bf24c5916b1c79fc54974a"
+}
