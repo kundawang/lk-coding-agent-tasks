@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-205",
+  "title": "Prefect 异常元数据落库导致查询接口持续 500（真实开源数据工程缺陷）",
+  "created_at": "2026-11-12T14:07:49",
+  "task_type": "Bugfix",
+  "difficulty": "困难",
+  "language_framework": "Python, FastAPI, SQLAlchemy, Pydantic, SQLite/PostgreSQL",
+  "harness": "Codex CLI",
+  "harness_version": "0.153.4",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-205/base",
+    "sha": "5d82e3f7aa208ea8f8ce261313b45ac0e5d232aa",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/5d82e3f7aa208ea8f8ce261313b45ac0e5d232aa"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-205/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-205/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "来源：https://github.com/PrefectHQ/prefect/issues/23614；上游基线 5cf5adc41e7d21f6c32f49a1443ac0441c6fd44c"
+}
