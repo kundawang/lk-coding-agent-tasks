@@ -1,0 +1,312 @@
+/*
+ * Copyright 2014 The Netty Project
+ *
+ * The Netty Project licenses this file to you under the Apache License,
+ * version 2.0 (the "License"); you may not use this file except in compliance
+ * with the License. You may obtain a copy of the License at:
+ *
+ *   https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ */
+package io.netty.handler.ipfilter;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.util.internal.SocketUtils;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
+
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+
+public class IpSubnetFilterTest {
+
+    @Test
+    void noClassCastExceptionIpv4RuleOnly() {
+        IpSubnetFilterRule rule = new IpSubnetFilterRule("10.10.0.0/16", IpFilterRuleType.ACCEPT);
+        IpSubnetFilter filter = new IpSubnetFilter(false, rule);
+        assertFalse(filter.accept(null, new InetSocketAddress(Inet4Address.getLoopbackAddress(), 80)));
+        assertFalse(filter.accept(null, new InetSocketAddress(Inet6Address.getLoopbackAddress(), 80)));
+    }
+
+    @Test
+    void noClassCastExceptionIpv6RuleOnly() {
+        IpSubnetFilterRule rule = new IpSubnetFilterRule("::1/16", IpFilterRuleType.ACCEPT);
+        IpSubnetFilter filter = new IpSubnetFilter(false, rule);
+        assertFalse(filter.accept(null, new InetSocketAddress(Inet4Address.getLoopbackAddress(), 80)));
+        assertFalse(filter.accept(null, new InetSocketAddress(Inet6Address.getLoopbackAddress(), 80)));
+    }
+
+    @Test
+    public void testIpv4DefaultRoute() {
+        IpSubnetFilterRule rule = new IpSubnetFilterRule("0.0.0.0", 0, IpFilterRuleType.ACCEPT);
+        assertTrue(rule.matches(newSockAddress("91.114.240.43")));
+        assertTrue(rule.matches(newSockAddress("10.0.0.3")));
+        assertTrue(rule.matches(newSockAddress("192.168.93.2")));
+    }
+
+    @Test
+    public void testIpv4SubnetMaskCorrectlyHandlesIpv6() {
+        IpSubnetFilterRule rule = new IpSubnetFilterRule("0.0.0.0", 0, IpFilterRuleType.ACCEPT);
+        assertFalse(rule.matches(newSockAddress("2001:db8:abcd:0000::1")));
+    }
+
+    @Test
+    public void testIpv6SubnetMaskCorrectlyHandlesIpv4() {
+        IpSubnetFilterRule rule = new IpSubnetFilterRule("::", 0, IpFilterRuleType.ACCEPT);
+        assertFalse(rule.matches(newSockAddress("91.114.240.43")));
+    }
+
+    @Test
+    public void testIp4SubnetFilterRule() throws Exception {
+        IpSubnetFilterRule rule = new IpSubnetFilterRule("192.168.56.1", 24, IpFilterRuleType.ACCEPT);
+        for (int i = 0; i <= 255; i++) {
+            assertTrue(rule.matches(newSockAddress(String.format("192.168.56.%d", i))));
+        }
+        assertFalse(rule.matches(newSockAddress("192.168.57.1")));
+
+        rule = new IpSubnetFilterRule("91.114.240.1", 23, IpFilterRuleType.ACCEPT);
+        assertTrue(rule.matches(newSockAddress("91.114.240.43")));
+        assertTrue(rule.matches(newSockAddress("91.114.240.255")));
+        assertTrue(rule.matches(newSockAddress("91.114.241.193")));
+        assertTrue(rule.matches(newSockAddress("91.114.241.254")));
+        assertFalse(rule.matches(newSockAddress("91.115.241.2")));
+    }
+
+    @Test
+    public void testIp6SubnetFilterRule() {
+        IpSubnetFilterRule rule;
+
+        rule = new IpSubnetFilterRule("2001:db8:abcd:0000::", 52, IpFilterRuleType.ACCEPT);
+        assertTrue(rule.matches(newSockAddress("2001:db8:abcd:0000::1")));
+        assertTrue(rule.matches(newSockAddress("2001:db8:abcd:0fff:ffff:ffff:ffff:ffff")));
+        assertFalse(rule.matches(newSockAddress("2001:db8:abcd:1000::")));
+    }
+
+    @Test
+    public void testIp6SubnetFilterDefaultRule() {
+        IpFilterRule rule = new IpSubnetFilterRule("::", 0, IpFilterRuleType.ACCEPT);
+        assertTrue(rule.matches(newSockAddress("7FFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF")));
+        assertTrue(rule.matches(newSockAddress("8000::")));
+    }
+
+    @Test
+    public void testIpFilterRuleHandler() throws Exception {
+        IpFilterRule filter0 = new IpFilterRule() {
+            @Override
+            public boolean matches(InetSocketAddress remoteAddress) {
+                return "192.168.57.1".equals(remoteAddress.getHostString());
+            }
+
+            @Override
+            public IpFilterRuleType ruleType() {
+                return IpFilterRuleType.REJECT;
+            }
+        };
+
+        RuleBasedIpFilter denyHandler = new RuleBasedIpFilter(filter0) {
+            private final byte[] message = {1, 2, 3, 4, 5, 6, 7};
+
+            @Override
+            protected ChannelFuture channelRejected(ChannelHandlerContext ctx, InetSocketAddress remoteAddress) {
+                assertTrue(ctx.channel().isActive());
+                assertTrue(ctx.channel().isWritable());
+                assertEquals("192.168.57.1", remoteAddress.getHostString());
+
+                return ctx.writeAndFlush(Unpooled.wrappedBuffer(message));
+            }
+        };
+        EmbeddedChannel chDeny = newEmbeddedInetChannel("192.168.57.1", denyHandler);
+        ByteBuf out = chDeny.readOutbound();
+        assertEquals(7, out.readableBytes());
+        for (byte i = 1; i <= 7; i++) {
+            assertEquals(i, out.readByte());
+        }
+        assertFalse(chDeny.isActive());
+        assertFalse(chDeny.isOpen());
+
+        RuleBasedIpFilter allowHandler = new RuleBasedIpFilter(filter0) {
+            @Override
+            protected ChannelFuture channelRejected(ChannelHandlerContext ctx, InetSocketAddress remoteAddress) {
+                fail();
+                return null;
+            }
+        };
+        EmbeddedChannel chAllow = newEmbeddedInetChannel("192.168.57.2", allowHandler);
+        assertTrue(chAllow.isActive());
+        assertTrue(chAllow.isOpen());
+    }
+
+    @Test
+    public void testUniqueIpFilterHandler() {
+        UniqueIpFilter handler = new UniqueIpFilter();
+
+        EmbeddedChannel ch1 = newEmbeddedInetChannel("91.92.93.1", handler);
+        assertTrue(ch1.isActive());
+        EmbeddedChannel ch2 = newEmbeddedInetChannel("91.92.93.2", handler);
+        assertTrue(ch2.isActive());
+        EmbeddedChannel ch3 = newEmbeddedInetChannel("91.92.93.1", handler);
+        assertFalse(ch3.isActive());
+
+        // false means that no data is left to read/write
+        assertFalse(ch1.finish());
+
+        EmbeddedChannel ch4 = newEmbeddedInetChannel("91.92.93.1", handler);
+        assertTrue(ch4.isActive());
+    }
+
+    @Test
+    public void testBinarySearch() {
+        List<IpSubnetFilterRule> ipSubnetFilterRuleList = new ArrayList<IpSubnetFilterRule>();
+        ipSubnetFilterRuleList.add(buildRejectIP("1.2.3.4", 32));
+        ipSubnetFilterRuleList.add(buildRejectIP("1.1.1.1", 8));
+        ipSubnetFilterRuleList.add(buildRejectIP("200.200.200.200", 32));
+        ipSubnetFilterRuleList.add(buildRejectIP("108.0.0.0", 4));
+        ipSubnetFilterRuleList.add(buildRejectIP("10.10.10.10", 8));
+        ipSubnetFilterRuleList.add(buildRejectIP("2001:db8:abcd:0000::", 52));
+
+        // 1.0.0.0/8
+        EmbeddedChannel ch1 = newEmbeddedInetChannel("1.1.1.1", new IpSubnetFilter(ipSubnetFilterRuleList));
+        assertFalse(ch1.isActive());
+        assertTrue(ch1.close().isSuccess());
+
+        // Nothing applies here
+        EmbeddedChannel ch2 = newEmbeddedInetChannel("2.2.2.2", new IpSubnetFilter(ipSubnetFilterRuleList));
+        assertTrue(ch2.isActive());
+        assertTrue(ch2.close().isSuccess());
+
+        // 108.0.0.0/4
+        EmbeddedChannel ch3 = newEmbeddedInetChannel("97.100.100.100", new IpSubnetFilter(ipSubnetFilterRuleList));
+        assertFalse(ch3.isActive());
+        assertTrue(ch3.close().isSuccess());
+
+        // 200.200.200.200/32
+        EmbeddedChannel ch4 = newEmbeddedInetChannel("200.200.200.200", new IpSubnetFilter(ipSubnetFilterRuleList));
+        assertFalse(ch4.isActive());
+        assertTrue(ch4.close().isSuccess());
+
+        // Nothing applies here
+        EmbeddedChannel ch5 = newEmbeddedInetChannel("127.0.0.1", new IpSubnetFilter(ipSubnetFilterRuleList));
+        assertTrue(ch5.isActive());
+        assertTrue(ch5.close().isSuccess());
+
+        // 10.0.0.0/8
+        EmbeddedChannel ch6 = newEmbeddedInetChannel("10.1.1.2", new IpSubnetFilter(ipSubnetFilterRuleList));
+        assertFalse(ch6.isActive());
+        assertTrue(ch6.close().isSuccess());
+
+        //2001:db8:abcd:0000::/52
+        EmbeddedChannel ch7 = newEmbeddedInetChannel("2001:db8:abcd:0000::1",
+                new IpSubnetFilter(ipSubnetFilterRuleList));
+        assertFalse(ch7.isActive());
+        assertTrue(ch7.close().isSuccess());
+    }
+
+    @Test
+    public void testWiderRuleIsKeptForSameNetworkAddress() {
+        // Both rules share the same network address and the narrower one is added first.
+        IpSubnetFilter ipv4Filter = new IpSubnetFilter(buildRejectIP("10.0.0.0", 24), buildRejectIP("10.0.0.0", 8));
+        assertFalse(ipv4Filter.accept(null, newSockAddress("10.0.0.1")));
+        assertFalse(ipv4Filter.accept(null, newSockAddress("10.1.1.2")));
+        assertTrue(ipv4Filter.accept(null, newSockAddress("11.0.0.1")));
+
+        IpSubnetFilter ipv6Filter = new IpSubnetFilter(
+                buildRejectIP("2001:db8::", 64), buildRejectIP("2001:db8::", 32));
+        assertFalse(ipv6Filter.accept(null, newSockAddress("2001:db8::1")));
+        assertFalse(ipv6Filter.accept(null, newSockAddress("2001:db8:1::1")));
+        assertTrue(ipv6Filter.accept(null, newSockAddress("2001:db9::1")));
+    }
+
+    @Test
+    public void testIpv4DefaultRouteIsKeptWithRuleAboveSignBit() {
+        // 192.168.0.0 is negative when stored as an int, 0.0.0.0/0 still has to be ordered before it.
+        IpSubnetFilter filter = new IpSubnetFilter(buildRejectIP("0.0.0.0", 0), buildRejectIP("192.168.0.0", 16));
+        assertFalse(filter.accept(null, newSockAddress("10.1.1.2")));
+        assertFalse(filter.accept(null, newSockAddress("150.1.1.1")));
+        assertFalse(filter.accept(null, newSockAddress("192.168.1.1")));
+        assertFalse(filter.accept(null, newSockAddress("250.1.1.1")));
+    }
+
+    @Test
+    public void testIpv6MaskCorrectlyApplied() {
+        IpSubnetFilterRule rule = new IpSubnetFilterRule("2001:db8:abcd:0000::", 52, IpFilterRuleType.ACCEPT);
+
+        EmbeddedChannel ch = newEmbeddedInetChannel("2001:db8:ffff:0000::",
+                new IpSubnetFilter(false, Collections.singletonList(rule)));
+        assertFalse(ch.isActive());
+        assertTrue(ch.close().isSuccess());
+    }
+
+    @Test
+    public void testIpv6MatchesNoFalsePositiveForAllOnesNetworkBits() {
+        // FFFF:FFFF::1 is NOT in 2001:db8::/32, which will be the case if the comparison is made unsigned.
+        IpSubnetFilterRule rule = new IpSubnetFilterRule("2001:db8::", 32, IpFilterRuleType.ACCEPT);
+        assertFalse(rule.matches(newSockAddress("FFFF:FFFF::1")));
+     }
+
+    @Test
+    public void testOverlappingRulesWithDifferentRuleTypeThrows() {
+        // ACCEPT 10.0.0.0/8 followed by REJECT 10.5.0.0/16: the REJECT rule is fully contained within
+        // the broader ACCEPT supernet. Silently dropping it during de-duplication would turn the REJECT
+        // into an implicit ACCEPT, so construction must fail loudly instead.
+        List<IpSubnetFilterRule> rules = new ArrayList<IpSubnetFilterRule>();
+        rules.add(new IpSubnetFilterRule("10.0.0.0", 8, IpFilterRuleType.ACCEPT));
+        rules.add(new IpSubnetFilterRule("10.5.0.0", 16, IpFilterRuleType.REJECT));
+
+        assertThrows(IllegalArgumentException.class, new Executable() {
+            @Override
+            public void execute() {
+                new IpSubnetFilter(rules);
+            }
+        });
+    }
+
+    @Test
+    public void testOverlappingRulesWithSameRuleTypeDoesNotThrow() {
+        // Both rules are ACCEPT, so coalescing the more specific one is semantically safe.
+        List<IpSubnetFilterRule> rules = new ArrayList<IpSubnetFilterRule>();
+        rules.add(new IpSubnetFilterRule("10.0.0.0", 8, IpFilterRuleType.ACCEPT));
+        rules.add(new IpSubnetFilterRule("10.5.0.0", 16, IpFilterRuleType.ACCEPT));
+
+        IpSubnetFilter filter = new IpSubnetFilter(false, rules);
+        assertTrue(filter.accept(null, newSockAddress("10.5.1.1")));
+        assertTrue(filter.accept(null, newSockAddress("10.1.1.1")));
+    }
+
+    private static IpSubnetFilterRule buildRejectIP(String ipAddress, int mask) {
+        return new IpSubnetFilterRule(ipAddress, mask, IpFilterRuleType.REJECT);
+    }
+
+    private static EmbeddedChannel newEmbeddedInetChannel(final String ipAddress, ChannelHandler... handlers) {
+        return new EmbeddedChannel(handlers) {
+            @Override
+            protected SocketAddress remoteAddress0() {
+                return isActive()? SocketUtils.socketAddress(ipAddress, 5421) : null;
+            }
+        };
+    }
+
+    private static InetSocketAddress newSockAddress(String ipAddress) {
+        return SocketUtils.socketAddress(ipAddress, 1234);
+    }
+}
