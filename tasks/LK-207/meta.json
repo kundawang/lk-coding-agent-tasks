@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-207",
+  "title": "KAPLAY SAT 分离轴最小位移修复",
+  "created_at": "2026-11-12T15:04:43",
+  "task_type": "Bugfix",
+  "difficulty": "困难",
+  "language_framework": "TypeScript, JavaScript, KAPLAY, Playwright",
+  "harness": "Codex CLI",
+  "harness_version": "0.153.4",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-207/base",
+    "sha": "f17dc914295fafe7350529ba38b84a07fb277f1c",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/f17dc914295fafe7350529ba38b84a07fb277f1c"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-207/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-207/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "来源：https://github.com/kaplayjs/kaplay/issues/1194；上游基线 708932ca37ed69b8d608decf008e3d97c7170f5c"
+}
