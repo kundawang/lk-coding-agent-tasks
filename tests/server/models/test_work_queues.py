@@ -1,0 +1,615 @@
+import datetime
+from uuid import uuid4
+
+import pytest
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from prefect.server import models, schemas
+from prefect.server.database import (
+    PrefectDBInterface,
+    orm_models,
+    provide_database_interface,
+)
+from prefect.server.database.orm_models import ORMWorkQueue
+from prefect.server.events.clients import AssertingEventsClient
+from prefect.server.exceptions import ObjectNotFoundError
+from prefect.server.models.workers import DEFAULT_AGENT_WORK_POOL_NAME
+from prefect.server.schemas.statuses import DeploymentStatus, WorkQueueStatus
+from prefect.types._datetime import now
+
+pytestmark = pytest.mark.clear_db
+
+
+@pytest.fixture
+async def work_queue(session):
+    work_queue = await models.work_queues.create_work_queue(
+        session=session,
+        work_queue=schemas.actions.WorkQueueCreate(
+            name="wq-1",
+            description="All about my work queue",
+        ),
+    )
+    await session.commit()
+    return work_queue
+
+
+class TestMarkWorkQueuesReady:
+    @pytest.mark.parametrize("mark_ready", [False, True])
+    async def test_direct_call_without_docket(
+        self,
+        db: PrefectDBInterface,
+        session: AsyncSession,
+        deployment: orm_models.Deployment,
+        monkeypatch: pytest.MonkeyPatch,
+        mark_ready: bool,
+    ):
+        work_queue = await session.get(db.WorkQueue, deployment.work_queue_id)
+        assert work_queue is not None
+        monkeypatch.setattr(
+            models.work_queues, "PrefectServerEventsClient", AssertingEventsClient
+        )
+        AssertingEventsClient.reset()
+        await models.work_queues.mark_work_queues_ready(
+            db=db,
+            polled_work_queue_ids=[] if mark_ready else [work_queue.id],
+            ready_work_queue_ids=[work_queue.id] if mark_ready else [],
+        )
+        await session.refresh(work_queue)
+        await session.refresh(deployment)
+        assert work_queue.last_polled is not None
+        assert work_queue.status == (
+            WorkQueueStatus.READY if mark_ready else WorkQueueStatus.NOT_READY
+        )
+        assert deployment.status == DeploymentStatus.NOT_READY
+        assert [
+            event.event
+            for client in AssertingEventsClient.all
+            for event in client.events
+        ] == (["prefect.work-queue.ready"] if mark_ready else [])
+
+    @pytest.mark.parametrize("mark_ready", [False, True])
+    async def test_late_poll_preserves_newer_queue_timestamp(
+        self,
+        db: PrefectDBInterface,
+        session: AsyncSession,
+        work_queue: orm_models.WorkQueue,
+        monkeypatch: pytest.MonkeyPatch,
+        mark_ready: bool,
+    ):
+        newer = now("UTC")
+        monkeypatch.setattr(models.work_queues, "now", lambda _: newer)
+        await models.work_queues.mark_work_queues_ready(
+            db=db,
+            polled_work_queue_ids=[],
+            ready_work_queue_ids=[work_queue.id],
+        )
+        await session.refresh(work_queue)
+
+        if mark_ready:
+            work_queue.status = WorkQueueStatus.NOT_READY
+            await session.commit()
+
+        # A poll can capture its timestamp before a newer poll, then write last.
+        older = newer - datetime.timedelta(seconds=25)
+        monkeypatch.setattr(models.work_queues, "now", lambda _: older)
+        await models.work_queues.mark_work_queues_ready(
+            db=db,
+            polled_work_queue_ids=[] if mark_ready else [work_queue.id],
+            ready_work_queue_ids=[work_queue.id] if mark_ready else [],
+        )
+
+        await session.refresh(work_queue)
+        assert work_queue.last_polled == newer
+        assert work_queue.status == WorkQueueStatus.READY
+
+    async def test_emits_ready_event_once_for_repeated_calls(
+        self, work_queue: ORMWorkQueue, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.setattr(
+            "prefect.server.models.work_queues.PrefectServerEventsClient",
+            AssertingEventsClient,
+        )
+        await models.work_queues.mark_work_queues_not_ready(
+            work_queue_ids=[work_queue.id]
+        )
+        AssertingEventsClient.reset()
+
+        for _ in range(2):
+            await models.work_queues.mark_work_queues_ready(
+                db=provide_database_interface(),
+                polled_work_queue_ids=[],
+                ready_work_queue_ids=[work_queue.id],
+            )
+
+        ready_events = [
+            event
+            for client in AssertingEventsClient.all
+            for event in client.events
+            if event.event == "prefect.work-queue.ready"
+            and event.resource.id == f"prefect.work-queue.{work_queue.id}"
+        ]
+        assert len(ready_events) == 1
+
+
+class TestCreateWorkQueue:
+    async def test_create_work_queue_succeeds(self, session):
+        work_queue = await models.work_queues.create_work_queue(
+            session=session,
+            work_queue=schemas.actions.WorkQueueCreate(name="wq-1"),
+        )
+        assert work_queue.name == "wq-1"
+        # deprecated field
+        assert work_queue.filter is None
+
+    async def test_create_work_queue_throws_exception_on_name_conflict(
+        self,
+        session,
+        work_queue,
+    ):
+        with pytest.raises(IntegrityError):
+            await models.work_queues.create_work_queue(
+                session=session,
+                work_queue=schemas.actions.WorkQueueCreate(
+                    name=work_queue.name,
+                ),
+            )
+
+    async def test_create_work_queue_when_no_default_pool(self, session):
+        pool = await models.workers.read_work_pool_by_name(
+            session=session, work_pool_name=DEFAULT_AGENT_WORK_POOL_NAME
+        )
+        if pool is not None:
+            await models.workers.delete_work_pool(session=session, work_pool_id=pool.id)
+            await session.commit()
+
+        work_queue = await models.work_queues.create_work_queue(
+            session=session,
+            work_queue=schemas.actions.WorkQueueCreate(name="default"),
+        )
+
+        pool_after = await models.workers.read_work_pool_by_name(
+            session=session, work_pool_name=DEFAULT_AGENT_WORK_POOL_NAME
+        )
+        assert pool_after is not None
+        assert pool_after.default_queue_id == work_queue.id
+
+
+class TestReadWorkQueue:
+    async def test_read_work_queue_by_id(self, session, work_queue):
+        read_work_queue = await models.work_queues.read_work_queue(
+            session=session, work_queue_id=work_queue.id
+        )
+        assert read_work_queue.name == work_queue.name
+
+    async def test_read_work_queue_by_id_returns_none_if_does_not_exist(self, session):
+        assert not await models.work_queues.read_work_queue(
+            session=session, work_queue_id=uuid4()
+        )
+
+
+class TestReadWorkQueueByName:
+    async def test_read_work_queue_by_name(self, session, work_queue):
+        read_work_queue = await models.work_queues.read_work_queue_by_name(
+            session=session, name=work_queue.name
+        )
+        assert read_work_queue.id == work_queue.id
+
+    async def test_read_work_queue_by_name_returns_none_if_does_not_exist(
+        self, session
+    ):
+        assert not await models.work_queues.read_work_queue_by_name(
+            session=session, name="a name that doesn't exist"
+        )
+
+
+class TestReadWorkQueues:
+    @pytest.fixture
+    async def work_queues(self, session):
+        work_queue_1 = await models.work_queues.create_work_queue(
+            session=session,
+            work_queue=schemas.actions.WorkQueueCreate(
+                name="wq-1 1",
+            ),
+        )
+        work_queue_2 = await models.work_queues.create_work_queue(
+            session=session,
+            work_queue=schemas.actions.WorkQueueCreate(
+                name="wq-1 2",
+            ),
+        )
+        work_queue_3 = await models.work_queues.create_work_queue(
+            session=session,
+            work_queue=schemas.actions.WorkQueueCreate(
+                name="wq-2 1",
+            ),
+        )
+        work_queue_4 = await models.work_queues.create_work_queue(
+            session=session,
+            work_queue=schemas.actions.WorkQueueCreate(
+                name="wq-3 1",
+            ),
+        )
+        await session.commit()
+        return [work_queue_1, work_queue_2, work_queue_3, work_queue_4]
+
+    async def test_read_work_queue(self, work_queues, session):
+        read_work_queue = await models.work_queues.read_work_queues(session=session)
+        assert len(read_work_queue) == len(work_queues) + 1  # +1 for default queue
+
+    async def test_read_work_queue_applies_limit(self, work_queues, session):
+        read_work_queue = await models.work_queues.read_work_queues(
+            session=session, limit=1, offset=1
+        )
+        assert {queue.id for queue in read_work_queue} == {work_queues[0].id}
+
+    async def test_read_work_queue_applies_offset(self, work_queues, session):
+        read_work_queue = await models.work_queues.read_work_queues(
+            session=session, offset=1
+        )
+        assert {queue.id for queue in read_work_queue} == {
+            work_queues[0].id,
+            work_queues[1].id,
+            work_queues[2].id,
+            work_queues[3].id,
+        }
+
+    async def test_read_work_queues_name_any(self, work_queues, session):
+        read_work_queue = await models.work_queues.read_work_queues(
+            session=session,
+            work_queue_filter=schemas.filters.WorkQueueFilter(
+                name=schemas.filters.WorkQueueFilterName(any_=["wq-1 1", "wq-2 1"])
+            ),
+        )
+        assert {queue.name for queue in read_work_queue} == {"wq-1 1", "wq-2 1"}
+
+    async def test_read_work_queues_name_startswith(self, work_queues, session):
+        read_work_queue = await models.work_queues.read_work_queues(
+            session=session,
+            work_queue_filter=schemas.filters.WorkQueueFilter(
+                name=schemas.filters.WorkQueueFilterName(startswith_=["wq-1", "wq-2"])
+            ),
+        )
+        assert {queue.name for queue in read_work_queue} == {
+            "wq-1 1",
+            "wq-1 2",
+            "wq-2 1",
+        }
+
+    async def test_read_work_queue_returns_empty_list(self, session):
+        read_work_queue = await models.work_queues.read_work_queues(session=session)
+        assert len(read_work_queue) == 0
+
+
+class TestUpdateWorkQueue:
+    async def test_update_work_queue(self, session, work_queue):
+        result = await models.work_queues.update_work_queue(
+            session=session,
+            work_queue_id=work_queue.id,
+            work_queue=schemas.actions.WorkQueueUpdate(is_paused=True),
+        )
+        assert result
+
+        updated_queue = await models.work_queues.read_work_queue(
+            session=session, work_queue_id=work_queue.id
+        )
+        assert updated_queue.id == work_queue.id
+        # relevant attributes should be updated
+        assert updated_queue.is_paused
+        # unset attributes should be ignored
+        assert updated_queue.description == work_queue.description
+
+    async def test_update_work_queue_without_name(self, session, work_queue):
+        assert work_queue.is_paused is False
+        assert work_queue.concurrency_limit is None
+
+        result = await models.work_queues.update_work_queue(
+            session=session,
+            work_queue_id=work_queue.id,
+            work_queue=schemas.actions.WorkQueueUpdate(
+                concurrency_limit=3,
+                is_paused=True,
+            ),
+        )
+        assert result
+
+        updated_queue = await models.work_queues.read_work_queue(
+            session=session, work_queue_id=work_queue.id
+        )
+        # relevant attributes should be updated
+        assert updated_queue.is_paused
+        assert updated_queue.concurrency_limit == 3
+        # unset attributes should be ignored
+        assert updated_queue.description == work_queue.description
+        assert updated_queue.id == work_queue.id
+        assert updated_queue.name == work_queue.name
+
+    async def test_update_work_queue_returns_false_if_does_not_exist(self, session):
+        result = await models.work_queues.update_work_queue(
+            session=session,
+            work_queue_id=str(uuid4()),
+            work_queue=schemas.actions.WorkQueueUpdate(),
+        )
+        assert result is False
+
+
+class TestDeleteWorkQueue:
+    async def test_delete_work_queue(self, session, work_queue):
+        assert await models.work_queues.delete_work_queue(
+            session=session, work_queue_id=work_queue.id
+        )
+
+        # make sure the work_queue is deleted
+        result = await models.work_queues.read_work_queue(
+            session=session, work_queue_id=work_queue.id
+        )
+        assert result is None
+
+    async def test_delete_work_queue_returns_false_if_does_not_exist(self, session):
+        result = await models.work_queues.delete_work_queue(
+            session=session, work_queue_id=str(uuid4())
+        )
+        assert result is False
+
+
+class TestGetRunsInWorkQueue:
+    running_flow_states = [
+        schemas.states.StateType.PENDING,
+        schemas.states.StateType.CANCELLING,
+        schemas.states.StateType.RUNNING,
+    ]
+
+    @pytest.fixture
+    async def work_queue_2(self, session):
+        work_queue = await models.work_queues.create_work_queue(
+            session=session,
+            work_queue=schemas.actions.WorkQueueCreate(name="wq-2"),
+        )
+        await session.commit()
+        return work_queue
+
+    @pytest.fixture
+    async def scheduled_flow_runs(self, session, deployment, work_queue, work_queue_2):
+        for i in range(3):
+            for wq in [work_queue, work_queue_2]:
+                current_time = now("UTC") + datetime.timedelta(minutes=i)
+                await models.flow_runs.create_flow_run(
+                    session=session,
+                    flow_run=schemas.core.FlowRun(
+                        flow_id=deployment.flow_id,
+                        deployment_id=deployment.id,
+                        work_queue_name=wq.name,
+                        state=schemas.states.State(
+                            type="SCHEDULED",
+                            timestamp=current_time,
+                            state_details=dict(scheduled_time=current_time),
+                        ),
+                    ),
+                )
+        await session.commit()
+
+    @pytest.fixture
+    async def running_flow_runs(self, session, deployment, work_queue, work_queue_2):
+        for state_type in self.running_flow_states:
+            for wq in [work_queue, work_queue_2]:
+                await models.flow_runs.create_flow_run(
+                    session=session,
+                    flow_run=schemas.core.FlowRun(
+                        flow_id=deployment.flow_id,
+                        deployment_id=deployment.id,
+                        work_queue_name=wq.name,
+                        state=schemas.states.State(
+                            type=state_type,
+                            timestamp=now("UTC") - datetime.timedelta(seconds=10),
+                        ),
+                    ),
+                )
+        await session.commit()
+
+    async def test_get_runs_in_queue(
+        self, session, work_queue, work_queue_2, scheduled_flow_runs, running_flow_runs
+    ):
+        queue1, runs_wq1 = await models.work_queues.get_runs_in_work_queue(
+            session=session, work_queue_id=work_queue.id
+        )
+        queue2, runs_wq2 = await models.work_queues.get_runs_in_work_queue(
+            session=session, work_queue_id=work_queue_2.id
+        )
+
+        assert queue1.id == work_queue.id
+        assert queue2.id == work_queue_2.id
+
+        assert len(runs_wq1) == len(runs_wq2) == 3
+        assert all(r.work_queue_name == work_queue.name for r in runs_wq1)
+        assert all(r.work_queue_name == work_queue_2.name for r in runs_wq2)
+        assert set([r.id for r in runs_wq1]) != set([r.id for r in runs_wq2])
+
+    @pytest.mark.parametrize("limit", [2, 0])
+    async def test_get_runs_in_queue_limit(
+        self,
+        session,
+        work_queue,
+        scheduled_flow_runs,
+        running_flow_runs,
+        limit,
+    ):
+        _, runs_wq1 = await models.work_queues.get_runs_in_work_queue(
+            session=session, work_queue_id=work_queue.id, limit=limit
+        )
+        assert len(runs_wq1) == limit
+
+    async def test_get_runs_in_queue_scheduled_before(
+        self, session, work_queue, scheduled_flow_runs, running_flow_runs
+    ):
+        _, runs_wq1 = await models.work_queues.get_runs_in_work_queue(
+            session=session,
+            work_queue_id=work_queue.id,
+            scheduled_before=now("UTC"),
+        )
+        assert len(runs_wq1) == 1
+
+    async def test_get_runs_in_queue_nonexistant(
+        self, session, work_queue, scheduled_flow_runs, running_flow_runs
+    ):
+        with pytest.raises(ObjectNotFoundError):
+            await models.work_queues.get_runs_in_work_queue(
+                session=session, work_queue_id=uuid4()
+            )
+
+    async def test_get_runs_in_queue_paused(
+        self, session, work_queue, scheduled_flow_runs, running_flow_runs
+    ):
+        await models.work_queues.update_work_queue(
+            session=session,
+            work_queue_id=work_queue.id,
+            work_queue=schemas.actions.WorkQueueUpdate(is_paused=True),
+        )
+
+        _, runs_wq1 = await models.work_queues.get_runs_in_work_queue(
+            session=session, work_queue_id=work_queue.id
+        )
+        assert runs_wq1 == []
+
+    @pytest.mark.parametrize("concurrency_limit", [10, 5, 1])
+    async def test_get_runs_in_queue_concurrency_limit(
+        self,
+        session,
+        work_queue,
+        scheduled_flow_runs,
+        running_flow_runs,
+        concurrency_limit,
+    ):
+        await models.work_queues.update_work_queue(
+            session=session,
+            work_queue_id=work_queue.id,
+            work_queue=schemas.actions.WorkQueueUpdate(
+                concurrency_limit=concurrency_limit
+            ),
+        )
+
+        _, runs_wq1 = await models.work_queues.get_runs_in_work_queue(
+            session=session, work_queue_id=work_queue.id
+        )
+
+        assert len(runs_wq1) == max(
+            0, min(3, concurrency_limit - len(self.running_flow_states))
+        )
+
+    @pytest.mark.parametrize("limit", [10, 1])
+    async def test_get_runs_in_queue_concurrency_limit_and_limit(
+        self,
+        session,
+        work_queue,
+        scheduled_flow_runs,
+        running_flow_runs,
+        limit,
+    ):
+        concurrency_limit = 5
+
+        await models.work_queues.update_work_queue(
+            session=session,
+            work_queue_id=work_queue.id,
+            work_queue=schemas.actions.WorkQueueUpdate(
+                concurrency_limit=concurrency_limit
+            ),
+        )
+
+        _, runs_wq1 = await models.work_queues.get_runs_in_work_queue(
+            session=session, work_queue_id=work_queue.id, limit=limit
+        )
+
+        assert len(runs_wq1) == min(
+            limit, concurrency_limit - len(self.running_flow_states)
+        )
+
+
+class TestCountWorkQueueActiveSlots:
+    async def test_zero_runs(self, session, work_queue):
+        result = await models.work_queues.count_work_queue_active_slots(
+            session=session, work_queue_id=work_queue.id
+        )
+        assert result == 0
+
+    async def test_counts_running_pending_cancelling(self, session, work_queue, flow):
+        """Standard queues count RUNNING, PENDING, and CANCELLING."""
+        for state_cls in [
+            schemas.states.Running,
+            schemas.states.Pending,
+            schemas.states.Cancelling,
+        ]:
+            await models.flow_runs.create_flow_run(
+                session=session,
+                flow_run=schemas.core.FlowRun(
+                    flow_id=flow.id,
+                    state=state_cls(),
+                    work_queue_id=work_queue.id,
+                ),
+            )
+        await session.commit()
+
+        result = await models.work_queues.count_work_queue_active_slots(
+            session=session, work_queue_id=work_queue.id
+        )
+        assert result == 3
+
+    async def test_legacy_queue_counts_by_filter(self, session, flow, deployment):
+        """Legacy tag-based queues should count by tag/deployment filter."""
+        wq = await models.work_queues.create_work_queue(
+            session=session,
+            work_queue=schemas.actions.WorkQueueCreate(
+                name="legacy-q",
+                filter=schemas.core.QueueFilter(
+                    deployment_ids=[deployment.id],
+                ),
+            ),
+        )
+        # Running run matching the deployment filter
+        await models.flow_runs.create_flow_run(
+            session=session,
+            flow_run=schemas.core.FlowRun(
+                flow_id=flow.id,
+                state=schemas.states.Running(),
+                deployment_id=deployment.id,
+            ),
+        )
+        # Running run NOT matching the deployment filter (different deployment)
+        await models.flow_runs.create_flow_run(
+            session=session,
+            flow_run=schemas.core.FlowRun(
+                flow_id=flow.id,
+                state=schemas.states.Running(),
+            ),
+        )
+        await session.commit()
+
+        result = await models.work_queues.count_work_queue_active_slots(
+            session=session, work_queue_id=wq.id
+        )
+        # Only the run matching the deployment filter should count
+        assert result == 1
+
+    async def test_legacy_queue_excludes_cancelling(self, session, flow, deployment):
+        """Legacy queues only count PENDING and RUNNING, not CANCELLING."""
+        wq = await models.work_queues.create_work_queue(
+            session=session,
+            work_queue=schemas.actions.WorkQueueCreate(
+                name="legacy-q",
+                filter=schemas.core.QueueFilter(
+                    deployment_ids=[deployment.id],
+                ),
+            ),
+        )
+        await models.flow_runs.create_flow_run(
+            session=session,
+            flow_run=schemas.core.FlowRun(
+                flow_id=flow.id,
+                state=schemas.states.Cancelling(),
+                deployment_id=deployment.id,
+            ),
+        )
+        await session.commit()
+
+        result = await models.work_queues.count_work_queue_active_slots(
+            session=session, work_queue_id=wq.id
+        )
+        assert result == 0

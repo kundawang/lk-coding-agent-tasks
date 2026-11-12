@@ -1,0 +1,662 @@
+import itertools
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from types import ModuleType
+from typing import Any, Callable
+from unittest.mock import MagicMock
+
+import pytest
+
+from prefect import task
+from prefect.cache_policies import (
+    DEFAULT,
+    INPUTS,
+    CachePolicy,
+    CompoundCachePolicy,
+    Inputs,
+    RunId,
+    TaskSource,
+    _None,
+)
+from prefect.context import TaskRunContext
+from prefect.utilities.hashing import hash_objects
+
+
+class TestBaseClass:
+    def test_cache_policy_initializes(self):
+        policy = CachePolicy()
+        assert isinstance(policy, CachePolicy)
+
+    def test_compute_key_not_implemented(self):
+        policy = CachePolicy()
+        with pytest.raises(NotImplementedError):
+            policy.compute_key(task_ctx=None, inputs=None, flow_parameters=None)
+
+
+class TestNonePolicy:
+    def test_initializes(self):
+        policy = _None()
+        assert isinstance(policy, CachePolicy)
+
+    def test_doesnt_compute_a_key(self):
+        policy = _None()
+        key = policy.compute_key(task_ctx=None, inputs=None, flow_parameters=None)
+        assert key is None
+
+    @pytest.mark.parametrize("typ", CachePolicy.__subclasses__())
+    def test_addition_of_none_is_noop(self, typ):
+        policy = _None()
+        other = typ()
+        assert policy + other == other
+
+
+class TestInputsPolicy:
+    def test_initializes(self):
+        policy = Inputs()
+        assert isinstance(policy, CachePolicy)
+
+    def test_key_varies_on_inputs(self):
+        policy = Inputs()
+        none_key = policy.compute_key(task_ctx=None, inputs=None, flow_parameters=None)
+        x_key = policy.compute_key(
+            task_ctx=None, inputs={"x": 42}, flow_parameters=None
+        )
+        y_key = policy.compute_key(
+            task_ctx=None, inputs={"y": 42}, flow_parameters=None
+        )
+
+        assert x_key != y_key
+        assert x_key != none_key
+        assert y_key != none_key
+
+        z_key = policy.compute_key(
+            task_ctx=None, inputs={"z": "foo"}, flow_parameters=None
+        )
+
+        assert z_key not in [x_key, y_key]
+
+    def test_key_doesnt_vary_on_other_kwargs(self):
+        policy = Inputs()
+        key = policy.compute_key(task_ctx=None, inputs={"x": 42}, flow_parameters=None)
+
+        other_keys = []
+        for kwarg_vals in itertools.permutations([None, 1, "foo", {}]):
+            kwargs = dict(zip(["task_ctx", "flow_parameters", "other"], kwarg_vals))
+
+            other_keys.append(policy.compute_key(inputs={"x": 42}, **kwargs))
+
+        assert all([key == okey for okey in other_keys])
+
+    def test_key_excludes_excluded_inputs(self):
+        policy = Inputs(exclude=["y"])
+
+        key = policy.compute_key(task_ctx=None, inputs={"x": 42}, flow_parameters=None)
+
+        for val in [42, "foo", None]:
+            new_key = policy.compute_key(
+                task_ctx=None, inputs={"x": 42, "y": val}, flow_parameters=None
+            )
+            assert new_key == key
+
+    def test_key_applies_stabilizing_transformations(self, monkeypatch):
+        patched = {dict: lambda val: "foobar"}
+        monkeypatch.setattr("prefect.cache_policies.STABLE_TRANSFORMS", patched)
+
+        policy = Inputs()
+
+        # confirm dictionaries hash to the same because of the transform
+        key = policy.compute_key(
+            task_ctx=None, inputs={"y": dict(x="string")}, flow_parameters=None
+        )
+        other_key = policy.compute_key(
+            task_ctx=None, inputs={"y": dict(z="otherstring")}, flow_parameters=None
+        )
+
+        assert key == other_key
+
+        # confirm no changes to other types of inputs
+        key = policy.compute_key(task_ctx=None, inputs={"x": 42}, flow_parameters=None)
+        other_key = policy.compute_key(
+            task_ctx=None, inputs={"x": 43}, flow_parameters=None
+        )
+
+        assert key != other_key
+
+    def test_key_registers_transforms_for_already_imported_modules(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        class FakeDataFrame:
+            def __init__(self, columns: dict[str, str]):
+                self._columns = columns
+                self.iloc = self
+
+            @property
+            def columns(self) -> list[str]:
+                return list(self._columns)
+
+            def __getitem__(self, key: tuple[slice, int]) -> str:
+                return self._columns[self.columns[key[1]]]
+
+        fake_pandas = ModuleType("pandas")
+        fake_pandas.DataFrame = FakeDataFrame  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "pandas", fake_pandas)
+        monkeypatch.setattr("prefect.cache_policies.STABLE_TRANSFORMS", {})
+
+        policy = Inputs()
+
+        # Identical column ordering yields stable keys; reordering changes the key.
+        key = policy.compute_key(
+            task_ctx=None,
+            inputs={"df": FakeDataFrame({"a": "1", "b": "2"})},
+            flow_parameters=None,
+        )
+        other_key = policy.compute_key(
+            task_ctx=None,
+            inputs={"df": FakeDataFrame({"b": "2", "a": "1"})},
+            flow_parameters=None,
+        )
+
+        assert key != other_key
+        assert key == policy.compute_key(
+            task_ctx=None,
+            inputs={"df": FakeDataFrame({"a": "1", "b": "2"})},
+            flow_parameters=None,
+        )
+
+    @pytest.mark.parametrize("columns", [["a", "b"], ["a", "a"]])
+    def test_dataframe_cache_preserves_order_and_ignores_legacy_results(
+        self, tmp_path: Path, columns: list[str]
+    ):
+        pd = pytest.importorskip("pandas")
+        df = pd.DataFrame([[1, 10], [2, 20]], columns=columns)
+        reordered = df.iloc[:, ::-1]
+        executions = []
+
+        for frame in (df, reordered):
+            assert INPUTS.compute_key(None, {"df": frame}, {}) != hash_objects(
+                {"df": [frame[col] for col in sorted(frame.columns)]}
+            )
+
+        @task(cache_policy=INPUTS, persist_result=True, result_storage=tmp_path)
+        def first_column(df) -> list[int]:
+            executions.append(list(df.columns))
+            return df.iloc[:, 0].tolist()
+
+        # Persist a result using the pre-fix transform, as an older version would.
+        legacy_task = first_column.with_options(
+            cache_key_fn=lambda _, inputs: hash_objects(
+                {"df": [inputs["df"][col] for col in sorted(inputs["df"].columns)]}
+            )
+        )
+        legacy = legacy_task(reordered, return_state=True)
+        original = first_column(df, return_state=True)
+        changed = first_column(reordered, return_state=True)
+        repeated = first_column(df.copy(), return_state=True)
+
+        assert legacy.result() == [10, 20]
+        assert original.name == "Completed"
+        assert original.result() == [1, 2]
+        assert changed.name == "Completed"
+        assert changed.result() == [10, 20]
+        assert repeated.name == "Cached"
+        assert repeated.result() == [1, 2]
+        assert executions == [
+            list(reordered.columns),
+            list(df.columns),
+            list(reordered.columns),
+        ]
+
+    def test_dataframe_key_is_stable_across_processes(self):
+        pd = pytest.importorskip("pandas")
+        df = pd.DataFrame({"b": [10, 20], "a": [1, 2]})
+        key = INPUTS.compute_key(task_ctx=None, inputs={"df": df}, flow_parameters={})
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import pandas as pd; from prefect.cache_policies import INPUTS; "
+                    "df = pd.DataFrame({'b': [10, 20], 'a': [1, 2]}); "
+                    "print(INPUTS.compute_key(None, {'df': df}, {}))"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert key == result.stdout.strip()
+
+    def test_importing_module_does_not_import_optional_dependencies(
+        self, tmp_path: Path
+    ):
+        # a stub package that fails if imported, to detect an eager import of pandas
+        (tmp_path / "pandas.py").write_text(
+            "raise AssertionError('pandas was eagerly imported')"
+        )
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import sys; import prefect.cache_policies;"
+                " assert 'pandas' not in sys.modules",
+            ],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+
+        assert result.returncode == 0, result.stderr
+
+    def test_subtraction_results_in_new_policy_for_inputs(self):
+        policy = Inputs()
+        new_policy = policy - "foo"
+        assert policy != new_policy
+        assert policy.exclude != new_policy.exclude
+
+    @pytest.mark.parametrize("policy", [RunId(), RunId() + TaskSource()])
+    def test_subtraction_is_noop_for_non_inputs_policies(self, policy):
+        new_policy = policy - "foo"
+        assert policy is new_policy
+        assert policy.compute_key(
+            task_ctx=None,
+            inputs={"foo": 42, "y": "changing-value"},
+            flow_parameters=None,
+        ) == policy.compute_key(
+            task_ctx=None, inputs={"foo": 42, "y": "changed"}, flow_parameters=None
+        )
+
+    def test_excluded_can_be_manipulated_via_subtraction(self):
+        policy = Inputs() - "y"
+        assert policy.exclude == ["y"]
+
+        key = policy.compute_key(task_ctx=None, inputs={"x": 42}, flow_parameters=None)
+
+        for val in [42, "foo", None]:
+            new_key = policy.compute_key(
+                task_ctx=None, inputs={"x": 42, "y": val}, flow_parameters=None
+            )
+            assert new_key == key
+
+    def test_subtraction_preserves_configuration(self):
+        policy = Inputs().configure(
+            key_storage="/path/to/storage",
+            lock_manager="/path/to/locks",
+            isolation_level="SERIALIZABLE",
+        )
+        new_policy = policy - "y"
+        assert new_policy.exclude == ["y"]
+        assert new_policy.key_storage == "/path/to/storage"
+        assert new_policy.lock_manager == "/path/to/locks"
+        assert new_policy.isolation_level == "SERIALIZABLE"
+
+
+class TestCompoundPolicy:
+    def test_initializes(self):
+        policy = CompoundCachePolicy()
+        assert isinstance(policy, CachePolicy)
+
+    def test_creation_via_addition(self):
+        one, two = Inputs(), TaskSource()
+        policy = one + two
+        assert isinstance(policy, CompoundCachePolicy)
+
+    def test_addition_creates_new_policies(self):
+        one, two = Inputs(), CompoundCachePolicy()
+        policy = one + two
+        assert isinstance(policy, CompoundCachePolicy)
+        assert policy != two
+        assert policy.policies != two.policies
+
+    def test_subtraction_creates_new_policies_if_input_dependency(self):
+        policy = CompoundCachePolicy(policies=[Inputs()])
+        new_policy = policy - "foo"
+        assert isinstance(new_policy, CompoundCachePolicy)
+        assert policy != new_policy
+        assert policy.policies != new_policy.policies
+
+    def test_subtraction_preserves_configuration(self):
+        policy = DEFAULT.configure(
+            key_storage="/path/to/storage",
+            lock_manager="/path/to/locks",
+            isolation_level="SERIALIZABLE",
+        )
+        new_policy = policy - "y"
+        assert isinstance(new_policy, CompoundCachePolicy)
+        assert new_policy.key_storage == "/path/to/storage"
+        assert new_policy.lock_manager == "/path/to/locks"
+        assert new_policy.isolation_level == "SERIALIZABLE"
+
+    def test_creation_via_subtraction(self):
+        one = DEFAULT
+        policy = one - "y"
+        assert isinstance(policy, CompoundCachePolicy)
+
+        assert policy.compute_key(
+            task_ctx=None, inputs={"x": 42, "y": "foo"}, flow_parameters=None
+        ) == (RunId() + Inputs(exclude=["y"])).compute_key(
+            task_ctx=None, inputs={"x": 42, "y": "foo"}, flow_parameters=None
+        )
+
+    def test_nones_are_ignored(self):
+        one, two = _None(), _None()
+        policy = CompoundCachePolicy(policies=[one, two])
+        assert isinstance(policy, CompoundCachePolicy)
+
+        fparams = dict(x=42, y="foo")
+        compound_key = policy.compute_key(
+            task_ctx=None, inputs=dict(z=[1, 2]), flow_parameters=fparams
+        )
+        assert compound_key is None
+
+    def test_adding_two_compound_policies_merges_policies(self):
+        one = CompoundCachePolicy(policies=[Inputs(), TaskSource()])
+        two = CompoundCachePolicy(policies=[RunId()])
+        policy = one + two
+        assert isinstance(policy, CompoundCachePolicy)
+        assert len(policy.policies) == 3
+        assert Inputs() in policy.policies
+        assert RunId() in policy.policies
+        assert TaskSource() in policy.policies
+
+    def test_nested_compound_policies_are_flattened(self):
+        policy = CompoundCachePolicy(
+            policies=[
+                CompoundCachePolicy(policies=[Inputs(), TaskSource()]),
+                CompoundCachePolicy(policies=[RunId()]),
+            ]
+        )
+        assert isinstance(policy, CompoundCachePolicy)
+        assert len(policy.policies) == 3
+        assert Inputs() in policy.policies
+        assert RunId() in policy.policies
+        assert TaskSource() in policy.policies
+
+    def test_compound_policy_deduplicates_inputs_on_subtraction(self):
+        """Regression test for https://github.com/PrefectHQ/prefect/issues/16773"""
+        # Create a compound policy with multiple Inputs policies
+        policy = CompoundCachePolicy(
+            policies=[
+                Inputs(),
+                TaskSource(),
+                Inputs(exclude=["x"]),
+                Inputs(exclude=["y"]),
+            ]
+        )
+        # Inputs get combined into a single policy
+        assert len(policy.policies) == 2
+
+        # Subtract a new key
+        new_policy = policy - "z"
+
+        # Verify that all Inputs policies were merged into one
+        inputs_policies = [p for p in new_policy.policies if isinstance(p, Inputs)]
+        assert len(inputs_policies) == 1
+
+        # Verify that all excludes were preserved
+        assert sorted(inputs_policies[0].exclude) == ["x", "y", "z"]
+
+        # Each non-Inputs policy gets converted to a CompoundCachePolicy with an Inputs policy
+        # So we should have one merged Inputs policy and one CompoundCachePolicy containing TaskSource
+        assert len(new_policy.policies) == 2
+        assert any(
+            isinstance(p, CompoundCachePolicy) or isinstance(p, TaskSource)
+            for p in new_policy.policies
+        )
+
+
+class TestTaskSourcePolicy:
+    def test_initializes(self):
+        policy = TaskSource()
+        assert isinstance(policy, CachePolicy)
+
+    @pytest.mark.parametrize(
+        "expression_a, expression_b",
+        [
+            ("x + 1", "x + 100"),
+            ("left(x)", "right(x)"),
+            ("(lambda: x + 1)()", "(lambda: x + 100)()"),
+        ],
+    )
+    def test_distinguishes_code_without_source(
+        self, expression_a: str, expression_b: str
+    ):
+        policy = TaskSource()
+        keys = []
+        for expression in (expression_a, expression_b, expression_a):
+            namespace: dict[str, Any] = {}
+            exec(f"def dynamic(x):\n    return {expression}", namespace)  # noqa: S102
+            dynamic_task = task(namespace["dynamic"])
+            assert dynamic_task.source_code is None
+            ctx = TaskRunContext.model_construct(task=dynamic_task)
+            keys.append(policy.compute_key(ctx, inputs=None, flow_parameters=None))
+
+        assert keys[0] is not None
+        assert keys[0] == keys[2]
+        assert keys[0] != keys[1]
+
+    @pytest.mark.parametrize("expression", ["x + 1", "(lambda: x + 1)()"])
+    @pytest.mark.parametrize(
+        "filename, prefix, indent",
+        [("job-2", "", "    "), ("job-1", "\n\n", "    "), ("job-2", "\n", "        ")],
+    )
+    def test_code_without_source_ignores_compilation_location(
+        self, expression: str, filename: str, prefix: str, indent: str
+    ):
+        policy = TaskSource()
+        keys = []
+        for name, padding, spacing in [
+            ("job-1", "", "    "),
+            (filename, prefix, indent),
+        ]:
+            namespace: dict[str, Any] = {}
+            code = compile(
+                f"{padding}def dynamic(x):\n{spacing}return {expression}", name, "exec"
+            )
+            exec(code, namespace)  # noqa: S102
+            dynamic_task = task(namespace["dynamic"])
+            assert dynamic_task.source_code is None
+            ctx = TaskRunContext.model_construct(task=dynamic_task)
+            keys.append(policy.compute_key(ctx, inputs=None, flow_parameters=None))
+
+        assert keys[0] is not None
+        assert keys[0] == keys[1]
+
+    def test_changes_in_def_change_key(self):
+        policy = TaskSource()
+
+        class TaskCtx:
+            pass
+
+        task_ctx = TaskCtx()
+
+        def my_func():
+            pass
+
+        task_ctx.task = my_func
+
+        key = policy.compute_key(task_ctx=task_ctx, inputs=None, flow_parameters=None)
+
+        task_ctx = TaskCtx()
+
+        def my_func(x):
+            pass
+
+        task_ctx.task = my_func
+
+        new_key = policy.compute_key(
+            task_ctx=task_ctx, inputs=None, flow_parameters=None
+        )
+
+        assert key != new_key
+
+    def test_uses_stored_source_code(self):
+        """Test that TaskSource uses stored source_code attribute when available."""
+        policy = TaskSource()
+
+        mock_task_a = MagicMock()
+        mock_task_b = MagicMock()
+
+        # Set different source code on each mock task
+        mock_task_a.source_code = "def task_a():\n    return 'a'"
+        mock_task_b.source_code = "def task_b():\n    return 'b'"
+
+        task_ctx_a = TaskRunContext.model_construct(task=mock_task_a)
+        task_ctx_b = TaskRunContext.model_construct(task=mock_task_b)
+
+        key_a = policy.compute_key(
+            task_ctx=task_ctx_a, inputs=None, flow_parameters=None
+        )
+        key_b = policy.compute_key(
+            task_ctx=task_ctx_b, inputs=None, flow_parameters=None
+        )
+
+        # Keys should be generated and different for different source code
+        assert key_a is not None
+        assert key_b is not None
+        assert key_a != key_b
+
+
+class TestDefaultPolicy:
+    def test_changing_the_inputs_busts_the_cache(self):
+        inputs = dict(x=42)
+        key = DEFAULT.compute_key(task_ctx=None, inputs=inputs, flow_parameters=None)
+
+        inputs = dict(x=43)
+        new_key = DEFAULT.compute_key(
+            task_ctx=None, inputs=inputs, flow_parameters=None
+        )
+
+        assert key != new_key
+
+    def test_changing_the_run_id_busts_the_cache(self):
+        @dataclass
+        class Run:
+            id: str
+            flow_run_id: str = None
+
+        def my_task():
+            pass
+
+        @dataclass
+        class TaskCtx:
+            task_run: Run
+            task = my_task
+
+        task_run_a = Run(id="a", flow_run_id="a")
+        task_run_b = Run(id="b", flow_run_id="b")
+        task_run_c = Run(id="c", flow_run_id=None)
+        task_run_d = Run(id="d", flow_run_id=None)
+
+        key_a = DEFAULT.compute_key(
+            task_ctx=TaskCtx(task_run=task_run_a), inputs=None, flow_parameters=None
+        )
+        key_b = DEFAULT.compute_key(
+            task_ctx=TaskCtx(task_run=task_run_b), inputs=None, flow_parameters=None
+        )
+        key_c = DEFAULT.compute_key(
+            task_ctx=TaskCtx(task_run=task_run_c), inputs=None, flow_parameters=None
+        )
+        key_d = DEFAULT.compute_key(
+            task_ctx=TaskCtx(task_run=task_run_d), inputs=None, flow_parameters=None
+        )
+
+        assert key_a not in [key_b, key_c, key_d]
+        assert key_b not in [key_a, key_c, key_d]
+        assert key_c not in [key_a, key_b, key_d]
+        assert key_d not in [key_a, key_b, key_c]
+
+    def test_changing_the_source_busts_the_cache(self):
+        @dataclass
+        class Run:
+            id: str
+            flow_run_id: str = None
+
+        @dataclass
+        class TaskCtx:
+            task_run: Run
+            task: Callable = None
+
+        task_run = Run(id="a", flow_run_id="b")
+        ctx_one = TaskCtx(task_run=task_run, task=lambda: "foo")
+        ctx_two = TaskCtx(task_run=task_run, task=lambda: "bar")
+
+        key_one = DEFAULT.compute_key(
+            task_ctx=ctx_one, inputs=None, flow_parameters=None
+        )
+        key_two = DEFAULT.compute_key(
+            task_ctx=ctx_two, inputs=None, flow_parameters=None
+        )
+
+        assert key_one != key_two
+
+
+class TestPolicyConfiguration:
+    def test_configure_changes_storage(self):
+        policy = Inputs().configure(key_storage="/path/to/storage")
+        assert policy.key_storage == "/path/to/storage"
+
+    def test_configure_changes_locks(self):
+        policy = Inputs().configure(lock_manager="/path/to/locks")
+        assert policy.lock_manager == "/path/to/locks"
+
+    def test_configure_changes_isolation_level(self):
+        policy = Inputs().configure(isolation_level="SERIALIZABLE")
+        assert policy.isolation_level == "SERIALIZABLE"
+
+    def test_configure_changes_all_attributes(self):
+        policy = Inputs().configure(
+            key_storage="/path/to/storage",
+            lock_manager="/path/to/locks",
+            isolation_level="SERIALIZABLE",
+        )
+        assert policy.key_storage == "/path/to/storage"
+        assert policy.lock_manager == "/path/to/locks"
+        assert policy.isolation_level == "SERIALIZABLE"
+
+    def test_configure_with_none_is_noop(self):
+        policy = Inputs().configure(
+            key_storage=None, lock_manager=None, isolation_level=None
+        )
+        assert policy == Inputs()
+
+    def test_add_policy_with_configuration(self):
+        policy = Inputs() + TaskSource().configure(
+            lock_manager="/path/to/locks",
+            isolation_level="SERIALIZABLE",
+            key_storage="/path/to/storage",
+        )
+        assert policy.lock_manager == "/path/to/locks"
+        assert policy.isolation_level == "SERIALIZABLE"
+        assert policy.key_storage == "/path/to/storage"
+
+    def test_add_policy_with_conflict_raises(self):
+        policy = Inputs() + TaskSource().configure(
+            lock_manager="original_locks",
+            key_storage="original_storage",
+            isolation_level="SERIALIZABLE",
+        )
+        with pytest.raises(
+            ValueError,
+            match="Cannot add CachePolicies with different lock implementations.",
+        ):
+            _policy = policy + TaskSource().configure(lock_manager="other_locks")
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot add CachePolicies with different storage locations.",
+        ):
+            _policy = policy + TaskSource().configure(key_storage="other_storage")
+
+        with pytest.raises(
+            ValueError,
+            match="Cannot add CachePolicies with different isolation levels.",
+        ):
+            _policy = policy + TaskSource().configure(isolation_level="READ_COMMITTED")
+
+    def test_configure_returns_new_policy(self):
+        policy = Inputs()
+        new_policy = policy.configure(key_storage="new_storage")
+        assert policy is not new_policy

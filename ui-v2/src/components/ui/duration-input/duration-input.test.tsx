@@ -1,0 +1,184 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { mockPointerEvents } from "@tests/utils/browser";
+import { useState } from "react";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+import { DurationInput } from "./index";
+
+describe("DurationInput", () => {
+	beforeAll(() => {
+		mockPointerEvents();
+	});
+	it("renders with initial value in seconds", () => {
+		render(<DurationInput value={30} onChange={vi.fn()} />);
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		expect(quantityInput).toHaveValue(30);
+
+		const unitSelect = screen.getByLabelText("Duration unit");
+		expect(unitSelect).toHaveTextContent("Seconds");
+	});
+
+	it("renders with initial value in minutes when divisible by 60", () => {
+		render(<DurationInput value={120} onChange={vi.fn()} />);
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		expect(quantityInput).toHaveValue(2);
+
+		const unitSelect = screen.getByLabelText("Duration unit");
+		expect(unitSelect).toHaveTextContent("Minutes");
+	});
+
+	it("renders with initial value in hours when divisible by 3600", () => {
+		render(<DurationInput value={7200} onChange={vi.fn()} />);
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		expect(quantityInput).toHaveValue(2);
+
+		const unitSelect = screen.getByLabelText("Duration unit");
+		expect(unitSelect).toHaveTextContent("Hours");
+	});
+
+	it("renders with initial value in days when divisible by 86400", () => {
+		render(<DurationInput value={172800} onChange={vi.fn()} />);
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		expect(quantityInput).toHaveValue(2);
+
+		const unitSelect = screen.getByLabelText("Duration unit");
+		expect(unitSelect).toHaveTextContent("Days");
+	});
+
+	it("calls onChange with correct seconds when quantity changes", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+
+		render(<DurationInput value={0} onChange={onChange} />);
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		await user.type(quantityInput, "5");
+
+		expect(onChange).toHaveBeenLastCalledWith(5);
+	});
+
+	it("calls onChange with converted seconds when unit changes", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+
+		render(<DurationInput value={60} onChange={onChange} />);
+
+		const unitSelect = screen.getByLabelText("Duration unit");
+		await user.click(unitSelect);
+		await user.click(screen.getByRole("option", { name: "Hours" }));
+
+		expect(onChange).toHaveBeenLastCalledWith(3600);
+	});
+
+	it("enforces the minimum duration", async () => {
+		const user = userEvent.setup();
+		const onChange = vi.fn();
+		render(<DurationInput value={30} onChange={onChange} min={10} />);
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		expect(quantityInput).toHaveAttribute("min", "10");
+
+		await user.clear(quantityInput);
+		await user.tab();
+		expect(onChange).toHaveBeenLastCalledWith(10);
+	});
+
+	it("allows replacing a controlled value with a multi-digit value", async () => {
+		const user = userEvent.setup();
+
+		function ControlledDurationInput() {
+			const [value, setValue] = useState(30);
+			return (
+				<>
+					<DurationInput value={value} onChange={setValue} min={10} />
+					<output>{value}</output>
+				</>
+			);
+		}
+
+		render(<ControlledDurationInput />);
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		await user.clear(quantityInput);
+		await user.type(quantityInput, "15");
+
+		expect(quantityInput).toHaveValue(15);
+		expect(screen.getByRole("status")).toHaveTextContent("15");
+	});
+
+	it("commits the minimum before submitting an empty duration", async () => {
+		const user = userEvent.setup();
+		const onSubmit = vi.fn();
+
+		function ControlledForm() {
+			const [value, setValue] = useState(30);
+			return (
+				<form
+					aria-label="Duration form"
+					onSubmit={(event) => {
+						event.preventDefault();
+						onSubmit(value);
+					}}
+				>
+					<DurationInput value={value} onChange={setValue} min={10} />
+					<button type="submit">Submit</button>
+				</form>
+			);
+		}
+
+		render(<ControlledForm />);
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		await user.clear(quantityInput);
+		fireEvent.keyDown(quantityInput, { key: "Enter" });
+		fireEvent.submit(screen.getByRole("form"));
+
+		expect(onSubmit).toHaveBeenCalledWith(10);
+	});
+
+	it("allows valid quantities when the converted minimum is fractional", () => {
+		render(<DurationInput value={60} onChange={vi.fn()} min={10} />);
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		expect(quantityInput).toHaveAttribute("step", "any");
+		expect(quantityInput).toBeValid();
+	});
+
+	it("keeps seconds available when min is below a minute", () => {
+		const onChange = vi.fn();
+		render(<DurationInput value={90} onChange={onChange} min={10} />);
+
+		expect(screen.getByLabelText("Duration quantity")).toHaveValue(90);
+		expect(screen.getByLabelText("Duration unit")).toHaveTextContent("Seconds");
+		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it("picks the largest available unit that divides the value", () => {
+		render(<DurationInput value={120} onChange={vi.fn()} min={10} />);
+
+		expect(screen.getByLabelText("Duration quantity")).toHaveValue(2);
+		expect(screen.getByLabelText("Duration unit")).toHaveTextContent("Minutes");
+	});
+
+	it("disables inputs when disabled prop is true", () => {
+		render(<DurationInput value={30} onChange={vi.fn()} disabled />);
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		const unitSelect = screen.getByLabelText("Duration unit");
+
+		expect(quantityInput).toBeDisabled();
+		expect(unitSelect).toBeDisabled();
+	});
+
+	it("handles zero value correctly", () => {
+		render(<DurationInput value={0} onChange={vi.fn()} />);
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		expect(quantityInput).toHaveValue(0);
+
+		const unitSelect = screen.getByLabelText("Duration unit");
+		expect(unitSelect).toHaveTextContent("Seconds");
+	});
+});

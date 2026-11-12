@@ -1,0 +1,813 @@
+import json
+import re
+import uuid
+
+import httpx
+import pytest
+import respx
+
+from prefect.blocks import system
+from prefect.client.orchestration import PrefectClient
+from prefect.exceptions import ObjectNotFound
+from prefect.server import models, schemas
+from prefect.settings import (
+    PREFECT_API_URL,
+    PREFECT_CLI_WRAP_LINES,
+    PREFECT_UI_URL,
+    temporary_settings,
+)
+from prefect.testing.cli import invoke_and_assert
+from prefect.utilities.asyncutils import run_sync_in_worker_thread
+
+pytestmark = pytest.mark.clear_db
+
+TEST_BLOCK_CODE = """\
+from prefect.blocks.core import Block
+
+class TestForFileRegister(Block):
+    message: str
+"""
+TEST_BLOCK_CODE_BAD_SYNTAX = """\
+from prefect.blocks.core import Bloc
+
+class TestForFileRegister(Block):
+    message: str
+"""
+
+
+@pytest.fixture
+def mock_cloud_api():
+    with respx.mock(
+        base_url="https://api.prefect.cloud/api", assert_all_called=False
+    ) as respx_mock:
+        # Block type object for 'secret'
+        secret_block_type = {
+            "id": str(uuid.uuid4()),
+            "name": "Secret",
+            "slug": "secret",
+            "logo_url": None,
+            "documentation_url": None,
+            "description": "Store a secret value",
+            "code_example": None,
+            "created": "2024-01-01T00:00:00Z",
+            "updated": "2024-01-01T00:00:00Z",
+            "is_protected": False,
+        }
+        # Mock block type creation with complete response
+        respx_mock.post("/block_types/").mock(
+            return_value=httpx.Response(200, json=secret_block_type)
+        )
+        # Mock block type update (PATCH)
+        respx_mock.patch(re.compile(r"/block_types/.*")).mock(
+            return_value=httpx.Response(200, json=secret_block_type)
+        )
+        # Mock block type lookup for 'secret'
+        respx_mock.get("/block_types/slug/secret").mock(
+            return_value=httpx.Response(200, json=secret_block_type)
+        )
+        # Mock block type lookup (not found for others)
+        respx_mock.get(re.compile(r"/block_types/slug/.*")).mock(
+            return_value=httpx.Response(404, json={"detail": "Not found"})
+        )
+        # Mock block schema creation
+        respx_mock.post("/block_schemas/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": str(uuid.uuid4()),
+                    "checksum": "sha256:test",
+                    "fields": {},
+                    "block_type_id": secret_block_type["id"],
+                    "capabilities": [],
+                    "version": "1.0.0",
+                    "created": "2024-01-01T00:00:00Z",
+                    "updated": "2024-01-01T00:00:00Z",
+                },
+            )
+        )
+        # Mock block schema lookup (not found)
+        respx_mock.get(re.compile(r"/block_schemas/checksum/.*")).mock(
+            return_value=httpx.Response(404, json={"detail": "Not found"})
+        )
+        # Mock block types filter (for block create command) - include secret block type
+        respx_mock.post("/block_types/filter").mock(
+            return_value=httpx.Response(200, json=[secret_block_type])
+        )
+        yield respx_mock
+
+
+@pytest.fixture
+async def install_system_block_types(session):
+    return await models.block_registration._install_protected_system_blocks(
+        session=session
+    )
+
+
+def test_register_blocks_from_module_with_ui_url():
+    with temporary_settings(set_defaults={PREFECT_UI_URL: "https://app.prefect.cloud"}):
+        invoke_and_assert(
+            ["block", "register", "-m", "prefect.blocks.system"],
+            expected_code=0,
+            expected_output_contains=[
+                "Successfully registered",
+                "blocks",
+            ],
+        )
+
+
+def test_register_blocks_from_module_without_ui_url(
+    disable_hosted_api_server, enable_ephemeral_server
+):
+    with temporary_settings(set_defaults={PREFECT_UI_URL: None}):
+        invoke_and_assert(
+            ["block", "register", "-m", "prefect.blocks.system"],
+            expected_code=0,
+            expected_output_contains=[
+                "Successfully registered",
+                "blocks",
+                "Prefect UI",
+            ],
+            expected_output_does_not_contain=["Prefect UI: https://"],
+        )
+
+
+def test_register_blocks_selects_cloud_ui_url_when_cloud_server_type(
+    disable_hosted_api_server, mock_cloud_api
+):
+    with temporary_settings(updates={PREFECT_API_URL: "https://api.prefect.cloud/api"}):
+        invoke_and_assert(
+            ["block", "register", "-m", "prefect.blocks.system"],
+            expected_code=0,
+            expected_output_contains=["settings/blocks/catalog"],
+        )
+
+
+def test_register_blocks_selects_oss_ui_url_when_oss_server_type():
+    invoke_and_assert(
+        ["block", "register", "-m", "prefect.blocks.system"],
+        expected_code=0,
+        expected_output_contains=["blocks/catalog"],
+        expected_output_does_not_contain=["settings/blocks/catalog"],
+    )
+
+
+def test_register_blocks_no_blocks_found_to_register():
+    invoke_and_assert(
+        ["block", "register", "-m", "prefect.blocks.core"],
+        expected_code=1,
+        expected_output_contains=[
+            "No blocks were registered from module 'prefect.blocks.core'",
+            "Please make sure the module 'prefect.blocks.core' contains valid blocks",
+        ],
+    )
+
+
+def test_register_blocks_from_nonexistent_module():
+    invoke_and_assert(
+        ["block", "register", "-m", "prefect.blocks.blorp"],
+        expected_code=1,
+        expected_output_contains=(
+            "Unable to load prefect.blocks.blorp. Please make sure "
+            "the module is installed in your current environment."
+        ),
+    )
+
+
+def test_register_blocks_from_invalid_module():
+    invoke_and_assert(
+        ["block", "register", "-m", "prefect-aws.credentials"],
+        expected_code=1,
+        expected_output_contains=(
+            "Unable to load prefect-aws.credentials. Please make sure "
+            "the module is installed in your current environment."
+        ),
+    )
+
+
+async def test_register_blocks_from_file(tmp_path, prefect_client: PrefectClient):
+    test_file_path = tmp_path / "test.py"
+
+    with open(test_file_path, "w") as f:
+        f.write(TEST_BLOCK_CODE)
+
+    with temporary_settings(set_defaults={PREFECT_UI_URL: "https://app.prefect.cloud"}):
+        await run_sync_in_worker_thread(
+            invoke_and_assert,
+            ["block", "register", "-f", str(test_file_path)],
+            expected_code=0,
+            expected_output_contains=[
+                "Successfully registered 1 block",
+                "blocks/catalog",
+            ],
+        )
+
+    block_type = prefect_client.read_block_type_by_slug(slug="testforfileregister")
+    assert block_type is not None
+
+
+def test_register_blocks_from_nonexistent_file():
+    invoke_and_assert(
+        ["block", "register", "-f", "fake_file.py"],
+        expected_code=1,
+        expected_output_contains=(
+            "Unable to load file at fake_file.py. "
+            "Please make sure the file path is correct and the file contains "
+            "valid Python."
+        ),
+    )
+
+
+def test_register_blocks_from_txt_file(tmp_path):
+    test_file_path = tmp_path / "test.txt"
+
+    with open(test_file_path, "w") as f:
+        f.write("Trust me, there's a block in here.")
+
+    invoke_and_assert(
+        ["block", "register", "-f", "test.txt"],
+        expected_code=1,
+        expected_output_contains=(
+            "test.txt is not a .py file. Please specify a "
+            ".py that contains blocks to be registered."
+        ),
+    )
+
+
+def test_register_blocks_from_file_bad_syntax(tmp_path):
+    test_file_path = tmp_path / "test.py"
+
+    with open(test_file_path, "w") as f:
+        f.write(TEST_BLOCK_CODE_BAD_SYNTAX)
+
+    invoke_and_assert(
+        ["block", "register", "-f", str(test_file_path)],
+        expected_code=1,
+        expected_output_contains=(
+            f"Unable to load file at {test_file_path}. "
+            "Please make sure the file path is correct and the file contains "
+            "valid Python."
+        ),
+    )
+
+
+def test_register_fails_on_no_options():
+    invoke_and_assert(
+        ["block", "register"],
+        expected_code=1,
+        expected_output_contains=(
+            "Please specify either a module or a file containing blocks to be"
+            " registered, but not both."
+        ),
+    )
+
+
+def test_register_fails_on_multiple_options():
+    invoke_and_assert(
+        ["block", "register", "-m", "prefect.blocks.blorp", "-f", "fake_file.py"],
+        expected_code=1,
+        expected_output_contains=(
+            "Please specify either a module or a file containing blocks to be"
+            " registered, but not both."
+        ),
+    )
+
+
+def test_listing_blocks_when_none_are_registered():
+    invoke_and_assert(
+        ["block", "ls"],
+        expected_output_contains="""
+           ┏━━━━┳━━━━━━┳━━━━━━┳━━━━━━┓
+           ┃ ID ┃ Type ┃ Name ┃ Slug ┃
+           ┡━━━━╇━━━━━━╇━━━━━━╇━━━━━━┩
+           └────┴──────┴──────┴──────┘
+            """,
+    )
+
+
+async def test_listing_blocks_after_saving_a_block():
+    block_id = await system.Secret(value="a casual test block").save("wildblock")
+
+    await run_sync_in_worker_thread(
+        invoke_and_assert,
+        command=["block", "ls"],
+        expected_output_contains=[
+            "ID",
+            "Type",
+            "Name",
+            "Slug",
+            str(block_id),
+            "Secret",
+            "wildblock",
+            "secret/wildblock",
+        ],
+    )
+
+
+def test_listing_blocks_when_none_are_registered_not_json_output():
+    invoke_and_assert(
+        ["block", "ls", "-o", "xml"],
+        expected_output_contains="Only 'json' output format is supported.",
+        expected_code=1,
+    )
+
+
+def test_listing_blocks_when_none_are_registered_json_output():
+    invoke_and_assert(
+        ["block", "ls", "-o", "json"],
+        expected_output_contains="[]",
+        expected_code=0,
+    )
+
+
+async def test_listing_blocks_after_saving_a_block_json_output():
+    block_id = await system.Secret(value="a casual test block").save("wildblock")
+
+    await run_sync_in_worker_thread(
+        invoke_and_assert,
+        command=["block", "ls", "-o", "json"],
+        expected_output_contains=[
+            "id",
+            "type",
+            "name",
+            "slug",
+            str(block_id),
+            "secret",
+            "wildblock",
+        ],
+    )
+
+
+async def test_listing_blocks_after_saving_a_block_not_json_output():
+    await run_sync_in_worker_thread(
+        invoke_and_assert,
+        command=["block", "ls", "-o", "xml"],
+        expected_output_contains="Only 'json' output format is supported.",
+        expected_code=1,
+    )
+
+
+def test_listing_system_block_types(register_block_types):
+    expected_output = (
+        "Block Types",
+        "Slug",
+        "Description",
+        "slack",
+        "local-file-system",
+        "remote-file-system",
+        "secret",
+        "slack-webhook",
+    )
+
+    invoke_and_assert(
+        ["block", "type", "ls"],
+        expected_code=0,
+        expected_output_contains=expected_output,
+    )
+
+
+def test_listing_system_block_types_json_output(register_block_types):
+    expected_output = (
+        "slug",
+        "description",
+        "slack",
+        "local-file-system",
+        "remote-file-system",
+        "secret",
+        "slack-webhook",
+    )
+
+    invoke_and_assert(
+        ["block", "type", "ls", "-o", "json"],
+        expected_code=0,
+        expected_output_contains=expected_output,
+    )
+
+
+async def test_inspecting_a_block():
+    await system.Secret(value="sk-1234567890").save("secretblob")
+
+    expected_output = ("Block Type", "Block id", "value", "********")
+
+    await run_sync_in_worker_thread(
+        invoke_and_assert,
+        ["block", "inspect", "secret/secretblob"],
+        expected_code=0,
+        expected_output_contains=expected_output,
+    )
+
+
+async def test_inspecting_a_block_json_output():
+    await system.Secret(value="sk-1234567890").save("secretblob")
+
+    result = await run_sync_in_worker_thread(
+        invoke_and_assert,
+        ["block", "inspect", "secret/secretblob", "-o", "json"],
+        expected_code=0,
+    )
+    output_data = json.loads(result.stdout.strip())
+
+    assert output_data["name"] == "secretblob"
+    assert output_data["block_type"]["slug"] == "secret"
+    assert output_data["data"]["value"] == "********"
+
+
+def test_inspecting_a_block_invalid_output_format():
+    invoke_and_assert(
+        ["block", "inspect", "secret/secretblob", "-o", "xml"],
+        expected_code=1,
+        expected_output_contains="Only 'json' output format is supported.",
+    )
+
+
+def test_inspecting_a_block_malformed_slug():
+    invoke_and_assert(
+        ["block", "inspect", "chonk-block"],
+        expected_code=1,
+        expected_output_contains=(
+            "'chonk-block' is not valid. Slug must contain exactly one '/'"
+        ),
+    )
+
+
+def test_inspecting_a_block_slug_with_extra_slash():
+    invoke_and_assert(
+        ["block", "inspect", "secret/chonk/block"],
+        expected_code=1,
+        expected_output_contains=(
+            "'secret/chonk/block' is not valid. Slug must contain exactly one '/'"
+        ),
+    )
+
+
+def test_inspecting_a_block_by_id_not_found():
+    missing_block_id = uuid.uuid4()
+    invoke_and_assert(
+        ["block", "inspect", "--id", str(missing_block_id)],
+        expected_code=1,
+        expected_output_contains=f"Block '{missing_block_id}' not found!",
+    )
+
+
+async def test_deleting_a_block():
+    await system.Secret(value="don't delete me please").save("pleasedonterase")
+
+    await run_sync_in_worker_thread(
+        invoke_and_assert,
+        ["block", "delete", "secret/pleasedonterase"],
+        user_input="y",
+        expected_code=0,
+    )
+
+    await run_sync_in_worker_thread(
+        invoke_and_assert,
+        ["block", "inspect", "secret/pleasedonterase"],
+        expected_code=1,
+    )
+
+
+def test_deleting_a_block_malformed_slug():
+    invoke_and_assert(
+        ["block", "delete", "chonk-block"],
+        expected_code=1,
+        expected_output_contains=(
+            "'chonk-block' is not valid. Slug must contain exactly one '/'"
+        ),
+    )
+
+
+def test_deleting_a_block_slug_with_extra_slash():
+    invoke_and_assert(
+        ["block", "delete", "secret/chonk/block"],
+        expected_code=1,
+        expected_output_contains=(
+            "'secret/chonk/block' is not valid. Slug must contain exactly one '/'"
+        ),
+    )
+
+
+def test_deleting_a_block_by_id_not_found():
+    missing_block_id = uuid.uuid4()
+    invoke_and_assert(
+        ["block", "delete", "--id", str(missing_block_id)],
+        expected_code=1,
+        expected_output_contains=f"Block '{missing_block_id}' not found!",
+    )
+
+
+def test_inspecting_a_block_type(tmp_path):
+    test_file_path = tmp_path / "test.py"
+
+    with open(test_file_path, "w") as f:
+        f.write(TEST_BLOCK_CODE)
+
+    invoke_and_assert(
+        ["block", "register", "-f", str(test_file_path)],
+        expected_code=0,
+        expected_output_contains="Successfully registered 1 block",
+    )
+
+    expected_output = [
+        "Slug",
+        "Block Type id",
+        "Description",
+        "TestForFileRegister",
+        "testforfileregister",
+        "Schema Properties",
+        "message",
+        "Message",
+    ]
+
+    invoke_and_assert(
+        ["block", "type", "inspect", "testforfileregister"],
+        expected_code=0,
+        expected_output_contains=expected_output,
+    )
+
+
+def test_inspecting_a_block_type_json_output(tmp_path):
+    test_file_path = tmp_path / "test.py"
+
+    with open(test_file_path, "w") as f:
+        f.write(TEST_BLOCK_CODE)
+
+    invoke_and_assert(
+        ["block", "register", "-f", str(test_file_path)],
+        expected_code=0,
+        expected_output_contains="Successfully registered 1 block",
+    )
+
+    result = invoke_and_assert(
+        ["block", "type", "inspect", "testforfileregister", "-o", "json"],
+        expected_code=0,
+    )
+    output_data = json.loads(result.stdout.strip())
+
+    assert output_data["block_type"]["slug"] == "testforfileregister"
+    assert output_data["schema"]["fields"]["properties"]["message"]["type"] == "string"
+
+
+def test_inspecting_a_block_type_invalid_output_format():
+    invoke_and_assert(
+        ["block", "type", "inspect", "secret", "-o", "xml"],
+        expected_code=1,
+        expected_output_contains="Only 'json' output format is supported.",
+    )
+
+
+@pytest.fixture
+async def empty_description_block_schema(session) -> schemas.core.BlockSchema:
+    block_type = await models.block_types.create_block_type(
+        session,
+        block_type=schemas.core.BlockType(
+            name="Empty Description",
+            slug="empty-description",
+            description="",
+        ),
+    )
+    block_schema = await models.block_schemas.create_block_schema(
+        session,
+        block_schema=schemas.actions.BlockSchemaCreate(
+            block_type_id=block_type.id,
+            fields={
+                "title": "EmptyDescription",
+                "type": "object",
+                "properties": {"message": {"title": "Message", "type": "string"}},
+                "required": ["message"],
+            },
+        ),
+    )
+    await session.commit()
+    return block_schema
+
+
+def test_inspecting_a_block_type_with_empty_description(
+    empty_description_block_schema: schemas.core.BlockSchema,
+):
+    invoke_and_assert(
+        ["block", "type", "inspect", "empty-description"],
+        expected_code=0,
+        expected_output_contains=["Empty Description", "Description", "message"],
+    )
+
+
+def test_listing_block_types_with_empty_description(
+    empty_description_block_schema: schemas.core.BlockSchema,
+):
+    invoke_and_assert(
+        ["block", "type", "ls"],
+        expected_code=0,
+        expected_output_contains=["empty-description"],
+    )
+
+
+async def test_deleting_a_block_type(tmp_path, prefect_client):
+    test_file_path = tmp_path / "test.py"
+
+    with open(test_file_path, "w") as f:
+        f.write(TEST_BLOCK_CODE)
+
+    await run_sync_in_worker_thread(
+        invoke_and_assert,
+        command=["block", "register", "-f", str(test_file_path)],
+        expected_code=0,
+        expected_output_contains="Successfully registered 1 block",
+    )
+
+    expected_output = [
+        "Deleted Block Type",
+        "testforfileregister",
+    ]
+
+    await run_sync_in_worker_thread(
+        invoke_and_assert,
+        command=["block", "type", "delete", "testforfileregister"],
+        expected_code=0,
+        user_input="y",
+        expected_output_contains=expected_output,
+    )
+
+    with pytest.raises(ObjectNotFound):
+        await prefect_client.read_block_type_by_slug(slug="testforfileregister")
+
+
+def test_deleting_a_protected_block_type(
+    tmp_path, prefect_client, install_system_block_types
+):
+    expected_output = "is a protected block"
+
+    invoke_and_assert(
+        ["block", "type", "delete", "secret"],
+        expected_code=1,
+        user_input="y",
+        expected_output_contains=expected_output,
+    )
+
+
+def test_creating_a_block_selects_cloud_ui_url_when_cloud_server_type(mock_cloud_api):
+    with temporary_settings(updates={PREFECT_API_URL: "https://api.prefect.cloud/api"}):
+        invoke_and_assert(
+            ["block", "register", "-m", "prefect.blocks.system"],
+            expected_code=0,
+            expected_output_contains=[
+                "Successfully registered",
+                "blocks",
+                "Prefect UI",
+            ],
+        )
+        invoke_and_assert(
+            ["block", "create", "secret"],
+            expected_code=0,
+            expected_output_contains=["settings/blocks/catalog"],
+        )
+
+
+def test_creating_a_block_selects_oss_ui_url_when_oss_server_type():
+    invoke_and_assert(
+        ["block", "register", "-m", "prefect.blocks.system"],
+        expected_code=0,
+        expected_output_contains=[
+            "Successfully registered",
+            "blocks",
+            "Prefect UI",
+        ],
+        expected_output_does_not_contain=["Prefect UI: https://"],
+    )
+    invoke_and_assert(
+        ["block", "create", "secret"],
+        expected_code=0,
+        expected_output_contains=["blocks/catalog"],
+        expected_output_does_not_contain=["settings/blocks/catalog"],
+    )
+
+
+LITERAL_TEXT = "[bold]literal[/bold] :smile: [/unexpected]"
+
+
+@pytest.fixture
+def wrap_lines_enabled():
+    # The test suite disables line wrapping by default; enable it so long values
+    # exercise terminal-width wrapping.
+    with temporary_settings(updates={PREFECT_CLI_WRAP_LINES: True}):
+        yield
+
+
+@pytest.fixture
+async def literal_block_schema(
+    session, wrap_lines_enabled: None
+) -> schemas.core.BlockSchema:
+    block_type = await models.block_types.create_block_type(
+        session,
+        block_type=schemas.core.BlockType(
+            name="Literal Markup",
+            slug="literal-markup",
+            description=LITERAL_TEXT,
+            code_example=LITERAL_TEXT,
+        ),
+    )
+    block_schema = await models.block_schemas.create_block_schema(
+        session,
+        block_schema=schemas.actions.BlockSchemaCreate(
+            block_type_id=block_type.id,
+            fields={
+                "title": "LiteralMarkup",
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "title": "Message",
+                        "description": LITERAL_TEXT,
+                        "type": "string",
+                    },
+                    "secret": {
+                        "title": "Secret",
+                        "type": "string",
+                        "format": "password",
+                        "writeOnly": True,
+                    },
+                },
+                "required": ["message", "secret"],
+                "secret_fields": ["secret"],
+            },
+        ),
+    )
+    await session.commit()
+    return block_schema
+
+
+@pytest.fixture(
+    params=[
+        "[red]literal[/red]",
+        ":smile:",
+        "literal [/unexpected]",
+        "x" * 1000,
+    ],
+    ids=["markup", "emoji", "unmatched-closing-tag", "long-string"],
+)
+async def literal_block_document(
+    session,
+    request: pytest.FixtureRequest,
+    literal_block_schema: schemas.core.BlockSchema,
+) -> schemas.core.BlockDocument:
+    block_document = await models.block_documents.create_block_document(
+        session,
+        block_document=schemas.actions.BlockDocumentCreate(
+            name="literal-block",
+            data={"message": request.param, "secret": "[red]secret[/red]"},
+            block_schema_id=literal_block_schema.id,
+            block_type_id=literal_block_schema.block_type_id,
+        ),
+    )
+    await session.commit()
+    return block_document
+
+
+def test_listing_blocks_json_preserves_literal_content(
+    literal_block_document: schemas.core.BlockDocument,
+):
+    result = invoke_and_assert(["block", "ls", "-o", "json"], expected_code=0)
+    output = json.loads(result.stdout)
+    assert [block["data"]["message"] for block in output] == [
+        literal_block_document.data["message"]
+    ]
+
+
+@pytest.mark.parametrize("by_id", [False, True], ids=["slug", "id"])
+def test_inspecting_a_block_json_preserves_literal_content(
+    literal_block_document: schemas.core.BlockDocument, by_id: bool
+):
+    lookup = (
+        ["--id", str(literal_block_document.id)]
+        if by_id
+        else ["literal-markup/literal-block"]
+    )
+    result = invoke_and_assert(
+        ["block", "inspect", *lookup, "-o", "json"], expected_code=0
+    )
+    output = json.loads(result.stdout)
+    assert output["data"]["message"] == literal_block_document.data["message"]
+    assert output["data"]["secret"] == "********"
+
+
+def test_listing_block_types_json_preserves_literal_content(
+    literal_block_schema: schemas.core.BlockSchema,
+):
+    result = invoke_and_assert(["block", "type", "ls", "-o", "json"], expected_code=0)
+    output = json.loads(result.stdout)
+    assert [
+        (block_type["description"], block_type["code_example"]) for block_type in output
+    ] == [(LITERAL_TEXT, LITERAL_TEXT)]
+
+
+def test_inspecting_a_block_type_json_preserves_literal_content(
+    literal_block_schema: schemas.core.BlockSchema,
+):
+    result = invoke_and_assert(
+        ["block", "type", "inspect", "literal-markup", "-o", "json"],
+        expected_code=0,
+    )
+    output = json.loads(result.stdout)
+    assert output["block_type"]["description"] == LITERAL_TEXT
+    assert output["block_type"]["code_example"] == LITERAL_TEXT
+    assert (
+        output["schema"]["fields"]["properties"]["message"]["description"]
+        == LITERAL_TEXT
+    )

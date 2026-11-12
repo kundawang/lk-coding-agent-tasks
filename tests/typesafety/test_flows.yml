@@ -1,0 +1,160 @@
+# typsht type safety tests - runs against mypy, pyright, and ty
+- case: prefect_flow_from_source
+  checkers: [mypy, pyright, ty]
+  main: |
+    from prefect import flow
+    reveal_type(flow.from_source)
+  regex: true
+  # this has to be a regex, because mypy randomly (!) switches between ... and [*Any, **Any] syntax here
+  # mypy>=2 uses X | Y syntax and omits builtins qualification
+  out_mypy: "main:2: note: Revealed type is \"\
+        def \\(\
+           source: str \\| pathlib\\.Path \\| prefect\\.runner\\.storage\\.RunnerStorage \\| prefect\\.filesystems\\.ReadableDeploymentStorage,
+           entrypoint: str\
+       \\) -> prefect\\.flows\\.Flow\\[(\\[\\*Any, \\*\\*Any\\]|\\.\\.\\.), Any\\] \\| typing\\.Coroutine\\[Any, Any, prefect\\.flows\\.Flow\\[(\\[\\*Any, \\*\\*Any\\]|\\.\\.\\.), Any\\]\\]\
+     \""
+
+- case: prefect_flow_decorator_no_args
+  checkers: [mypy, pyright, ty]
+  main: |
+    from prefect import flow
+    @flow
+    def foo(bar: str) -> int:
+        return 42
+    reveal_type(foo)
+  out_mypy: "main:5: note: Revealed type is \"\
+      prefect.flows.Flow[[bar: str], int]\
+    \""
+
+- case: prefect_flow_decorator_with_name_arg
+  checkers: [mypy, pyright, ty]
+  main: |
+    from prefect import flow
+    @flow(name="bar")
+    def foo(bar: str) -> int:
+        return 42
+    reveal_type(foo)
+  out_mypy: "main:5: note: Revealed type is \"\
+      prefect.flows.Flow[[bar: str], int]\
+    \""
+
+- case: prefect_flow_call
+  checkers: [mypy, pyright, ty]
+  main: |
+    from prefect import flow
+    @flow
+    def foo(bar: str) -> int:
+        return 42
+    ret = foo(bar="baz")
+    reveal_type(ret)
+  out_mypy: "main:6: note: Revealed type is \"\
+      int\
+    \""
+
+- case: prefect_flow_async_call
+  checkers: [mypy, pyright, ty]
+  main: |
+    from prefect import flow
+    @flow
+    async def foo(bar: str) -> int:
+        return 42
+    
+    async def main() -> None:
+       ret = await foo(bar="baz")
+       reveal_type(ret)
+  out_mypy: "main:8: note: Revealed type is \"\
+      int\
+    \""
+
+- case: prefect_flow_async_call_wrong_args
+  checkers: [mypy, pyright, ty]
+  regex: yes
+  main: |
+    from prefect import flow
+    @flow
+    async def foo(bar: str) -> int:
+        return 42
+    
+    async def main() -> None:
+       ret = await foo(None)
+  out_mypy: |
+    main:7: error: No overload variant of "__call__" of "Flow" matches argument type "None"  \[call-overload\]
+    main:7: note: Possible overload variants:
+    main:7: note:     def __call__.*
+    main:7: note:     def __call__.*
+    main:7: note:     def __call__.*
+
+- case: prefect_flow_state_hook_parameter_names
+  checkers: [mypy, pyright, ty]
+  should_pass: true
+  main: |
+    from typing import Any
+    from prefect import flow
+    from prefect.client.schemas.objects import FlowRun
+    from prefect.flows import Flow
+    from prefect.states import State
+
+    def named(flow: Flow[..., Any], flow_run: FlowRun, state: State) -> None: ...
+    def documented_run_name(flow: Flow[..., Any], run: FlowRun, state: State) -> None: ...
+    def other_names(f: Flow[..., Any], r: FlowRun, s: State) -> None: ...
+    async def async_named(flow: Flow[..., Any], flow_run: FlowRun, state: State) -> None: ...
+
+    @flow(on_completion=[named, documented_run_name, other_names, async_named])
+    def my_flow() -> None: ...
+
+    @my_flow.on_failure
+    def decorated(flow: Flow[..., Any], flow_run: FlowRun, state: State) -> None: ...
+
+    def call_decorated(f: Flow[..., Any], r: FlowRun, s: State) -> None:
+        decorated(f, r, s)
+        decorated(flow=f, flow_run=r, state=s)
+
+- case: prefect_flow_state_hook_subclass
+  checkers: [mypy, pyright, ty]
+  should_pass: true
+  main: |
+    from typing import Any
+    from prefect import flow
+    from prefect.flows import FlowStateHook
+
+    class Notify(FlowStateHook):
+        __name__ = "notify"
+
+        def __call__(self, flow: Any, flow_run: Any, state: Any) -> None: ...
+
+    class NotifyOnFailure(FlowStateHook[..., None]):
+        __name__ = "notify_on_failure"
+
+        def __call__(self, flow: Any, flow_run: Any, state: Any) -> None: ...
+
+    @flow(on_completion=[Notify()])
+    def my_flow() -> None: ...
+
+    my_flow.on_failure(NotifyOnFailure())
+
+- case: prefect_flow_state_hook_list
+  checkers: [mypy, pyright, ty]
+  should_pass: true
+  main: |
+    from typing import Any
+    from prefect import flow
+    from prefect.flows import Flow, FlowStateHook
+
+    def build(hooks: list[FlowStateHook[..., Any]]) -> Flow[[], None]:
+        @flow(on_completion=hooks)
+        def my_flow() -> None: ...
+
+        return my_flow.with_options(on_failure=hooks)
+
+- case: prefect_flow_state_hook_wrong_parameter_count
+  checkers: [mypy, pyright, ty]
+  main: |
+    from typing import Any
+    from prefect import flow
+    from prefect.client.schemas.objects import FlowRun
+    from prefect.flows import Flow
+
+    def too_few(flow: Flow[..., Any], flow_run: FlowRun) -> None: ...
+
+    @flow(on_completion=[too_few])  # E:
+    def my_flow() -> None: ...

@@ -1,0 +1,378 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { buildApiUrl, createWrapper, server } from "@tests/utils";
+import { mockPointerEvents } from "@tests/utils/browser";
+import { HttpResponse, http } from "msw";
+import { useForm, useWatch } from "react-hook-form";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { AutomationWizardSchema } from "@/components/automations/automations-wizard/automation-schema";
+import { Form } from "@/components/ui/form";
+import { FlowRunStateTriggerFields } from "./flow-run-state-trigger-fields";
+
+type ResourceSpecification = Record<string, string | string[]>;
+type MatchRelated = ResourceSpecification | ResourceSpecification[] | undefined;
+
+const FlowRunStateTriggerFieldsContainer = ({
+	defaultPosture = "Reactive" as const,
+	defaultMatchRelated,
+	defaultWithin = 0,
+	defaultAfter,
+	defaultExpect,
+	defaultMatch,
+}: {
+	defaultPosture?: "Reactive" | "Proactive";
+	defaultMatchRelated?: MatchRelated;
+	defaultWithin?: number;
+	defaultAfter?: string[];
+	defaultExpect?: string[];
+	defaultMatch?: ResourceSpecification;
+}) => {
+	const form = useForm({
+		resolver: zodResolver(AutomationWizardSchema),
+		defaultValues: {
+			actions: [{ type: undefined }],
+			trigger: {
+				type: "event" as const,
+				posture: defaultPosture,
+				threshold: 1,
+				within: defaultWithin,
+				match_related: defaultMatchRelated,
+				match: defaultMatch,
+				after: defaultAfter,
+				expect: defaultExpect,
+			},
+		},
+	});
+
+	const trigger = useWatch({ control: form.control, name: "trigger" });
+	return (
+		<Form {...form}>
+			<form>
+				<FlowRunStateTriggerFields />
+				<output data-testid="trigger-value">{JSON.stringify(trigger)}</output>
+			</form>
+		</Form>
+	);
+};
+
+describe("FlowRunStateTriggerFields", () => {
+	it("requires state names instead of a global type match for Stays in", async () => {
+		const user = userEvent.setup();
+		render(
+			<FlowRunStateTriggerFieldsContainer
+				defaultExpect={["prefect.flow-run.Running"]}
+				defaultMatch={{ "prefect.resource.id": "prefect.flow-run.*" }}
+			/>,
+			{ wrapper: createWrapper() },
+		);
+		await user.click(screen.getByRole("button", { name: "State types" }));
+		await user.click(screen.getByRole("menuitem", { name: "Running" }));
+		await user.keyboard("{Escape}");
+		await user.click(screen.getByLabelText("select posture"));
+		expect(screen.getByRole("option", { name: "Stays in" })).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+		await user.keyboard("{Escape}");
+		await user.click(screen.getByRole("button", { name: "State types" }));
+		await user.click(screen.getByRole("menuitem", { name: "All state types" }));
+		await user.keyboard("{Escape}");
+		await user.click(screen.getByLabelText("select posture"));
+		await user.click(screen.getByRole("option", { name: "Stays in" }));
+		expect(
+			screen.queryByRole("button", { name: "State types" }),
+		).not.toBeInTheDocument();
+		expect(
+			JSON.parse(screen.getByTestId("trigger-value").textContent ?? "{}"),
+		).toMatchObject({
+			posture: "Proactive",
+			after: ["prefect.flow-run.Running"],
+			expect: [],
+			match: { "prefect.resource.id": "prefect.flow-run.*" },
+		});
+		expect(
+			JSON.parse(screen.getByTestId("trigger-value").textContent ?? "{}"),
+		).not.toHaveProperty(["match", "prefect.state-type"]);
+	});
+
+	it("edits custom states and types without dropping existing match conditions", async () => {
+		const user = userEvent.setup();
+		render(
+			<FlowRunStateTriggerFieldsContainer
+				defaultExpect={["prefect.flow-run.Baseline NOT Met"]}
+				defaultMatch={{
+					"prefect.resource.id": "prefect.flow-run.*",
+					"custom.label": "keep",
+				}}
+			/>,
+			{ wrapper: createWrapper() },
+		);
+		expect(screen.getByText("Baseline NOT Met")).toBeVisible();
+		await user.click(screen.getByRole("button", { name: "State types" }));
+		await user.click(screen.getByRole("menuitem", { name: "Failed" }));
+		const trigger: unknown = JSON.parse(
+			screen.getByTestId("trigger-value").textContent ?? "{}",
+		);
+		expect(trigger).toMatchObject({
+			expect: ["prefect.flow-run.Baseline NOT Met"],
+			match: {
+				"prefect.resource.id": "prefect.flow-run.*",
+				"custom.label": "keep",
+				"prefect.state-type": ["FAILED"],
+			},
+		});
+	});
+	beforeAll(() => {
+		mockPointerEvents();
+	});
+
+	beforeEach(() => {
+		server.use(
+			http.post(buildApiUrl("/deployments/filter"), () =>
+				HttpResponse.json([
+					{
+						id: "deployment-id-1",
+						name: "Test Deployment",
+						flow_id: "flow-1",
+						created: "2024-01-01T00:00:00Z",
+						updated: "2024-01-01T00:00:00Z",
+						status: "READY",
+					},
+				]),
+			),
+		);
+	});
+
+	it("renders posture select with Reactive as default", () => {
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		expect(screen.getByLabelText("select posture")).toBeVisible();
+		expect(
+			screen.getByRole("combobox", { name: "select posture" }),
+		).toHaveTextContent("Enters");
+	});
+
+	it("does not show For field when posture is Reactive", () => {
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		expect(screen.queryByText("For")).not.toBeInTheDocument();
+	});
+
+	it("shows For field with DurationInput when posture is Proactive", async () => {
+		const user = userEvent.setup();
+
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		await user.click(screen.getByLabelText("select posture"));
+		await user.click(screen.getByRole("option", { name: "Stays in" }));
+
+		expect(screen.getByText("For")).toBeVisible();
+		expect(screen.getByLabelText("Duration quantity")).toBeVisible();
+		expect(screen.getByLabelText("Duration unit")).toBeVisible();
+	});
+
+	it("sets default within value to 30 when switching to Proactive", async () => {
+		const user = userEvent.setup();
+
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		await user.click(screen.getByLabelText("select posture"));
+		await user.click(screen.getByRole("option", { name: "Stays in" }));
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		expect(quantityInput).toHaveValue(30);
+	});
+
+	it("renders state multi-select", () => {
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		expect(screen.getByText("Any state")).toBeVisible();
+	});
+
+	it("can select states from the multi-select", async () => {
+		const user = userEvent.setup();
+
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		await user.click(screen.getByText("Any state"));
+		await user.click(screen.getByRole("option", { name: /Completed/i }));
+
+		expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
+	});
+
+	it("displays selected states from expect events", () => {
+		render(
+			<FlowRunStateTriggerFieldsContainer
+				defaultExpect={[
+					"prefect.flow-run.Completed",
+					"prefect.flow-run.Failed",
+				]}
+			/>,
+			{ wrapper: createWrapper() },
+		);
+
+		expect(screen.getByText("Completed")).toBeVisible();
+		expect(screen.getByText("Failed")).toBeVisible();
+	});
+
+	it("ignores flow run events that are not state names", () => {
+		render(
+			<FlowRunStateTriggerFieldsContainer
+				defaultPosture="Proactive"
+				defaultAfter={["prefect.flow-run.heartbeat"]}
+				defaultExpect={["prefect.flow-run.heartbeat"]}
+				defaultWithin={90}
+			/>,
+			{ wrapper: createWrapper() },
+		);
+
+		expect(screen.getByText("Any state")).toBeVisible();
+	});
+
+	it("renders flow multi-select with 'All flows' placeholder", () => {
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		expect(screen.getByText("All flows")).toBeVisible();
+	});
+
+	it("renders deployment combobox with 'All deployments' placeholder", () => {
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		expect(screen.getByText("Deployments")).toBeVisible();
+		expect(screen.getByText("All deployments")).toBeVisible();
+	});
+
+	it("renders tags input field when no flows are selected", () => {
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		expect(screen.getByText("Flow Run Tags")).toBeVisible();
+		expect(screen.getByPlaceholderText("All tags")).toBeVisible();
+	});
+
+	it("hides tags input field when flows are selected", () => {
+		render(
+			<FlowRunStateTriggerFieldsContainer
+				defaultMatchRelated={{
+					"prefect.resource.role": "flow",
+					"prefect.resource.id": ["prefect.flow.flow-id-1"],
+				}}
+			/>,
+			{
+				wrapper: createWrapper(),
+			},
+		);
+
+		expect(screen.queryByText("Flow Run Tags")).not.toBeInTheDocument();
+		expect(screen.queryByPlaceholderText("All tags")).not.toBeInTheDocument();
+	});
+
+	it("displays selected tags from match_related", () => {
+		render(
+			<FlowRunStateTriggerFieldsContainer
+				defaultMatchRelated={{
+					"prefect.resource.role": "flow",
+					"prefect.resource.id": [
+						"prefect.tag.production",
+						"prefect.tag.critical",
+					],
+				}}
+			/>,
+			{
+				wrapper: createWrapper(),
+			},
+		);
+
+		expect(screen.getByText("production")).toBeVisible();
+		expect(screen.getByText("critical")).toBeVisible();
+	});
+
+	it("displays selected deployments from array match_related", async () => {
+		render(
+			<FlowRunStateTriggerFieldsContainer
+				defaultMatchRelated={[
+					{
+						"prefect.resource.role": "flow",
+						"prefect.resource.id": ["prefect.flow.flow-id-1"],
+					},
+					{
+						"prefect.resource.role": "deployment",
+						"prefect.resource.id": ["prefect.deployment.deployment-id-1"],
+					},
+				]}
+			/>,
+			{
+				wrapper: createWrapper(),
+			},
+		);
+
+		await waitFor(() => {
+			expect(screen.getByText("Test Deployment")).toBeVisible();
+		});
+	});
+
+	it("can add a tag using the tags input", async () => {
+		const user = userEvent.setup();
+
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		const tagsInput = screen.getByPlaceholderText("All tags");
+		await user.type(tagsInput, "new-tag{Enter}");
+
+		expect(screen.getByText("new-tag")).toBeVisible();
+	});
+
+	it("renders Flow Run section label", () => {
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		expect(screen.getByText("Flow Run")).toBeVisible();
+	});
+
+	it("does not render threshold field (removed from UI)", () => {
+		render(<FlowRunStateTriggerFieldsContainer />, {
+			wrapper: createWrapper(),
+		});
+
+		expect(screen.queryByLabelText("Threshold")).not.toBeInTheDocument();
+	});
+
+	it("displays DurationInput with correct unit for minutes", () => {
+		render(
+			<FlowRunStateTriggerFieldsContainer
+				defaultPosture="Proactive"
+				defaultWithin={120}
+			/>,
+			{
+				wrapper: createWrapper(),
+			},
+		);
+
+		const quantityInput = screen.getByLabelText("Duration quantity");
+		expect(quantityInput).toHaveValue(2);
+
+		const unitSelect = screen.getByLabelText("Duration unit");
+		expect(unitSelect).toHaveTextContent("Minutes");
+	});
+});

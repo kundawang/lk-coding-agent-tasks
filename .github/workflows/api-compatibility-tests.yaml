@@ -1,0 +1,97 @@
+---
+name: Cloud API Compatibility
+on:
+  # Run even when the last API change is removed, so an earlier warning clears.
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  compatibility-tests:
+    name: Cloud API compatibility (advisory)
+    # Keep compatibility and harness failures advisory for contributors.
+    continue-on-error: true
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    env:
+      PREFECT_SERVER_ANALYTICS_ENABLED: "false"
+      PYTHONHASHSEED: "0"
+
+    steps:
+      - name: Prepare the report directory
+        run: echo "REPORT_DIR=$RUNNER_TEMP/cloud-api-compatibility" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: head
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+          submodules: true
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: base
+          ref: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install both revisions
+        run: |
+          uv sync --project base --locked
+          uv sync --project head --locked
+
+      - name: Download the deployed Cloud schema once
+        run: |
+          mkdir -p "$REPORT_DIR/base" "$REPORT_DIR/head"
+          curl --fail --silent --show-error --location --retry 3 \
+            --connect-timeout 15 --max-time 120 \
+            https://api.prefect.cloud/api/openapi.json -o "$REPORT_DIR/cloud_schema.json"
+
+      - name: Test compatibility reporting
+        run: |
+          uv run --project head --no-sync pytest -c head/compat-tests/pytest.ini \
+            head/scripts/tests/test_report_api_compatibility.py -q
+          node --test head/.github/scripts/comment-api-compatibility.test.cjs
+
+      - name: Compare both revisions with the same suite and Cloud schema
+        run: |
+          for revision in base head; do
+            project="$GITHUB_WORKSPACE/$revision"
+            cd "$REPORT_DIR/$revision"
+            cp "$REPORT_DIR/cloud_schema.json" cloud_schema.json
+            uv run --project "$project" --no-sync python \
+              "$GITHUB_WORKSPACE/head/scripts/generate_oss_openapi_schema.py" --api-compatibility
+            uv run --project "$project" --no-sync pytest \
+              -c "$GITHUB_WORKSPACE/head/compat-tests/pytest.ini" \
+              "$GITHUB_WORKSPACE/head/compat-tests/test_oss_cloud_api_compatibility.py" \
+              --junitxml=pytest.xml --tb=short -q > pytest.log 2>&1 && compat_exit=0 || compat_exit=$?
+            echo "$compat_exit" > status
+            tail -n 20 pytest.log
+          done
+
+      - name: Report new incompatibilities
+        if: ${{ always() }}
+        run: python head/scripts/report_api_compatibility.py "$REPORT_DIR"
+
+      - name: Save the compatibility report and logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cloud-api-compatibility
+          path: ${{ env.REPORT_DIR }}
+          retention-days: 7

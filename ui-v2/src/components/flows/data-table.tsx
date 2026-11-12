@@ -1,0 +1,227 @@
+import type {
+	ColumnFiltersState,
+	OnChangeFn,
+	PaginationState,
+} from "@tanstack/react-table";
+import type React from "react";
+import { useCallback } from "react";
+import type { ServerError } from "@/api/error-utils";
+import { type Flow, useDeleteFlowById } from "@/api/flows";
+import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/ui/data-table";
+import {
+	EmptyState,
+	EmptyStateActions,
+	EmptyStateDescription,
+	EmptyStateIcon,
+	EmptyStateTitle,
+} from "@/components/ui/empty-state";
+import { Icon } from "@/components/ui/icons";
+import { SearchInput } from "@/components/ui/input";
+import { RouteErrorState } from "@/components/ui/route-error-state";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { TagsInput } from "@/components/ui/tags-input";
+import { useTable } from "@/lib/tanstack-table";
+import { pluralize } from "@/utils";
+import { columns } from "./columns";
+
+const FLOW_SORT_OPTIONS = [
+	{ label: "A to Z", value: "NAME_ASC" },
+	{ label: "Z to A", value: "NAME_DESC" },
+	{ label: "Created", value: "CREATED_DESC" },
+] as const;
+
+type FlowSortValue = "NAME_ASC" | "NAME_DESC" | "CREATED_DESC" | "UPDATED_DESC";
+
+export default function FlowsTable({
+	flows,
+	count,
+	pageCount,
+	sort,
+	pagination,
+	onPaginationChange,
+	onSortChange,
+	columnFilters,
+	onColumnFiltersChange,
+	onPrefetchPage,
+	onClearFilters,
+	isPending = false,
+	isPlaceholderData = false,
+	error,
+	onRetry,
+}: {
+	flows: Flow[];
+	count: number;
+	pageCount: number;
+	sort: FlowSortValue;
+	pagination: PaginationState;
+	onPaginationChange: (pagination: PaginationState) => void;
+	onSortChange: (sort: FlowSortValue) => void;
+	columnFilters: ColumnFiltersState;
+	onColumnFiltersChange: (columnFilters: ColumnFiltersState) => void;
+	onPrefetchPage?: (page: number) => void;
+	onClearFilters?: () => void;
+	isPending?: boolean;
+	isPlaceholderData?: boolean;
+	error?: ServerError;
+	onRetry?: () => void;
+}) {
+	const { deleteFlow } = useDeleteFlowById();
+
+	const showFilteredEmptyState =
+		count === 0 && !isPending && !isPlaceholderData && Boolean(onClearFilters);
+
+	const nameSearchValue = (columnFilters.find((filter) => filter.id === "name")
+		?.value ?? "") as string;
+	const tagsSearchValue = (columnFilters.find((filter) => filter.id === "tags")
+		?.value ?? []) as string[];
+
+	const handleNameSearchChange = useCallback(
+		(value?: string) => {
+			const filters = columnFilters.filter((filter) => filter.id !== "name");
+			onColumnFiltersChange(
+				value ? [...filters, { id: "name", value }] : filters,
+			);
+		},
+		[onColumnFiltersChange, columnFilters],
+	);
+
+	const handleTagsSearchChange: React.ChangeEventHandler<HTMLInputElement> &
+		((tags: string[]) => void) = useCallback(
+		(e: string[] | React.ChangeEvent<HTMLInputElement>) => {
+			const tags = Array.isArray(e) ? e : [];
+			const filters = columnFilters.filter((filter) => filter.id !== "tags");
+			onColumnFiltersChange(
+				tags.length ? [...filters, { id: "tags", value: tags }] : filters,
+			);
+		},
+		[onColumnFiltersChange, columnFilters],
+	);
+
+	const handlePaginationChange: OnChangeFn<PaginationState> = useCallback(
+		(updater) => {
+			const newPagination =
+				typeof updater === "function" ? updater(pagination) : updater;
+			onPaginationChange(newPagination);
+		},
+		[pagination, onPaginationChange],
+	);
+
+	const table = useTable({
+		columns: columns,
+		data: flows,
+		getRowId: (flow) => flow.id,
+		manualPagination: true,
+		pageCount,
+		state: {
+			pagination,
+		},
+		onPaginationChange: handlePaginationChange,
+	});
+
+	const handleDeleteRows = () => {
+		for (const id of table.getSelectedRowIds()) {
+			deleteFlow(id);
+		}
+
+		table.resetRowSelection(true);
+	};
+
+	return (
+		<div className="h-full">
+			<div className="grid sm:grid-cols-2 md:grid-cols-12 gap-2 pb-4 items-center">
+				<div className="sm:col-span-2 md:col-span-3 lg:col-span-4 md:order-first lg:order-first">
+					{table.getSelectedRowIds().length > 0 ? (
+						<p className="text-sm text-muted-foreground flex items-center">
+							{table.getSelectedRowIds().length} selected
+							<Button
+								variant="ghost"
+								size="icon"
+								className="ml-2 size-6"
+								onClick={handleDeleteRows}
+								aria-label="Delete selected flows"
+							>
+								<Icon id="Trash2" className="size-4" />
+							</Button>
+						</p>
+					) : (
+						<p className="text-sm text-muted-foreground">
+							{count.toLocaleString()} {pluralize(count, "Flow")}
+						</p>
+					)}
+				</div>
+				<div className="sm:col-span-2 md:col-span-3 lg:col-span-3">
+					<SearchInput
+						placeholder="Flow names"
+						value={nameSearchValue}
+						onChange={(e) => handleNameSearchChange(e.target.value)}
+					/>
+				</div>
+				<div className="sm:col-span-2 md:col-span-3 lg:col-span-3">
+					<TagsInput
+						placeholder="Filter by tags"
+						onChange={handleTagsSearchChange}
+						value={tagsSearchValue}
+					/>
+				</div>
+				<div className="sm:col-span-2 md:col-span-3 lg:col-span-2">
+					<Select
+						value={sort}
+						onValueChange={(value) => {
+							if (
+								value === "CREATED_DESC" ||
+								value === "UPDATED_DESC" ||
+								value === "NAME_ASC" ||
+								value === "NAME_DESC"
+							)
+								onSortChange(value);
+						}}
+					>
+						<SelectTrigger aria-label="Flow sort order" className="w-full">
+							<SelectValue placeholder="Sort by" />
+						</SelectTrigger>
+						<SelectContent>
+							{FLOW_SORT_OPTIONS.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+			</div>
+			{error && onRetry ? (
+				<RouteErrorState error={error} onRetry={onRetry} />
+			) : showFilteredEmptyState ? (
+				<FlowsFilteredEmptyState onClearFilters={onClearFilters} />
+			) : (
+				<DataTable table={table} onPrefetchPage={onPrefetchPage} />
+			)}
+		</div>
+	);
+}
+
+const FlowsFilteredEmptyState = ({
+	onClearFilters,
+}: {
+	onClearFilters?: () => void;
+}) => (
+	<EmptyState>
+		<EmptyStateIcon id="Search" />
+		<EmptyStateTitle>No flows match your filters</EmptyStateTitle>
+		<EmptyStateDescription>
+			Try adjusting your search or tag filters.
+		</EmptyStateDescription>
+		<EmptyStateActions>
+			<Button variant="outline" onClick={onClearFilters}>
+				Clear filters
+			</Button>
+		</EmptyStateActions>
+	</EmptyState>
+);
