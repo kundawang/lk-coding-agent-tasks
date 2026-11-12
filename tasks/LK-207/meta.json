@@ -1,6 +1,10 @@
 {
   "task_id": "LK-207",
   "title": "KAPLAY SAT 分离轴最小位移修复",
+  "domain": "游戏、图形与多媒体",
+  "subdomain": "其他",
+  "original_repo": "https://github.com/kaplayjs/kaplay",
+  "source_issue": "https://github.com/kaplayjs/kaplay/issues/1194",
   "created_at": "2026-11-12T15:04:43",
   "task_type": "Bugfix",
   "difficulty": "困难",

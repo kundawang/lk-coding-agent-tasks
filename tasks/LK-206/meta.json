@@ -1,6 +1,10 @@
 {
   "task_id": "LK-206",
   "title": "Excalibur 圆形碰撞体射线背向命中修复",
+  "domain": "游戏、图形与多媒体",
+  "subdomain": "其他",
+  "original_repo": "https://github.com/excaliburjs/Excalibur",
+  "source_issue": "https://github.com/excaliburjs/Excalibur/issues/3895",
   "created_at": "2026-11-12T15:03:49",
   "task_type": "Bugfix",
   "difficulty": "困难",
