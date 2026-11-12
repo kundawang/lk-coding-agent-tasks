@@ -1,0 +1,683 @@
+import { lerp, Random } from './math';
+
+/**
+ * Provides standard colors (e.g. {@apilink Color.Black})
+ * but you can also create custom colors using RGB, HSL, or Hex. Also provides
+ * useful color operations like {@apilink Color.lighten}, {@apilink Color.darken}, and more.
+ */
+export class Color {
+  /**
+   * Red channel
+   */
+  public r: number;
+  /**
+   * Green channel
+   */
+  public g: number;
+  /**
+   * Blue channel
+   */
+  public b: number;
+  /**
+   * Alpha channel (between 0 and 1)
+   */
+  public a: number;
+
+  /**
+   * Hue
+   */
+  public h!: number;
+  /**
+   * Saturation
+   */
+  public s!: number;
+  /**
+   * Lightness
+   */
+  public l!: number;
+
+  /**
+   * Creates a new instance of Color from an r, g, b, a
+   * @param r  The red component of color (0-255)
+   * @param g  The green component of color (0-255)
+   * @param b  The blue component of color (0-255)
+   * @param a  The alpha component of color (0-1.0)
+   */
+  constructor(r: number, g: number, b: number, a?: number) {
+    this.r = r;
+    this.g = g;
+    this.b = b;
+    this.a = a != null ? a : 1;
+  }
+
+  public get hashCode(): number {
+    const r = Math.round(this.r) & 0xff;
+    const g = Math.round(this.g) & 0xff;
+    const b = Math.round(this.b) & 0xff;
+    const a = Math.round(this.a * 255) & 0xff;
+
+    let hash = 0;
+    hash = (hash << 5) - hash + r;
+    hash = (hash << 5) - hash + g;
+    hash = (hash << 5) - hash + b;
+    hash = (hash << 5) - hash + a;
+
+    return hash | 0;
+  }
+
+  /**
+   * Creates a new instance of Color from an r, g, b, a
+   * @param r  The red component of color (0-255)
+   * @param g  The green component of color (0-255)
+   * @param b  The blue component of color (0-255)
+   * @param a  The alpha component of color (0-1.0)
+   */
+  public static fromRGB(r: number, g: number, b: number, a?: number): Color {
+    return new Color(r, g, b, a);
+  }
+
+  /**
+   * Creates a new instance of Color from a rgb string
+   * @param string  CSS color string of the form rgba(255, 255, 255, 1) or rgb(255, 255, 255)
+   */
+  public static fromRGBString(string: string): Color {
+    const rgbaRegEx: RegExp = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*(\d+(?:\.\d+)?))?\)/i;
+    let match = null;
+    if ((match = string.match(rgbaRegEx))) {
+      const r = parseInt(match[1], 10);
+      const g = parseInt(match[2], 10);
+      const b = parseInt(match[3], 10);
+      let a = 1;
+      if (match[4]) {
+        a = parseFloat(match[4]);
+      }
+      return new Color(r, g, b, a);
+    } else {
+      throw new Error('Invalid rgb/a string: ' + string);
+    }
+  }
+
+  /**
+   * Creates a new instance of Color from a hex string
+   * @param hex  CSS color string of the form #ffffff, the alpha component is optional
+   */
+  public static fromHex(hex: string): Color {
+    const hexRegEx: RegExp = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})?$/i;
+    let match = null;
+    if ((match = hex.match(hexRegEx))) {
+      const r = parseInt(match[1], 16);
+      const g = parseInt(match[2], 16);
+      const b = parseInt(match[3], 16);
+      let a = 1;
+      if (match[4]) {
+        a = parseInt(match[4], 16) / 255;
+      }
+      return new Color(r, g, b, a);
+    } else {
+      throw new Error('Invalid hex string: ' + hex);
+    }
+  }
+
+  /**
+   * Creates a new instance of Color from hsla values
+   * @param h  Hue is represented [0-1]
+   * @param s  Saturation is represented [0-1]
+   * @param l  Luminance is represented [0-1]
+   * @param a  Alpha is represented [0-1]
+   */
+  public static fromHSL(h: number, s: number, l: number, a: number = 1.0): Color {
+    const temp = new HSLColor(h, s, l, a);
+    return temp.toRGBA();
+  }
+
+  /**
+   * Creates a new instance of Color from array of float components.
+   * Missing components will be replaced with 0 for r, g, b, and 1 for a.
+   * @param array  Array of [r, g, b, a] components
+   */
+  public static fromFloatArray(array: number[]): Color {
+    const components = [array[0] ?? 0, array[1] ?? 0, array[2] ?? 0].map((c) => Math.round(c * 255)) as [number, number, number];
+
+    return new Color(...components, array[3]);
+  }
+
+  /**
+   * Lightens the current color by a specified amount
+   * @param factor  The amount to lighten by [0-1]
+   */
+  public lighten(factor: number = 0.1): Color {
+    const temp = HSLColor.fromRGBA(this.r, this.g, this.b, this.a);
+    temp.l += (1 - temp.l) * factor;
+    return temp.toRGBA();
+  }
+
+  /**
+   * Darkens the current color by a specified amount
+   * @param factor  The amount to darken by [0-1]
+   */
+  public darken(factor: number = 0.1): Color {
+    const temp = HSLColor.fromRGBA(this.r, this.g, this.b, this.a);
+    temp.l -= temp.l * factor;
+    return temp.toRGBA();
+  }
+
+  /**
+   * Saturates the current color by a specified amount
+   * @param factor  The amount to saturate by [0-1]
+   */
+  public saturate(factor: number = 0.1): Color {
+    const temp = HSLColor.fromRGBA(this.r, this.g, this.b, this.a);
+    temp.s += temp.s * factor;
+    return temp.toRGBA();
+  }
+
+  /**
+   * Desaturates the current color by a specified amount
+   * @param factor  The amount to desaturate by [0-1]
+   */
+  public desaturate(factor: number = 0.1): Color {
+    const temp = HSLColor.fromRGBA(this.r, this.g, this.b, this.a);
+    temp.s -= temp.s * factor;
+    return temp.toRGBA();
+  }
+
+  /**
+   * Multiplies a color by another, results in a darker color
+   * @param color  The other color
+   */
+  public multiply(color: Color): Color {
+    const newR = (((color.r / 255) * this.r) / 255) * 255;
+    const newG = (((color.g / 255) * this.g) / 255) * 255;
+    const newB = (((color.b / 255) * this.b) / 255) * 255;
+    const newA = color.a * this.a;
+    return new Color(newR, newG, newB, newA);
+  }
+
+  /**
+   * Screens a color by another, results in a lighter color
+   * @param color  The other color
+   */
+  public screen(color: Color): Color {
+    // Screen is computed per RGB channel as 1 - (1 - a)(1 - b), alpha is combined the same way (union of coverage)
+    const r = 255 - ((255 - this.r) * (255 - color.r)) / 255;
+    const g = 255 - ((255 - this.g) * (255 - color.g)) / 255;
+    const b = 255 - ((255 - this.b) * (255 - color.b)) / 255;
+    const a = 1 - (1 - this.a) * (1 - color.a);
+    return new Color(r, g, b, a);
+  }
+
+  /**
+   * Inverts the red, green, and blue channels of the current color, alpha is preserved
+   * (consistent with CSS `invert()`, Unity, and other engines, an opaque color stays opaque)
+   */
+  public invert(): Color {
+    return new Color(255 - this.r, 255 - this.g, 255 - this.b, this.a);
+  }
+
+  /**
+   * Averages the current color with another
+   * @param color  The other color
+   */
+  public average(color: Color): Color {
+    const newR = (color.r + this.r) / 2;
+    const newG = (color.g + this.g) / 2;
+    const newB = (color.b + this.b) / 2;
+    const newA = (color.a + this.a) / 2;
+    return new Color(newR, newG, newB, newA);
+  }
+
+  /**
+   * Returns true if all channels (r, g, b, a) of the two colors are exactly equal
+   * @param color The other color
+   */
+  public equals(color: Color): boolean {
+    return this.r === color.r && this.g === color.g && this.b === color.b && this.a === color.a;
+  }
+
+  /**
+   * Returns a CSS string representation of a color.
+   * @param format Color representation, accepts: rgb, hsl, or hex
+   */
+  public toString(format: 'rgb' | 'hsl' | 'hex' = 'rgb') {
+    switch (format) {
+      case 'rgb':
+        return this.toRGBA();
+      case 'hsl':
+        return this.toHSLA();
+      case 'hex':
+        return this.toHex();
+      default:
+        throw new Error('Invalid Color format');
+    }
+  }
+
+  /**
+   * Returns Hex Value of a color component
+   * @param c color component
+   * @see https://stackoverflow.com/questions/5623838/rgb-to-hex-and-hex-to-rgb
+   */
+  private _componentToHex(c: number) {
+    const hex = Math.max(Math.min(Math.round(c), 255), 0).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  }
+
+  /**
+   * Return linear representation of a color component
+   * @param c color component
+   * @param scale color gamma, 2.2 recommended as standard
+   */
+  private static _COMPONENT_TO_LINEAR(c: number, scale: number = 2.2) {
+    return Math.pow(c, scale);
+  }
+
+  /**
+   * Return color component from its linear representation
+   * @param c color component
+   * @param scale color gamma, 2.2 recommended as standard
+   * @private
+   */
+  private static _COMPONENT_FROM_LINEAR(c: number, scale: number = 2.2) {
+    return Math.pow(c, 1.0 / scale);
+  }
+
+  /**
+   * Return Hex representation of a color.
+   */
+  public toHex() {
+    let hexRepresentation = '#' + this._componentToHex(this.r) + this._componentToHex(this.g) + this._componentToHex(this.b);
+    if (this.a !== 1) {
+      hexRepresentation += this._componentToHex(this.a * 255);
+    }
+    return hexRepresentation;
+  }
+
+  /**
+   * Return RGBA representation of a color.
+   */
+  public toRGBA() {
+    const result = String(this.r.toFixed(0)) + ', ' + String(this.g.toFixed(0)) + ', ' + String(this.b.toFixed(0));
+    if (this.a !== undefined && this.a !== null) {
+      return 'rgba(' + result + ', ' + String(this.a) + ')';
+    }
+    return 'rgb(' + result + ')';
+  }
+
+  /**
+   * Return HSLA representation of a color.
+   */
+  public toHSLA() {
+    return HSLColor.fromRGBA(this.r, this.g, this.b, this.a).toString();
+  }
+
+  /**
+   * Return float array representation of a color.
+   * @param precision
+   */
+  public toFloatArray(precision?: number): [r: number, g: number, b: number, a: number] {
+    let components = [this.r / 255, this.g / 255, this.b / 255];
+
+    if (precision) {
+      components = components.map((c) => parseFloat(c.toFixed(precision)));
+    }
+
+    components.push(this.a);
+    return components as [number, number, number, number];
+  }
+
+  /**
+   * Returns a CSS string representation of a color.
+   */
+  public fillStyle() {
+    return this.toString();
+  }
+
+  /**
+   * Returns a clone of the current color.
+   */
+  public clone(dest?: Color): Color {
+    const result = dest || new Color(this.r, this.g, this.b, this.a);
+    result.r = this.r;
+    result.g = this.g;
+    result.b = this.b;
+    result.a = this.a;
+    return result;
+  }
+
+  /**
+   * Lerp between two colors different modes:
+   * - hsl (default) - a compromise between speed and naturalness of the gradient, suitable for most cases;
+   * - rgb - the fastest algorithm, but worse results for complex gradients;
+   * - lrgb - the most realistic result, but slower than the others.
+   */
+  public static lerp(colorA: Color, colorB: Color, t: number, colorSpace: 'hsl' | 'rgb' | 'lrgb' = 'hsl'): Color {
+    switch (colorSpace) {
+      case 'hsl':
+        return Color.lerpHSL(colorA, colorB, t);
+      case 'rgb':
+        return Color.lerpRGB(colorA, colorB, t);
+      case 'lrgb':
+        return Color.lerpLRGB(colorA, colorB, t);
+    }
+  }
+
+  /**
+   * Lerp between two colors using hsl as a compromise between speed and naturalness of the gradient
+   */
+  public static lerpHSL(colorA: Color, colorB: Color, t: number): Color {
+    const color1: HSLColor = HSLColor.fromRGBA(colorA.r, colorA.g, colorA.b, colorA.a);
+    const color2: HSLColor = HSLColor.fromRGBA(colorB.r, colorB.g, colorB.b, colorB.a);
+    const newColor: HSLColor = HSLColor.lerp(color1, color2, t);
+    return newColor.toRGBA();
+  }
+
+  /**
+   * Lerp between two colors using rgb for faster calculations
+   */
+  public static lerpRGB(colorA: Color, colorB: Color, t: number): Color {
+    return new Color(lerp(colorA.r, colorB.r, t), lerp(colorA.g, colorB.g, t), lerp(colorA.b, colorB.b, t), lerp(colorA.a, colorB.a, t));
+  }
+
+  /**
+   * Lerp between two colors using lrgb for more realistic gradient
+   */
+  public static lerpLRGB(colorA: Color, colorB: Color, t: number, gamma: number = 2.2): Color {
+    const rA = Color._COMPONENT_TO_LINEAR(colorA.r, gamma);
+    const gA = Color._COMPONENT_TO_LINEAR(colorA.g, gamma);
+    const bA = Color._COMPONENT_TO_LINEAR(colorA.b, gamma);
+
+    const rB = Color._COMPONENT_TO_LINEAR(colorB.r, gamma);
+    const gB = Color._COMPONENT_TO_LINEAR(colorB.g, gamma);
+    const bB = Color._COMPONENT_TO_LINEAR(colorB.b, gamma);
+
+    const rL = lerp(rA, rB, t);
+    const gL = lerp(gA, gB, t);
+    const bL = lerp(bA, bB, t);
+
+    return new Color(
+      Color._COMPONENT_FROM_LINEAR(rL, gamma),
+      Color._COMPONENT_FROM_LINEAR(gL, gamma),
+      Color._COMPONENT_FROM_LINEAR(bL, gamma),
+      lerp(colorA.a, colorB.a, t) // keeping alpha linear
+    );
+  }
+
+  public static random(rnd?: Random): Color {
+    const rng: Random = rnd ?? new Random();
+    return new Color(rng.integer(0, 255), rng.integer(0, 255), rng.integer(0, 255));
+  }
+
+  /**
+   * Black (#000000)
+   */
+  public static get Black(): Color {
+    return Color.fromHex('#000000');
+  }
+
+  /**
+   * White (#FFFFFF)
+   */
+  public static get White(): Color {
+    return Color.fromHex('#FFFFFF');
+  }
+
+  /**
+   * Gray (#808080)
+   */
+  public static get Gray(): Color {
+    return Color.fromHex('#808080');
+  }
+
+  /**
+   * Light gray (#D3D3D3)
+   */
+  public static get LightGray(): Color {
+    return Color.fromHex('#D3D3D3');
+  }
+
+  /**
+   * Dark gray (#A9A9A9)
+   */
+  public static get DarkGray(): Color {
+    return Color.fromHex('#A9A9A9');
+  }
+
+  /**
+   * Yellow (#FFFF00)
+   */
+  public static get Yellow(): Color {
+    return Color.fromHex('#FFFF00');
+  }
+
+  /**
+   * Orange (#FFA500)
+   */
+  public static get Orange(): Color {
+    return Color.fromHex('#FFA500');
+  }
+
+  /**
+   * Red (#FF0000)
+   */
+  public static get Red(): Color {
+    return Color.fromHex('#FF0000');
+  }
+
+  /**
+   * Vermilion (#FF5B31)
+   */
+  public static get Vermilion(): Color {
+    return Color.fromHex('#FF5B31');
+  }
+
+  /**
+   * Rose (#FF007F)
+   */
+  public static get Rose(): Color {
+    return Color.fromHex('#FF007F');
+  }
+
+  /**
+   * Pink (#FFC0CB)
+   */
+  public static get Pink(): Color {
+    return Color.fromHex('#FFC0CB');
+  }
+
+  /**
+   * Magenta (#FF00FF)
+   */
+  public static get Magenta(): Color {
+    return Color.fromHex('#FF00FF');
+  }
+
+  /**
+   * Violet (#7F00FF)
+   */
+  public static get Violet(): Color {
+    return Color.fromHex('#7F00FF');
+  }
+
+  /**
+   * Purple (#800080)
+   */
+  public static get Purple(): Color {
+    return Color.fromHex('#800080');
+  }
+
+  /**
+   * Blue (#0000FF)
+   */
+  public static get Blue(): Color {
+    return Color.fromHex('#0000FF');
+  }
+
+  /**
+   * Azure (#007FFF)
+   */
+  public static get Azure(): Color {
+    return Color.fromHex('#007FFF');
+  }
+
+  /**
+   * Cyan (#00FFFF)
+   */
+  public static get Cyan(): Color {
+    return Color.fromHex('#00FFFF');
+  }
+
+  /**
+   * Viridian (#59978F)
+   */
+  public static get Viridian(): Color {
+    return Color.fromHex('#59978F');
+  }
+
+  /**
+   * Teal (#008080)
+   */
+  public static get Teal(): Color {
+    return Color.fromHex('#008080');
+  }
+
+  /**
+   * Green (#00FF00)
+   */
+  public static get Green(): Color {
+    return Color.fromHex('#00FF00');
+  }
+
+  /**
+   * Chartreuse (#7FFF00)
+   */
+  public static get Chartreuse(): Color {
+    return Color.fromHex('#7FFF00');
+  }
+
+  /**
+   * Transparent (#FFFFFF00)
+   */
+  public static get Transparent(): Color {
+    return Color.fromHex('#FFFFFF00');
+  }
+
+  /**
+   * ExcaliburBlue (#176BAA)
+   */
+  public static get ExcaliburBlue(): Color {
+    return Color.fromHex('#176BAA');
+  }
+
+  /**
+   * Brown (#964B00)
+   */
+  public static get Brown(): Color {
+    return Color.fromHex('#964B00');
+  }
+}
+
+/**
+ * Internal HSL Color representation
+ *
+ * http://en.wikipedia.org/wiki/HSL_and_HSV
+ * http://axonflux.com/handy-rgb-to-hsl-and-rgb-to-hsv-color-model-c
+ */
+class HSLColor {
+  constructor(
+    public h: number,
+    public s: number,
+    public l: number,
+    public a: number
+  ) {}
+
+  public static hue2rgb(p: number, q: number, t: number): number {
+    if (t < 0) {
+      t += 1;
+    }
+    if (t > 1) {
+      t -= 1;
+    }
+    if (t < 1 / 6) {
+      return p + (q - p) * 6 * t;
+    }
+    if (t < 1 / 2) {
+      return q;
+    }
+    if (t < 2 / 3) {
+      return p + (q - p) * (2 / 3 - t) * 6;
+    }
+    return p;
+  }
+
+  public static fromRGBA(r: number, g: number, b: number, a: number): HSLColor {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max = Math.max(r, g, b),
+      min = Math.min(r, g, b);
+    let h, s;
+    const l = (max + min) / 2;
+
+    if (max === min) {
+      h = s = 0; // achromatic
+    } else {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0);
+          break;
+        case g:
+          h = (b - r) / d + 2;
+          break;
+        case b:
+          h = (r - g) / d + 4;
+          break;
+      }
+      h! /= 6;
+    }
+
+    return new HSLColor(h!, s, l, a);
+  }
+
+  public toRGBA(): Color {
+    let r: number, g: number, b: number;
+
+    if (this.s === 0) {
+      r = g = b = this.l; // achromatic
+    } else {
+      const q = this.l < 0.5 ? this.l * (1 + this.s) : this.l + this.s - this.l * this.s;
+      const p = 2 * this.l - q;
+      r = HSLColor.hue2rgb(p, q, this.h + 1 / 3);
+      g = HSLColor.hue2rgb(p, q, this.h);
+      b = HSLColor.hue2rgb(p, q, this.h - 1 / 3);
+    }
+
+    return new Color(r * 255, g * 255, b * 255, this.a);
+  }
+
+  public toString(): string {
+    const h = Math.round(this.h * 360),
+      s = Math.round(this.s * 100),
+      l = Math.round(this.l * 100),
+      a = this.a;
+    return `hsla(${h}, ${s}%, ${l}%, ${a})`;
+  }
+
+  public static lerp(a: HSLColor, b: HSLColor, t: number): HSLColor {
+    t = Math.max(0, Math.min(1, t));
+
+    let dh = b.h - a.h;
+    if (dh > 0.5) {
+      dh -= 1;
+    } else if (dh < -0.5) {
+      dh += 1;
+    }
+
+    const h = (a.h + dh * t + 1) % 1;
+    const s = a.s + (b.s - a.s) * t;
+    const l = a.l + (b.l - a.l) * t;
+    const alpha = a.a + (b.a - a.a) * t;
+
+    return new HSLColor(h, s, l, alpha);
+  }
+}

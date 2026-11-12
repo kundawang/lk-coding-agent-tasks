@@ -1,0 +1,26 @@
+name: Browser Support Tests
+env:
+  BS_USERNAME: ${{ secrets.BS_USERNAME }}
+  BS_PASSWORD: ${{ secrets.BS_PASSWORD }}
+on:
+  push:
+    branches: [main]
+jobs:
+  browser_support:
+    runs-on: [ubuntu-24.04]
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 100
+      - uses: actions/setup-node@v6.5.0
+        with:
+          node-version-file: 'package.json'
+          package-manager-cache: false
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install -g npm@11.16.0
+      - run: npm ci
+      - run: npm run build
+      - run: npm run browserstack

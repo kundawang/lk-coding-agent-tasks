@@ -1,0 +1,65 @@
+#Ignore compiled javascript #
+######################
+.baseDir.ts
+/src/engine/*.js
+/src/engine/*.map
+/sandbox/**/*.js
+/sandbox/**/*.d.ts
+/sandbox/lib/**
+/src/spec/*.js
+_SpecRunner.html
+TestsSpec.js
+TestsSpec.js.map
+node_modules/
+node_cache/
+/bower_components/
+coverage/
+.grunt/
+.tscache/
+tscommand*
+/docs/api/
+
+# Logs and databases #
+######################
+*.log
+*.sql
+*.sqlite
+nohup.out
+
+# Sublime workspace settings #
+*.sublime-workspace
+
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+# Build
+.vs/
+.idea/
+build/
+build-storybook/
+bld/
+bin/
+obj/
+.tsbuildinfo
+*.user
+*.suo
+*.map
+*.orig
+
+# Test outputs
+__screenshots__
+browserstack.err
+
+*storybook.log
+storybook-static
+image-diffs
+vitest-image-failures.json
+site/generated

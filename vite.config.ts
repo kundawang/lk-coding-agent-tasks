@@ -1,0 +1,81 @@
+import * as path from 'path';
+import * as fs from 'fs';
+import type { ResolvedConfig } from 'vite';
+import { defineConfig, mergeConfig } from 'vite';
+import banner from 'vite-plugin-banner';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
+
+// @ts-ignore
+import { getReleaseVersion, getAlphaVersion } from './version.js';
+const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+const now = new Date();
+const dt = now.getFullYear() + '-' + (now.getMonth() + 1) + '-' + now.getDate();
+const version = process.env.release ? getReleaseVersion() : getAlphaVersion();
+
+// @ts-ignore
+import commonConfig from './vite.config.common';
+
+export default defineConfig(({ mode }) => {
+  let config: ResolvedConfig;
+
+  // eslint-disable-next-line no-console
+  console.log(`[version] ${version}.js`);
+
+  return mergeConfig(commonConfig as any, {
+    build: {
+      target: 'es2018',
+      outDir: path.resolve(__dirname, 'build'),
+      emptyOutDir: false,
+      lib: {
+        formats: ['es'],
+        name: 'ex',
+        fileName(format: string) {
+          let fileName = 'excalibur';
+
+          if (config.build.minify) {
+            fileName += '.min';
+          }
+
+          if (mode === 'development') {
+            fileName += '.development';
+          }
+
+          if (format === 'es') {
+            return `esm/${fileName}.js`;
+          }
+
+          return `dist/${fileName}.js`;
+        },
+        entry: 'src/engine/index.ts'
+      }
+    },
+
+    plugins: [
+      // get the resolved vite config so we can reference it in
+      // callbacks
+      {
+        name: 'get-config',
+        configResolved(v: ResolvedConfig) {
+          config = v;
+        }
+      },
+      viteStaticCopy({
+        targets: [
+          {
+            src: 'src/engine/excalibur.d.ts',
+            dest: 'esm/src/engine/',
+            rename: { stripBase: true }
+          }
+        ]
+      }),
+
+      banner(
+        `${pkg.name} - ${version} - ${dt}
+${pkg.homepage}
+Copyright (c) ${now.getFullYear()} Excalibur.js <${pkg.author}>
+Licensed ${pkg.license}
+@preserve`
+      )
+    ]
+  });
+});

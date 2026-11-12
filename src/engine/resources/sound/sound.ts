@@ -1,0 +1,793 @@
+import { Resource } from '../resource';
+import { SoundTrack, type AudioGraphBuilder } from './sound-track';
+import { AudioContextFactory } from './audio-context';
+import { NativeSoundEvent, NativeSoundProcessedEvent } from '../../events/media-events';
+import type { Loadable } from '../../interfaces/index';
+import type { Engine } from '../../engine';
+import { Logger } from '../../util/log';
+import type { EventKey, Handler, Subscription } from '../../event-emitter';
+import { EventEmitter } from '../../event-emitter';
+import { clamp } from '../../math/util';
+
+export interface SoundEvents {
+  volumechange: NativeSoundEvent;
+  processed: NativeSoundProcessedEvent;
+  pause: NativeSoundEvent;
+  stop: NativeSoundEvent;
+  playbackend: NativeSoundEvent;
+  resume: NativeSoundEvent;
+  playbackstart: NativeSoundEvent;
+}
+
+export const SoundEvents = {
+  VolumeChange: 'volumechange',
+  Processed: 'processed',
+  Pause: 'pause',
+  Stop: 'stop',
+  PlaybackEnd: 'playbackend',
+  Resume: 'resume',
+  PlaybackStart: 'playbackstart'
+} as const;
+
+export interface SoundOptions<TName extends string = string> {
+  /**
+   * Optional explicit name for this sound. Used as the default key when this
+   * Sound is registered with a {@apilink SoundManager} (otherwise the basename
+   * without extension of the selected path is used, e.g. `/sfx/coin.mp3` → `coin`).
+   *
+   * If passed as a string literal, it is inferred as the {@apilink Sound}'s
+   * name type parameter for strong typing.
+   */
+  name?: TName;
+  /**
+   * @param paths A list of audio sources (clip.wav, clip.mp3, clip.ogg) for this audio clip. This is done for browser compatibility.
+   */
+  paths: string[];
+  /**
+   * Optionally bust the cache on load
+   *
+   * Default is false
+   */
+  bustCache?: boolean;
+  /**
+   * [0-1] 0% to 100%
+   *
+   * By default 1 (100%)
+   */
+  volume?: number;
+  /**
+   * Loop infinitely
+   */
+  loop?: boolean;
+  /**
+   * Multiplyer
+   *
+   * By default 1
+   */
+  playbackRate?: number;
+  /**
+   * Pitch shift in cents (semitones are 100 cents). Default 0 (no change).
+   * Backed by {@apilink AudioBufferSourceNode.detune}; composes with
+   * {@apilink Sound.playbackRate}. Note: changing pitch also affects playback
+   * speed (this is a Web Audio limitation).
+   */
+  pitch?: number;
+  /**
+   * Duration in milliseconds.
+   *
+   * By default unset, will play the natural length of the clip
+   */
+  duration?: number;
+
+  /**
+   * Advance to a position (in milliseconds) in the audio clip
+   */
+  position?: number;
+
+  /**
+   * Maximum number of simultaneously playing tracks allowed for this single
+   * Sound. When the cap is reached, new `play()` calls are dropped and resolve
+   * to `false`. Default unset (unbounded).
+   */
+  maxConcurrentTracks?: number;
+
+  /**
+   * What happens when a `maxConcurrentTracks` cap
+   * *`false` (default) drops the new play
+   * *`true` stops the oldest playing track in that scope to make room for it.
+   */
+  voiceStealing?: boolean;
+
+  /**
+   * Optional hook to wire custom Web Audio nodes (spatial panners, filters,
+   * reverb, analysers...) between this sound's source and its output. Runs each
+   * time a track (re)starts. See {@apilink AudioGraphBuilder}.
+   */
+  onPlay?: AudioGraphBuilder;
+}
+
+/**
+ * One-off overrides for a single playback, see {@apilink Sound.play}. Unset options fall back to the
+ * {@apilink Sound}'s configuration; nothing here changes the Sound itself.
+ */
+export interface PlayOptions {
+  /**
+   * Volume [0-1] of this track, multiplied with {@apilink Sound.volume}. Default 1.
+   */
+  volume?: number;
+  /**
+   * Pitch shift in cents for this track, overrides {@apilink Sound.pitch}
+   */
+  pitch?: number;
+  /**
+   * Playback speed multiplier for this track, overrides {@apilink Sound.playbackRate}
+   */
+  playbackRate?: number;
+  /**
+   * Loop this track, overrides {@apilink Sound.loop}
+   */
+  loop?: boolean;
+  /**
+   * Position in milliseconds to start this track from, overrides {@apilink Sound.position}
+   */
+  position?: number;
+  /**
+   * Duration in milliseconds to play this track for, overrides {@apilink Sound.duration}
+   */
+  duration?: number;
+  /**
+   * Schedule time to play in milliseconds from the audio context origin
+   *
+   * Compute using the audio context
+   *
+   * ```typescript
+   * const sound: Sound = ...;
+   * const oneThousandMillisecondsFromNow = AudioContextFactory.currentTime() + 1000;
+   *
+   * sound.play({ scheduledStartTime: oneThousandMillisecondsFromNow });
+   * ```
+   */
+  scheduledStartTime?: number;
+  /**
+   * Audio graph hook for this track (and its later resumes), overrides {@apilink Sound.onPlay}.
+   * See {@apilink AudioGraphBuilder}.
+   */
+  onPlay?: AudioGraphBuilder;
+}
+
+function isSoundOptions(x: any): x is SoundOptions[] {
+  return !!x[0]?.paths;
+}
+
+/**
+ * Derive a sound's default name from its path: basename without extension,
+ * see {@apilink Basename} for the matching compile-time type.
+ */
+function basenameWithoutExt(path: string): string {
+  const segments = path.split('/');
+  let name = segments[segments.length - 1];
+  if (name === '') {
+    name = path; // trailing slash, no basename to use
+  }
+  name = name.split('?')[0].split('#')[0];
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(0, dot) : name;
+}
+
+/**
+ * The {@apilink Sound} object allows games built in Excalibur to load audio
+ * components, from soundtracks to sound effects. {@apilink Sound} is an {@apilink Loadable}
+ * which means it can be passed to a {@apilink Loader} to pre-load before a game or level.
+ *
+ */
+export class Sound<const TName extends string = string> implements Loadable<AudioBuffer> {
+  public events = new EventEmitter<SoundEvents>();
+  public logger: Logger = Logger.getInstance();
+  public data!: AudioBuffer;
+  private _resource: Resource<ArrayBuffer>;
+
+  /**
+   * The registered name of this Sound. Either the explicit `name` option or
+   * the basename-without-extension of the selected path. Used as the default
+   * key when registered with a {@apilink SoundManager}.
+   */
+  public readonly name: TName;
+
+  /**
+   * Position in milliseconds new tracks start from, see {@apilink PlayOptions.position} for a one-off
+   */
+  public position: number | undefined;
+  /**
+   * Indicates whether the clip should loop when complete
+   * @param value  Set the looping flag
+   */
+  public set loop(value: boolean) {
+    this._loop = value;
+
+    for (const track of this._tracks) {
+      track.loop = this._loop;
+    }
+
+    this.logger.debug('Set loop for all instances of sound', this.path, 'to', this._loop);
+  }
+  public get loop(): boolean {
+    return this._loop;
+  }
+
+  /**
+   * Volume [0-1] applied to every track of this sound, ramped smoothly while playing
+   */
+  public set volume(value: number) {
+    value = clamp(value, 0, 1);
+    this._volume = value;
+
+    if (this._output) {
+      const gain = this._output.gain;
+      if (this.isPlaying && gain.setTargetAtTime) {
+        // https://developer.mozilla.org/en-US/docs/Web/API/AudioParam/setTargetAtTime
+        // After each .1 seconds timestep, the target value will ~63.2% closer to the target value.
+        // This exponential ramp provides a more pleasant transition in gain
+        gain.setTargetAtTime(value, this._audioContext.currentTime, 0.1);
+      } else {
+        gain.value = value;
+      }
+    }
+
+    this.events.emit('volumechange', new NativeSoundEvent(this));
+
+    this.logger.debug('Set volume for all instances of sound', this.path, 'to', this._volume);
+  }
+  public get volume(): number {
+    return this._volume;
+  }
+
+  private _duration: number | undefined;
+  /**
+   * Get the duration in milliseconds that this audio should play. If unset the total natural playback duration will be used.
+   */
+  public get duration(): number | undefined {
+    return this._duration;
+  }
+  /**
+   * Set the duration in milliseconds that this audio should play. If unset the total natural playback duration will be used.
+   *
+   * Note: if you seek to a specific point the duration will start from that point, for example
+   *
+   * If you have a 10 second clip, seek to 5000, then set the duration to 2000, it will play the clip from 5-7 seconds.
+   */
+  public set duration(duration: number | undefined) {
+    this._duration = duration;
+  }
+
+  /**
+   * Return array of Current {@apilink SoundTrack} instances playing or being paused
+   */
+  public get instances(): SoundTrack[] {
+    return this._tracks;
+  }
+
+  public get path() {
+    return this._resource.path;
+  }
+
+  public set path(val: string) {
+    this._resource.path = val;
+  }
+
+  /**
+   * Should excalibur add a cache busting querystring? By default false.
+   * Must be set before loading
+   */
+  public get bustCache() {
+    return this._resource.bustCache;
+  }
+
+  public set bustCache(val: boolean) {
+    this._resource.bustCache = val;
+  }
+
+  private _loop = false;
+  private _volume = 1;
+  private _isStopped = false;
+  private _tracks: SoundTrack[] = [];
+  private _engine?: Engine;
+  private _wasPlayingOnHidden: boolean = false;
+  private _playbackRate = 1.0;
+  private _pitch = 0;
+  public maxConcurrentTracks: number = Infinity;
+
+  public voiceStealing: boolean = false;
+
+  private _audioContext = AudioContextFactory.create();
+  /**
+   * Output gain shared by every track of this sound, created on first use
+   */
+  private _output?: GainNode;
+
+  /**
+   * Construct a Sound from an options object with an explicit `name`. The class
+   * generic `TName` is inferred from the `name` literal when one is provided.
+   */
+  public constructor(options: SoundOptions<TName>);
+  /**
+   * Construct a Sound from a variadic list of audio source paths. `TName` defaults to `string`
+   */
+  public constructor(...paths: string[]);
+  constructor(...pathsOrSoundOption: any[]) {
+    let options: SoundOptions;
+    if (isSoundOptions(pathsOrSoundOption)) {
+      options = pathsOrSoundOption[0];
+    } else {
+      options = {
+        paths: pathsOrSoundOption as string[]
+      };
+    }
+    this._resource = new Resource('', 'arraybuffer');
+
+    const { volume, position, playbackRate, loop, bustCache, duration, pitch, maxConcurrentTracks, voiceStealing, onPlay, name } = options;
+
+    this.volume = volume ?? this.volume;
+    this.playbackRate = playbackRate ?? this.playbackRate;
+    this.loop = loop ?? this.loop;
+    this.duration = duration ?? this.duration;
+    this.bustCache = bustCache ?? this.bustCache;
+    this.position = position ?? this.position;
+    this._pitch = pitch ?? this._pitch;
+    this.maxConcurrentTracks = maxConcurrentTracks ?? this.maxConcurrentTracks;
+    this.voiceStealing = voiceStealing ?? this.voiceStealing;
+    this.onPlay = onPlay;
+
+    /**
+     * Chrome : MP3, WAV, Ogg
+     * Firefox : WAV, Ogg,
+     * IE : MP3, WAV coming soon
+     * Safari MP3, WAV, Ogg
+     */
+    for (const path of options.paths) {
+      if (Sound.canPlayFile(path)) {
+        this.path = path;
+        break;
+      }
+    }
+
+    if (!this.path && options.paths.length > 0) {
+      this.logger.warn('This browser does not support any of the audio files specified:', options.paths.join(', '));
+      this.logger.warn('Attempting to use', options.paths[0]);
+      this.path = options.paths[0]; // select the first specified
+    }
+    // No paths is valid when the data is supplied directly, for example Sound.fromBlob()
+    this.path ??= '';
+
+    this.name = (name ?? basenameWithoutExt(this.path)) as TName;
+  }
+
+  /**
+   * Whether or not the browser can play this file as HTML5 Audio
+   */
+  static canPlayFile(file: string): boolean {
+    try {
+      const a = new Audio();
+      const filetype = /.*\.([A-Za-z0-9]+)(?=[?#]|$)/;
+      const type = file.match(filetype)![1];
+      if (a.canPlayType('audio/' + type)) {
+        return true;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      Logger.getInstance().warn('Cannot determine audio support, assuming no support for the Audio Tag', e);
+      return false;
+    }
+  }
+
+  static canPlayMime(mime: string): boolean {
+    try {
+      const a = new Audio();
+      const mimeMatch = /.*audio\/([A-Za-z0-9]+);?/;
+      const extractedMime = mime.match(mimeMatch)![1];
+      if (a.canPlayType(`audio/${extractedMime}`)) {
+        return true;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      Logger.getInstance().warn('Cannot determine audio support via blob mime type.', e);
+      return false;
+    }
+  }
+
+  /**
+   * Optional hook to wire custom Web Audio nodes between this sound's source
+   * and its output, runs each time a track (re)starts. See {@apilink AudioGraphBuilder}.
+   */
+  public onPlay?: AudioGraphBuilder;
+
+  /**
+   * Pitch shift in cents (semitones are 100 cents). Default 0 (no change).
+   * Backed by {@apilink AudioBufferSourceNode.detune}; composes with
+   * {@apilink Sound.playbackRate}. Note: changing pitch also affects playback
+   * speed (this is a Web Audio limitation).
+   */
+  public get pitch(): number {
+    return this._pitch;
+  }
+  public set pitch(pitch: number) {
+    this._pitch = pitch;
+    for (const track of this._tracks) {
+      track.pitch = this._pitch;
+    }
+  }
+
+  public get isLoaded() {
+    return !!this.data;
+  }
+
+  public async load(): Promise<AudioBuffer> {
+    if (this.data) {
+      return this.data;
+    }
+    const arraybuffer = await this._resource.load();
+    const audiobuffer = await this.decodeAudio(arraybuffer);
+    this._duration = this._duration ?? (audiobuffer ? audiobuffer.duration * 1000 : undefined);
+    this.events.emit('processed', new NativeSoundProcessedEvent(this, audiobuffer));
+    return (this.data = audiobuffer);
+  }
+
+  public async decodeAudio(data: ArrayBuffer): Promise<AudioBuffer> {
+    try {
+      // decodeAudioData detaches the buffer it is given, decode a copy so the caller keeps theirs
+      return await this._audioContext.decodeAudioData(data.slice(0));
+    } catch (e) {
+      this.logger.error(
+        'Unable to decode ' +
+          ' this browser may not fully support this format, or the file may be corrupt, ' +
+          'if this is an mp3 try removing id3 tags and album art from the file.'
+      );
+      return await Promise.reject();
+    }
+  }
+
+  public wireEngine(engine: Engine) {
+    if (engine && this._engine !== engine) {
+      this._engine = engine;
+
+      this._engine.on('hidden', () => {
+        if (engine.pauseAudioWhenHidden && this.isPlaying) {
+          this._wasPlayingOnHidden = true;
+          this.pause();
+        }
+      });
+
+      this._engine.on('visible', () => {
+        if (engine.pauseAudioWhenHidden && this._wasPlayingOnHidden) {
+          // eslint-disable-next-line @typescript-eslint/no-floating-promises
+          this.resume();
+          this._wasPlayingOnHidden = false;
+        }
+      });
+
+      this._engine.on('start', () => {
+        this._isStopped = false;
+      });
+
+      this._engine.on('stop', () => {
+        this.stop();
+        this._isStopped = true;
+      });
+    }
+  }
+
+  /**
+   * Returns how many tracks of the sound currently exist (playing or paused)
+   */
+  public instanceCount(): number {
+    return this._tracks.length;
+  }
+
+  /**
+   * Returns how many tracks of the sound are currently playing
+   */
+  public playingCount(): number {
+    let count = 0;
+    for (const track of this._tracks) {
+      if (track.isPlaying) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Whether or not the sound is playing right now
+   */
+  public get isPlaying(): boolean {
+    return this._tracks.some((t) => t.isPlaying);
+  }
+
+  public get isPaused(): boolean {
+    return this._tracks.some((t) => t.isPaused);
+  }
+
+  public get isStopped(): boolean {
+    return this._tracks.some((t) => t.isStopped);
+  }
+
+  /**
+   * Play a new track of this sound, returns a promise that resolves when that track is done
+   * playing (false if the play was dropped, e.g. by {@apilink Sound.maxConcurrentTracks}).
+   *
+   * Options apply to this track only and never change the Sound's own configuration:
+   *
+   * ```typescript
+   * sound.play();                                   // the sound as configured
+   * sound.play({ volume: 0.3, pitch: -200 });       // quieter and lower, this time only
+   * sound.play({ position: 2, duration: 1 });       // one second starting two seconds in
+   * ```
+   *
+   * To continue paused tracks use {@apilink Sound.resume}, to get a handle on the track
+   * use {@apilink Sound.start}.
+   */
+  public play(options?: PlayOptions): Promise<boolean> {
+    const track = this.start(options);
+    return track ? track.done : Promise.resolve(false);
+  }
+
+  private _makeRoom(playing: number, max: number, voiceStealing: boolean): boolean {
+    if (playing < max) {
+      return true;
+    }
+
+    if (!voiceStealing) {
+      return false;
+    }
+
+    let oldest: SoundTrack | null = null;
+    for (const track of this.instances) {
+      if (track.isPlaying && (!oldest || track.id < oldest.id)) {
+        oldest = track;
+      }
+    }
+    oldest?.stop();
+    return playing - 1 < max;
+  }
+
+  /**
+   * Like {@apilink Sound.play} but returns the {@apilink SoundTrack} synchronously so it can be
+   * stopped, seeked or adjusted while it plays. Returns `null` if the play was dropped.
+   *
+   * ```typescript
+   * const footstep = sound.start({ volume: 0.5 });
+   * footstep?.stop();
+   * await footstep?.done;
+   * ```
+   */
+  public start(options?: PlayOptions): SoundTrack | null {
+    if (!this.isLoaded) {
+      this.logger.warn('Cannot start playing. Resource', this.path, 'is not loaded yet');
+      return null;
+    }
+
+    if (this._isStopped) {
+      this.logger.warn('Cannot start playing. Engine is in a stopped state.');
+      return null;
+    }
+
+    if (!this._makeRoom(this.playingCount(), this.maxConcurrentTracks, this.voiceStealing)) {
+      this.logger.warnOnce(`Sound "${this.name}" has reached maxConcurrentTracks (${this.maxConcurrentTracks}); dropping play.`);
+      return null;
+    }
+
+    const overrides: PlayOptions = options ?? {};
+    const track = this._createTrack(overrides);
+    track.scheduledStartTime = overrides.scheduledStartTime ?? 0;
+    const position = overrides.position ?? this.position;
+    if (position) {
+      track.seek(position);
+    }
+
+    // the completion future never rejects
+    void track
+      .play(() => {
+        this.events.emit('playbackstart', new NativeSoundEvent(this, track));
+        this.logger.debug('Playing new instance for sound', this.path);
+      })
+      .then(() => {
+        this.events.emit('playbackend', new NativeSoundEvent(this, track));
+        this._removeTrack(track);
+      });
+
+    return track;
+  }
+
+  /**
+   * Resume every paused (or seeked) track, resolves when they are done playing.
+   * Resolves `false` immediately if nothing was paused.
+   */
+  public async resume(): Promise<boolean> {
+    const resumed: Promise<boolean>[] = [];
+    for (const track of this._tracks) {
+      if (!track.isPaused) {
+        continue;
+      }
+      resumed.push(
+        track.play().then((complete) => {
+          this._removeTrack(track);
+          return complete;
+        })
+      );
+    }
+    if (resumed.length === 0) {
+      return false;
+    }
+
+    this.events.emit('resume', new NativeSoundEvent(this));
+    this.logger.debug('Resuming paused instances for sound', this.path, this._tracks);
+
+    await Promise.all(resumed);
+    return true;
+  }
+
+  /**
+   * Stop the sound, and do not rewind
+   */
+  public pause() {
+    if (!this.isPlaying) {
+      return;
+    }
+
+    for (const track of this._tracks) {
+      track.pause();
+    }
+
+    this.events.emit('pause', new NativeSoundEvent(this));
+
+    this.logger.debug('Paused all instances of sound', this.path);
+  }
+
+  /**
+   * Stop the sound if it is currently playing and rewind the track. If the sound is not playing, rewinds the track.
+   */
+  public stop() {
+    for (const track of this._tracks) {
+      track.stop();
+    }
+
+    this.events.emit('stop', new NativeSoundEvent(this));
+
+    this._tracks.length = 0;
+    this.logger.debug('Stopped all instances of sound', this.path);
+  }
+
+  public get playbackRate(): number {
+    return this._playbackRate;
+  }
+
+  public set playbackRate(playbackRate: number) {
+    this._playbackRate = playbackRate;
+    this._tracks.forEach((t) => {
+      t.playbackRate = this._playbackRate;
+    });
+  }
+
+  /**
+   * Seek a track to a position in milliseconds, the track is paused until the next {@apilink Sound.resume}.
+   *
+   * If no track exists one is created so that `seek(); resume()` starts from the position.
+   */
+  public seek(position: number, trackId = 0) {
+    if (this._tracks.length === 0) {
+      this._createTrack();
+    }
+
+    this._tracks[trackId]?.seek(position);
+  }
+
+  /**
+   * Return the total duration of the loaded audio clip in milliseconds
+   */
+  public getTotalPlaybackDuration() {
+    if (!this.isLoaded) {
+      this.logger.warnOnce(
+        `Sound from ${this.path} is not loaded, cannot return total playback duration.` +
+          `Did you forget to add Sound to a loader? https://excaliburjs.com/docs/loaders/`
+      );
+      return 0;
+    }
+    return this.data.duration * 1000;
+  }
+
+  /**
+   * Return the current playback time of the playing track in milliseconds from the start.
+   *
+   * Optionally specify the track to query if multiple are playing at once.
+   * @param trackId
+   */
+  public getPlaybackPosition(trackId = 0) {
+    return this._tracks[trackId]?.getPlaybackPosition() ?? 0;
+  }
+
+  /**
+   * Get Id of provided {@apilink SoundTrack} in current trackList
+   * @param track {@apilink SoundTrack} which Id is to be given
+   */
+  public getTrackId(track: SoundTrack): number {
+    return this._tracks.indexOf(track);
+  }
+
+  private _removeTrack(track: SoundTrack) {
+    const trackId = this._tracks.indexOf(track);
+    if (trackId !== -1) {
+      this._tracks.splice(trackId, 1);
+    }
+  }
+
+  /**
+   * The {@apilink GainNode} every track of this sound is mixed into, carrying {@apilink Sound.volume}.
+   * Connected straight to the audio context destination until a {@apilink SoundManager} re-routes it
+   * through its mixer graph.
+   */
+  public get output(): GainNode {
+    if (!this._output) {
+      this._output = this._audioContext.createGain();
+      this._output.gain.value = this._volume;
+      this._output.connect(this._audioContext.destination);
+    }
+    return this._output;
+  }
+
+  /**
+   * Snapshot the sound's configuration, overlaid with per-play overrides, into a new track
+   */
+  private _createTrack(overrides: PlayOptions = {}): SoundTrack {
+    const track = new SoundTrack(this.data, this.output, overrides.onPlay ?? this.onPlay);
+
+    track.volume = overrides.volume ?? 1;
+    track.loop = overrides.loop ?? this._loop;
+    track.duration = overrides.duration ?? this._duration;
+    track.playbackRate = overrides.playbackRate ?? this._playbackRate;
+    track.pitch = overrides.pitch ?? this._pitch;
+
+    this._tracks.push(track);
+
+    return track;
+  }
+
+  public emit<TEventName extends EventKey<SoundEvents>>(eventName: TEventName, event: SoundEvents[TEventName]): void;
+  public emit(eventName: string, event?: any): void;
+  public emit<TEventName extends EventKey<SoundEvents> | string>(eventName: TEventName, event?: any): void {
+    this.events.emit(eventName, event);
+  }
+
+  public on<TEventName extends EventKey<SoundEvents>>(eventName: TEventName, handler: Handler<SoundEvents[TEventName]>): Subscription;
+  public on(eventName: string, handler: Handler<unknown>): Subscription;
+  public on<TEventName extends EventKey<SoundEvents> | string>(eventName: TEventName, handler: Handler<any>): Subscription {
+    return this.events.on(eventName, handler);
+  }
+
+  public once<TEventName extends EventKey<SoundEvents>>(eventName: TEventName, handler: Handler<SoundEvents[TEventName]>): Subscription;
+  public once(eventName: string, handler: Handler<unknown>): Subscription;
+  public once<TEventName extends EventKey<SoundEvents> | string>(eventName: TEventName, handler: Handler<any>): Subscription {
+    return this.events.once(eventName, handler);
+  }
+
+  public off<TEventName extends EventKey<SoundEvents>>(eventName: TEventName, handler: Handler<SoundEvents[TEventName]>): void;
+  public off(eventName: string, handler: Handler<unknown>): void;
+  public off(eventName: string): void;
+  public off<TEventName extends EventKey<SoundEvents> | string>(eventName: TEventName, handler?: Handler<any>): void {
+    this.events.off(eventName, handler as any);
+  }
+
+  public static async fromBlob(blob: Blob) {
+    if (!Sound.canPlayMime(blob.type)) {
+      Logger.getInstance().warn('Blob mime type is unsupported.');
+    }
+
+    const sound = new Sound();
+    const arrayBuffer = await blob.arrayBuffer();
+    const decodedBuffer = await AudioContextFactory.create().decodeAudioData(arrayBuffer);
+    sound.data = decodedBuffer;
+    sound._duration = decodedBuffer.duration * 1000;
+
+    return sound;
+  }
+}

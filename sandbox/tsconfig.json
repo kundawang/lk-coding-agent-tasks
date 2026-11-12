@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "noEmit": true,
+    "sourceMap": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": false,
+    "removeComments": false,
+    "useDefineForClassFields": false,
+    "skipLibCheck": true,
+    "allowUmdGlobalAccess": true,
+    "strict": false,
+    "lib": ["dom", "dom.iterable", "es2021"],
+    "types": ["node"],
+    "paths": {
+      "@excalibur": ["../src/engine/index.ts"]
+    }
+  },
+  "include": ["./src/**/*.ts", "./tests/**/*.ts", "../src/engine/*.d.ts"]
+}

@@ -1,0 +1,12 @@
+karma.conf.*
+package.json
+package-lock.json
+node_modules
+build
+coverage
+node_cache
+/site
+/playground/dist
+/playground/types
+*.md
+*.mdx

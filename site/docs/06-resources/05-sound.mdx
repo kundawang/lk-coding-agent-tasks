@@ -1,0 +1,38 @@
+---
+title: Sound
+slug: /sound
+section: Resources
+---
+
+Plenty of times you'll want sound effects in your game. The [[Sound]] resource will help you load files in order of preference in case the browser doesn't support them.
+
+## Audio with the Sound Resource
+
+Excalibur supports any audio the browser supports like `.wav`, `.mp3`, and `.ogg`. Due to mixed browser support you may wish to specify a list of
+source files and codecs, the order of the files specifies order of preference.
+
+A list of per-browser supported audio codecs is available [here](https://caniuse.com/?search=audio+format). As of 2026, the major codecs which are widely available are: mp3, wav and flac.
+
+Pass an instance of [[Sound]] to a [[Loader]] to preload it. Once a sound
+is loaded, you can [[Sound.play|play]] it. You can pass an argument from 0.0 - 1.0
+into [[Sound.play|play]] in order to play the sound at that volume.
+
+```typescript
+const game = new Engine({...});
+const sound = new Sound('./path/to/my.mp3', './path/to/fallback.wav');
+
+const loader = new Loader([sound]);
+await game.start(loader);
+
+sound.play({ volume: 0.5 });
+```
+
+All times in the [[Sound]] API are in **milliseconds**, including `position`, `duration`, [[Sound.seek|seek]], [[Sound.getPlaybackPosition|getPlaybackPosition]] and `scheduledStartTime`.
+
+```typescript
+sound.play({ position: 2000, duration: 1000 }); // start 2 seconds in and play for 1 second
+```
+
+See the [examples](https://excaliburjs.com/examples/?path=/docs/audio) or API documentation for [[Sound]] for additional features available such as looping, volume setting, and more.
+
+<!-- <Example story="audio" /> -->

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>Excalibur</id>
+    <title>Excalibur.js</title>
+    <version>$version$</version>
+    <authors>Excalibur.js</authors>
+    <projectUrl>https://github.com/excaliburjs/Excalibur</projectUrl>
+    <license type="expression">BSD-2-Clause</license>
+    <iconUrl>https://raw.github.com/excaliburjs/Excalibur/main/assets/icon.png</iconUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Excalibur.js is a simple JavaScript game engine with TypeScript bindings for making 2D games in HTML5 Canvas. Our mission is to make web game development as simple as possible.</description>
+  </metadata>
+  <files>
+    <!-- v1 ships ES modules only: excalibur.js, excalibur.min.js and the .development.js variants -->
+    <file src="build\esm\excalibur*.js" target="content\Scripts" />
+    <!-- Type declarations are a tree of .d.ts files with relative imports, keep the layout so excalibur.d.ts resolves -->
+    <file src="build\esm\src\engine\**\*.d.ts" target="content\Scripts\src\engine" />
+  </files>
+</package>
