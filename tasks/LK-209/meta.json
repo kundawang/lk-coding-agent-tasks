@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-209",
+  "title": "Excalibur 重叠 Actor 指针事件校验修复",
+  "created_at": "2026-11-13T10:03:30",
+  "task_type": "Bugfix",
+  "difficulty": "困难",
+  "language_framework": "TypeScript, JavaScript, Excalibur.js, Vitest",
+  "harness": "Codex CLI",
+  "harness_version": "0.153.4",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-209/base",
+    "sha": "c365be4a8743892716c76dd9b0e845caa8684298",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/c365be4a8743892716c76dd9b0e845caa8684298"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-209/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-209/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "来源：https://github.com/excaliburjs/Excalibur/issues/3059；上游基线 0bdca288e5cd1d1794bf24c5916b1c79fc54974a"
+}
