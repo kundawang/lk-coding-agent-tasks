@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-208",
+  "title": "Matter.js 传感器接触污染实体碰撞求解",
+  "created_at": "2026-11-13T10:03:14",
+  "task_type": "Bugfix",
+  "difficulty": "困难",
+  "language_framework": "JavaScript, Matter.js, Jest",
+  "harness": "Codex CLI",
+  "harness_version": "0.153.4",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-208/base",
+    "sha": "e50ed8441b81b5dbd7fc86e680d954b1e862399a",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/e50ed8441b81b5dbd7fc86e680d954b1e862399a"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-208/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-208/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "来源：https://github.com/liabru/matter-js/issues/757；上游基线 b8ee71cd7f9b49f53639ddaedd6254f1929bcbe5"
+}
