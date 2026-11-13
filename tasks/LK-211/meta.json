@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-211",
+  "title": "KAPLAY 循环动画生命周期回调修复",
+  "created_at": "2026-11-13T10:04:49",
+  "task_type": "Bugfix",
+  "difficulty": "困难",
+  "language_framework": "TypeScript, JavaScript, KAPLAY, Playwright",
+  "harness": "Codex CLI",
+  "harness_version": "0.153.4",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-211/base",
+    "sha": "a6e17e20ed3bd265c8a65aed8de2cabbdbf0e606",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/a6e17e20ed3bd265c8a65aed8de2cabbdbf0e606"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-211/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-211/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "来源：https://github.com/kaplayjs/kaplay/issues/819；上游基线 708932ca37ed69b8d608decf008e3d97c7170f5c"
+}
