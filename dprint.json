@@ -1,0 +1,19 @@
+{
+  "newLineKind": "lf",
+  "lineWidth": 80,
+  "typescript": {
+    "ifStatement.nextControlFlowPosition": "nextLine",
+    "indentWidth": 4
+  },
+  "json": {},
+  "excludes": [
+    "**/node_modules",
+    "**/*-lock.yaml",
+    "**/docs",
+    "**/dist"
+  ],
+  "plugins": [
+    "npm:@dprint/json@0.23.0",
+    "npm:@dprint/typescript@0.96.1"
+  ]
+}

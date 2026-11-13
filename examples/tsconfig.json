@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "types": [
+      "../dist/declaration/global.d.ts"
+    ],
+    "target": "ESNext", /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */
+    "module": "ESNext", /* Specify what module code is generated. */
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": true,
+    "moduleDetection": "force",
+    "noImplicitAny": false
+  }
+}
