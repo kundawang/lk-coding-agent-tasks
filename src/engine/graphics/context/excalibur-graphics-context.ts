@@ -1,0 +1,531 @@
+import type { Vector } from '../../math/vector';
+import type { Color } from '../../color';
+import type { Resolution } from '../../screen';
+import type { PostProcessor } from '../post-processor/post-processor';
+import type { AffineMatrix } from '../../math/affine-matrix';
+import type { Material, MaterialOptions } from './material';
+import type { RendererPlugin } from './renderer';
+import { ImageFiltering } from '../filtering';
+import type { ExcaliburGraphicsContextWebGL } from './excalibur-graphics-context-webgl';
+
+export type HTMLImageSource = HTMLImageElement | HTMLCanvasElement;
+
+export interface AntialiasOptions {
+  /**
+   * Turns on the special pixel art sampler in excalibur's image shader for sub pixel
+   * anti-aliasing
+   *
+   * Default false
+   */
+  pixelArtSampler?: boolean;
+  /**
+   * Configures the webgl's getContext('webgl2', {antialias: true | false}) or configures
+   * Canvas2D imageSmoothing = true;
+   *
+   * **Note** this option is incompatible with `multiSampleAntialiasing`
+   *
+   * Default false
+   */
+  nativeContextAntialiasing?: boolean;
+  /**
+   * Configures the internal render buffer multi-sampling settings
+   *
+   * Default true, with max samples that the platform supports
+   */
+  multiSampleAntialiasing?:
+    | boolean
+    | {
+        /**
+         * Optionally specify number of samples (will be clamped to the max the platform supports)
+         *
+         * Default most platforms are 16 samples
+         */
+        samples: number;
+      };
+  /**
+   * Sets the default image filtering for excalibur
+   *
+   * Default {@apilink ImageFiltering.Blended}
+   */
+  filtering?: ImageFiltering;
+  /**
+   * Sets the canvas image rendering CSS style
+   *
+   * Default 'auto'
+   */
+  canvasImageRendering?: 'pixelated' | 'auto';
+}
+
+export const DefaultAntialiasOptions: Required<AntialiasOptions> = {
+  pixelArtSampler: false,
+  nativeContextAntialiasing: false,
+  multiSampleAntialiasing: true,
+  filtering: ImageFiltering.Blended,
+  canvasImageRendering: 'auto'
+};
+
+export const DefaultPixelArtOptions: Required<AntialiasOptions> = {
+  pixelArtSampler: true,
+  nativeContextAntialiasing: false,
+  multiSampleAntialiasing: true,
+  filtering: ImageFiltering.Blended,
+  canvasImageRendering: 'auto'
+};
+
+export interface ExcaliburGraphicsContextOptions {
+  /**
+   * Target existing html canvas element
+   */
+  canvasElement: HTMLCanvasElement;
+  /**
+   * Enables antialiasing on the canvas context (smooths pixels with default canvas sampling)
+   */
+  antialiasing?: boolean;
+  /**
+   * Enable the sub pixel antialiasing pixel art sampler for nice looking pixel art
+   */
+  pixelArtSampler?: boolean;
+  /**
+   * Enable canvas transparency
+   */
+  enableTransparency?: boolean;
+  /**
+   * Enable or disable multi-sample antialiasing in the internal render buffer.
+   *
+   * If true the max number of samples will be used
+   *
+   * By default enabled
+   */
+  multiSampleAntialiasing?:
+    | boolean
+    | {
+        /**
+         * Specify number of samples to use during the multi sample anti-alias, if not specified the max will be used.
+         * Limited by the hardware (usually 16)
+         */
+        samples: number;
+      };
+  /**
+   * UV padding in pixels to use in the internal image rendering
+   *
+   * Recommended .25 - .5 of a pixel
+   */
+  uvPadding?: number;
+  /**
+   * Hint the power preference to the graphics context
+   */
+  powerPreference?: 'default' | 'high-performance' | 'low-power';
+  /**
+   * Snaps the pixel to an integer value (floor)
+   */
+  snapToPixel?: boolean;
+  /**
+   * Current clearing color of the context
+   */
+  backgroundColor?: Color;
+  /**
+   * Enables draw call sorting (by z, material, and texture) to reduce state changes, defaults to `true`
+   */
+  useDrawSorting?: boolean;
+
+  /**
+   * Hook called before the graphics context is configured. Use to modify options before
+   * the WebGL context is created. Called at the start of the constructor.
+   *
+   * Called internally by Excalibur to forward plugin hooks.
+   * @param context The graphics context being constructed
+   * @param options The graphics context options (mutable)
+   * @internal
+   */
+  onGraphicsPreConfig?: (context: ExcaliburGraphicsContext, options: ExcaliburGraphicsContextOptions) => void;
+
+  /**
+   * Hook called after the graphics context is configured but before initialization.
+   * Called after the WebGL context is created and configuration properties are set.
+   *
+   * Called internally by Excalibur to forward plugin hooks.
+   * @param context The graphics context being constructed
+   * @param options The graphics context options
+   * @internal
+   */
+  onGraphicsPostConfig?: (context: ExcaliburGraphicsContext, options: ExcaliburGraphicsContextOptions) => void;
+
+  /**
+   * Hook called before the graphics context's internal initialization (renderers, render targets).
+   *
+   * Called internally by Excalibur to forward plugin hooks.
+   * @param context The graphics context being initialized
+   * @internal
+   */
+  onGraphicsPreInitialize?: (context: ExcaliburGraphicsContext) => void;
+
+  /**
+   * Hook called after the graphics context's internal initialization is complete.
+   * This is where plugins typically register custom renderers and post-processors.
+   *
+   * Called internally by Excalibur to forward plugin hooks.
+   * @param context The initialized graphics context
+   * @internal
+   */
+  onGraphicsPostInitialize?: (context: ExcaliburGraphicsContext) => void;
+}
+
+export interface ExcaliburGraphicsContextState {
+  opacity: number;
+  z: number;
+  tint: Color | null | undefined;
+  material: Material | null | undefined;
+}
+export interface LineGraphicsOptions {
+  color?: Color;
+  dashed?: boolean;
+  lineWidth?: number;
+}
+
+export interface RectGraphicsOptions {
+  color?: Color;
+  dashed?: boolean;
+  lineWidth?: number;
+}
+
+export interface PointGraphicsOptions {
+  color: Color;
+  size: number;
+}
+
+export interface DebugDraw {
+  /**
+   * Draw a debugging rectangle to the screen
+   * @param x
+   * @param y
+   * @param width
+   * @param height
+   * @param rectOptions
+   */
+  drawRect(x: number, y: number, width: number, height: number, rectOptions?: RectGraphicsOptions): void;
+  /**
+   * Draw a debugging line to the screen
+   * @param start '
+   * @param end
+   * @param lineOptions
+   */
+  drawLine(start: Vector, end: Vector, lineOptions?: LineGraphicsOptions): void;
+  /**
+   * Draw a debugging point to the screen
+   * @param point
+   * @param pointOptions
+   */
+  drawPoint(point: Vector, pointOptions?: PointGraphicsOptions): void;
+
+  /**
+   * Draw a circle to the Excalibur Graphics context
+   * @param pos
+   * @param radius
+   * @param color
+   * @param stroke Optionally specify the stroke color
+   * @param thickness
+   */
+  drawCircle(pos: Vector, radius: number, color: Color, stroke?: Color, thickness?: number): void;
+
+  /**
+   * Debug text styling options
+   */
+  drawText(text: string, pos: Vector, options?: DebugTextOptions): void;
+
+  /**
+   * Measure the pixel dimensions of debug text as it would be drawn by {@apilink DebugDraw.drawText},
+   * accounting for the optional scale factor. Useful for sizing UI around debug labels.
+   * @param text   Text to measure
+   * @param scale  Glyph scale factor, defaults to 1
+   */
+  measureText(text: string, scale?: number): { width: number; height: number };
+}
+
+export interface DebugTextOptions {
+  /**
+   * Optional foreground color override for the debug text
+   */
+  foreground?: Color;
+  /**
+   * Optional background color drawn behind the debug text
+   */
+  background?: Color;
+  /**
+   * Optional scale factor applied to the debug text glyphs, defaults to 1
+   */
+  scale?: number;
+}
+
+export interface ExcaliburGraphicsContext {
+  width: number;
+  height: number;
+
+  /**
+   * Excalibur will automatically sort draw calls by z and priority for maximal draw performance,
+   * this can disrupt a specific desired painter order.
+   *
+   * To force a specific draw call order, use {@apilink ExcaliburGraphicsContext.z}
+   *
+   * By default `useDrawSorting` is `true`, to opt out set this to `false`
+   */
+  useDrawSorting: boolean;
+
+  /**
+   * Set the current z context for the graphics context. Draw calls issued to the context will use this z
+   * to inform their sort order.
+   *
+   * Note it is important to all {@apilink ExcaliburGraphicsContext.save} and {@apilink ExcaliburGraphicsContext.restore} when modifying state.
+   */
+  z: number;
+
+  /**
+   * Snaps all drawings to the nearest pixel truncated down, by default false
+   */
+  snapToPixel: boolean;
+
+  /**
+   * Enable smoothed drawing (also known as anti-aliasing), by default true
+   */
+  smoothing: boolean;
+
+  /**
+   * Set the background color of the graphics context, default is {@apilink Color.ExcaliburBlue}
+   */
+  backgroundColor: Color;
+
+  /**
+   * Sets the opacity of the current {@apilink Graphic} being drawn, default is 1
+   */
+  opacity: number;
+
+  /**
+   * Sets the tint color to be multiplied by any images drawn, default is black 0xFFFFFFFF
+   */
+  tint: Color | null | undefined;
+
+  /**
+   * Resets the current transform to the identity matrix
+   */
+  resetTransform(): void;
+
+  /**
+   * Gets the current transform
+   */
+  getTransform(): AffineMatrix;
+
+  /**
+   * Multiplies the current transform by a matrix
+   * @param m
+   */
+  multiply(m: AffineMatrix): void;
+
+  /**
+   * Update the context with the current viewport dimensions (used in resizing)
+   */
+  updateViewport(resolution: Resolution): void;
+
+  /**
+   * Access the debug drawing api
+   */
+  debug: DebugDraw;
+
+  /**
+   * Draw an image to the Excalibur Graphics context at an x and y coordinate using the images width and height
+   */
+  drawImage(image: HTMLImageSource, x: number, y: number): void;
+  /**
+   *
+   * Draw an image to the Excalibur Graphics context at an x and y coordinate with a specific width and height
+   */
+  drawImage(image: HTMLImageSource, x: number, y: number, width: number, height: number): void;
+  /**
+   *
+   * Draw an image to the Excalibur Graphics context specifying the source image coordinates (sx, sy, swidth, sheight)
+   * and to a specific destination on the context (dx, dy, dwidth, dheight)
+   */
+  drawImage(
+    image: HTMLImageSource,
+    sx: number,
+    sy: number,
+    swidth?: number,
+    sheight?: number,
+    dx?: number,
+    dy?: number,
+    dwidth?: number,
+    dheight?: number
+  ): void;
+
+  /**
+   * Draw a solid line to the Excalibur Graphics context
+   * @param start
+   * @param end
+   * @param color
+   * @param thickness
+   */
+  drawLine(start: Vector, end: Vector, color: Color, thickness: number): void;
+
+  /**
+   * Draw a solid rectangle to the Excalibur Graphics context
+   * @param pos
+   * @param width
+   * @param height
+   * @param color
+   */
+  drawRectangle(pos: Vector, width: number, height: number, color: Color, stroke?: Color, strokeThickness?: number): void;
+
+  /**
+   * Draw a circle to the Excalibur Graphics context
+   * @param pos
+   * @param radius
+   * @param color
+   * @param stroke Optionally specify the stroke color
+   * @param thickness
+   */
+  drawCircle(pos: Vector, radius: number, color: Color, stroke?: Color, thickness?: number): void;
+
+  /**
+   * Save the current state of the canvas to the stack (transforms and opacity)
+   */
+  save(): void;
+
+  /**
+   * Restore the state of the canvas from the stack
+   */
+  restore(): void;
+
+  /**
+   * Translate the origin of the context by an x and y
+   * @param x
+   * @param y
+   */
+  translate(x: number, y: number): void;
+
+  /**
+   * Rotate the context about the current origin
+   */
+  rotate(angle: number): void;
+
+  /**
+   * Scale the context by an x and y factor
+   * @param x
+   * @param y
+   */
+  scale(x: number, y: number): void;
+
+  /**
+   * Add a post processor to the graphics context
+   *
+   * Post processors are run in the order they were added.
+   * @param postprocessor
+   */
+  addPostProcessor(postprocessor: PostProcessor): void;
+
+  /**
+   * Remove a specific post processor from the graphics context
+   * @param postprocessor
+   */
+  removePostProcessor(postprocessor: PostProcessor): void;
+
+  /**
+   * Remove all post processors from the graphics context
+   */
+  clearPostProcessors(): void;
+
+  /**
+   * Updates all post processors in the graphics context
+   *
+   * Called internally by Excalibur
+   * @param elapsed The elapsed time in milliseconds since the last frame
+   * @internal
+   */
+  updatePostProcessors(elapsed: number): void;
+
+  /**
+   * Gets this context as the WebGL context for WebGL only features, so that `engine.graphicsContext` can be used as is
+   * without casting.
+   *
+   * In the Canvas 2D fallback context this logs a warning once (per feature) and returns `null`, so the feature can
+   * turn itself into a no-op.
+   * @param feature Name of the WebGL only feature, used in the one time warning
+   */
+  asWebGL(feature: string): ExcaliburGraphicsContextWebGL | null;
+
+  /**
+   * Register a custom renderer plugin with the graphics context.
+   *
+   * The renderer is immediately initialized with the WebGL context.
+   * Use this for renderers that should always be available.
+   *
+   * In the Canvas 2D fallback context this is a no-op.
+   * @param renderer The renderer plugin to register
+   */
+  register<T extends RendererPlugin>(renderer: T): void;
+
+  /**
+   * Lazily register a custom renderer plugin with the graphics context.
+   *
+   * The renderer factory is stored and only instantiated the first time it is
+   * requested via {@apilink ExcaliburGraphicsContext.get}. Use this for renderers
+   * that may not be needed in every game to avoid unnecessary initialization cost.
+   *
+   * In the Canvas 2D fallback context this is a no-op.
+   * @param type     The unique renderer type name (matches {@apilink RendererPlugin.type})
+   * @param renderer A factory function that creates the renderer
+   */
+  lazyRegister<TRenderer extends RendererPlugin>(type: TRenderer['type'], renderer: () => TRenderer): void;
+
+  /**
+   * Look up a registered renderer plugin by its type name.
+   *
+   * If the renderer was lazily registered, it will be instantiated and initialized
+   * on first access.
+   *
+   * @param rendererName The unique renderer type name
+   * @returns The renderer plugin, or `null` if not found
+   */
+  get(rendererName: string): RendererPlugin | null;
+
+  /**
+   * Issue a draw command to a named renderer plugin.
+   *
+   * The renderer is looked up by name (auto-instantiating lazy renderers) and its
+   * `draw()` method is called with the provided arguments. Draw calls are sorted
+   * by z-index and renderer priority before flushing.
+   *
+   * In the Canvas 2D fallback context this is a no-op.
+   * @param rendererName The unique renderer type name to draw with
+   * @param args         Arguments forwarded to the renderer's `draw()` method
+   */
+  draw<TRenderer extends RendererPlugin>(rendererName: TRenderer['type'], ...args: Parameters<TRenderer['draw']>): void;
+
+  /**
+   * Gets or sets the material to be used in the current context's drawings
+   *
+   * This allows customs shaders to be used but draw calls are no longer batched by default.
+   * @param material
+   */
+  material: Material | null | undefined;
+
+  /**
+   * Creates and initializes the material which compiles the internal shader
+   * @param options
+   * @returns
+   */
+  createMaterial(options: Omit<MaterialOptions, 'graphicsContext'>): Material;
+
+  /**
+   * Clears the screen with the current background color
+   */
+  clear(): void;
+
+  /**
+   * Flushes the batched draw calls to the screen
+   */
+  flush(): void;
+
+  beginDrawLifecycle(): void;
+
+  endDrawLifecycle(): void;
+
+  dispose(): void;
+}

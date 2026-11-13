@@ -1,0 +1,29 @@
+/**
+ * This is a .js file instead of .ts so that storybook can import it
+ */
+
+import { defineConfig } from 'vite';
+import { getReleaseVersion, getAlphaVersion } from './version.js';
+
+const version = process.env.release ? getReleaseVersion() : getAlphaVersion();
+
+/**
+ * Common config needed to build excalibur for either testing or production build. Anything
+ * that is needed to run excalibur at all should be put in here.
+ *
+ * @import {defineConfig} from 'vite'
+ */
+export default defineConfig({
+  define: {
+    'process.env.__EX_VERSION': JSON.stringify(version),
+    'process.env.NODE_ENV': JSON.stringify('development')
+  },
+  oxc: {
+    target: 'es2018',
+    tsconfigRaw: {
+      compilerOptions: {
+        verbatimModuleSyntax: false
+      }
+    }
+  }
+});

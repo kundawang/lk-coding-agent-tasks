@@ -1,0 +1,46 @@
+---
+title: Conventions
+slug: /conventions
+---
+
+There are a few things that Excalibur does that are good to know before you start building games!
+
+# Conventions
+
+1. Excalibur uses a theater metaphor, for example: [[Scene|Scenes]], [[Actor|Actors]], and [Actions](/docs/actions).
+
+2. Excalibur uses [Resources](/docs/category/resources) to load external files like [images](/docs/imagesource) and [sounds](/docs/sound). They can also be used to load other things like data or config.
+
+2. The negative y direction is up, and the positive y direction is down.
+
+2. Distance units are in pixels, velocity in pixels per second, and acceleration in pixels per second per second.
+
+3. Rotation units are in radians.
+
+4. All elapsed times and durations in Excalibur are in milliseconds.
+
+5. Actor z-indices follow the browser way of doing things.
+   * Things with larger positive numbers are on top of lower numbers.
+
+6. Coordinate Spaces
+   * World space is the pixel position where Entities and Actors live by default.
+   * Screen space is the pixels on the canvas element viewport according to the browser.
+   * Page space is pixel offset from the top left of browser window
+   * Local space is relative to a parent Entity or Actor
+
+6. Things are in "world" space unless specified with a `local` prefix or added as a child actor.
+
+7. Bounds are always an axis aligned bounding box, meaning a non-rotated box.
+
+8. Excalibur handles offscreen draw culling for you! No need to manage that!
+
+9. Excalibur uses pre-multiplied alphas when drawing which is important to know if you use [Material](/docs/materials)
+
+
+# API Naming
+
+* Boolean properties describing what an object *is* or *has* are named `isX`/`hasX`, read-only or settable: `actor.isKilled`, `engine.isRunning`, `graphics.isVisible`, `tile.isSolid`. Options use the same name: `new Actor({ isVisible: false })`. Test: if "the object is ___" is a natural sentence, use `isX`.
+* Booleans that name a behavior to perform, or mirror a web platform property, keep their plain name: `sound.loop`, `sound.muted`, `graphics.smoothing`, `flipHorizontal`. Text formatting attributes follow CSS and typography vocabulary (`font.bold`, `font.family`), and common computer jargon like `enabled` is also left as is.
+* Anything that has a side effect or does real work is a verb method: `engine.start()`, `contact.cancel()`, `input.setEnabled(false)`.
+* Async state is a Promise property, never `isX()`: `await engine.ready`, `await track.done`. The synchronous check is `engine.isReady`.
+* Compound words are spelled consistently: `offscreen` is one word, matching `OffscreenCanvas` (`isOffscreen`, `OffscreenSystem`), while "on screen" splits in camelCase (`isOnScreen`, `forceOnScreen`, `onScreenOnly`). The acronym stays `HiDPI` (`isHiDPI`).

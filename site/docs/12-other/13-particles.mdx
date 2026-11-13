@@ -1,0 +1,99 @@
+---
+title: Particles
+slug: /particles
+section: Other
+---
+
+import sample1 from '!!raw-loader!./examples/13-particles-1.ts';
+import sample2 from '!!raw-loader!./examples/13-particles-2.ts';
+
+Particles can be used to generate dust, smoke, or fire effects in your games.
+
+## Particles
+
+The easiest way to create a [[ParticleEmitter]] is to use the
+[Particle Tester](https://excaliburjs.com/particle-tester/) to generate code for emitters.
+
+### Circle emitter
+
+Particles are emitted from a circular nozzle of the given radius.
+
+```typescript
+const emitter = new ex.ParticleEmitter({
+  x: game.halfDrawWidth,
+  y: game.halfDrawHeight,
+  emitterType: ex.EmitterType.Circle,    // Shape of emitter nozzle
+  radius: 10,                            // The radius of the emitter nozzle, only applies when emitterType is Circle
+  isEmitting: true,                      // Is the emitter actively emitting
+  emitRate: 300,                         // The number of particle particles emitted per second
+  particle: {
+    minSpeed: -100,                      // A random speed between minSpeed and maxSpeed will be applied as the particles initial velocity
+    maxSpeed: -80,
+    minAngle: Math.PI/180 * 45,          // A random angle between minAngle and maxAngle will be applied as the particles initial direction.
+    maxAngle: Math.PI/180 * 90,          // Note: 0 radians being to the right, 1.5708 radians (90 degrees) being down, and so on
+    opacity: 1,                          // Initial opacity of the particle
+    fade: true,                          // Fade particles overtime
+    life: 1000,                          // In milliseconds = 1 sec,
+    minSize: 1,                          // Random size minimum in pixels
+    maxSize: 10,                         // Random size maximum in pixels
+    startSize: 10,                       // Starting size in pixels
+    endSize: 1,                          // Ending size in pixels
+    acc: new ex.Vector(0, 10),           // Acceleration applied to particle over its life
+    beginColor: ex.Color.Red,
+    endColor: ex.Color.Blue,
+  }
+});
+```
+
+<PlaygroundEmbed code={sample1} />
+
+### Rectangle emitter
+
+Particles are emitted from a rectangular nozzle of the given width and height.
+
+```typescript
+const emitter = new ex.ParticleEmitter({
+  x: game.halfDrawWidth,
+  y: game.halfDrawHeight,
+  emitterType: ex.EmitterType.Rectangle, // Shape of emitter nozzle
+  width: 50,                             // The dimensions of the emitter nozzle, only applies when emitterType is Rectangle
+  height: 10,
+  isEmitting: true,
+  emitRate: 300,
+  particle: {
+    minSpeed: -100,
+    maxSpeed: -80,
+    minAngle: Math.PI/180 * 45,
+    maxAngle: Math.PI/180 * 90,
+    opacity: 1,
+    fade: true,
+    life: 1000,
+    minSize: 1,
+    maxSize: 10,
+    startSize: 10,
+    endSize: 1,
+    acc: new ex.Vector(0, -100),
+    beginColor: ex.Color.Red,
+    endColor: ex.Color.Yellow,
+  }
+});
+```
+
+<PlaygroundEmbed code={sample2} />
+
+## Adding an emitter
+
+An emitter can be added to either an actor or the scene itself.
+When added to an actor it will draw on top of that actor and move with it.
+
+### Adding to actor
+
+```typescript
+actor.add(emitter);
+```
+
+### Adding to scene
+
+```typescript
+engine.add(emitter);
+```

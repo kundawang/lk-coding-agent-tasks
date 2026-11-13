@@ -1,0 +1,300 @@
+import { Config } from '@docusaurus/types';
+import type * as Preset from '@docusaurus/preset-classic';
+import { ThemeConfig as ClassicPresetThemeConfig } from '@docusaurus/preset-classic';
+import path from 'path';
+import ts from 'typescript';
+import webpack from 'webpack';
+import { themes } from 'prism-react-renderer';
+import { remarkApiSymbolLinks } from './plugins/remark-api-symbol-links.mjs';
+import rehypeRaw from 'rehype-raw';
+import { loadEnvFile } from 'node:process';
+import { DocusaurusPluginTypeDocApiOptions } from './vendor/docusaurus-plugin-typedoc-api/lib/types.js';
+
+try {
+  loadEnvFile();
+} catch (e) {
+  console.warn('.env file not found, proceeding without it.');
+}
+
+const playgroundUrl = process.env.PLAYGROUND_URL || 'https://excaliburjs.com/playground';
+
+const lightCodeTheme = themes.github;
+const darkCodeTheme = themes.dracula;
+
+const typedocProjectRoot = path.join(__dirname, '..', 'src', 'engine');
+const excaliburTypesPath = path.join(__dirname, '..', 'build', 'esm', 'excalibur.d.ts');
+const rehypeRawOptions = {
+  passThrough: ['mdxjsEsm', 'mdxJsxTextElement', 'mdxJsxFlowElement', 'mdxFlowExpression']
+};
+
+const config: Config = {
+  themes: ['@docusaurus/theme-mermaid'],
+  markdown: {
+    mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'throw',
+      onBrokenMarkdownImages: 'throw'
+    }
+  },
+  title: 'Excalibur.js',
+  tagline: 'Your friendly TypeScript 2D game engine for the web.',
+  favicon: 'img/favicon.ico',
+
+  // Set the production url of your site here
+  url: 'https://excaliburjs.com',
+  // Set the /<baseUrl>/ pathname under which your site is served
+  // For GitHub pages deployment, it is often '/<projectName>/'
+  baseUrl: '/',
+
+  customFields: {
+    playgroundUrl,
+  },
+
+  // GitHub pages deployment config.
+  // If you aren't using GitHub pages, you don't need these.
+  organizationName: 'excaliburjs', // Usually your GitHub org/user name.
+  projectName: 'Excalibur', // Usually your repo name.
+
+
+  onBrokenLinks: 'throw',
+  onBrokenAnchors: 'throw',
+
+  i18n: {
+    defaultLocale: 'en',
+    locales: ['en']
+  },
+
+  scripts: [
+    { src: 'https://plausible.io/js/script.js', defer: true, 'data-domain': 'excaliburjs.com' }
+  ],
+
+  presets: [
+    [
+      'classic',
+      {
+        docs: {
+          sidebarCollapsed: true,
+          sidebarPath: './sidebars.ts',
+          editUrl: 'https://github.com/excaliburjs/Excalibur/tree/main/site/',
+          rehypePlugins: [[rehypeRaw, rehypeRawOptions]],
+          remarkPlugins: [
+            [
+              // This remark plugin wires the mdx links to the TypeDoc generated API Docs
+              remarkApiSymbolLinks,
+              {
+                indexPath: './generated/api-symbol-index.json'
+              }
+            ]
+          ],
+        },
+        blog: {
+          showReadingTime: true,
+          editUrl: 'https://github.com/excaliburjs/Excalibur/tree/main/site/blog/',
+          rehypePlugins: [[rehypeRaw, rehypeRawOptions]],
+          postsPerPage: 'ALL',
+          blogSidebarTitle: 'All posts',
+          blogSidebarCount: 'ALL',
+          onUntruncatedBlogPosts: 'ignore'
+        },
+        theme: {
+          customCss: './src/css/custom.css'
+        }
+      } satisfies Preset.Options,
+    ],
+    [
+      'docusaurus-preset-shiki-twoslash',
+      {
+        themes: ['github-light', 'github-dark'],
+        ignoreCodeblocksWithCodefenceMeta: ['live', 'mermaid'],
+        defaultCompilerOptions: {
+          baseUrl: __dirname,
+          paths: { excalibur: [excaliburTypesPath] },
+          moduleResolution: ts.ModuleResolutionKind.Bundler,
+          module: ts.ModuleKind.ESNext
+        }
+      }
+    ]
+  ],
+
+  plugins: [
+    async function excaliburStackblitzPlugin() {
+      return {
+        name: 'excalibur-stackblitz-plugin',
+        configureWebpack(): webpack.Configuration {
+          return {
+            devServer: {
+              client: {
+                overlay: {
+                  // There are sometimes errors with the embedded SDKs like
+                  // Stackblitz that present a fullscreen error
+                  runtimeErrors: false
+                }
+              }
+            }
+          } as webpack.Configuration; // Force dev server config
+        }
+      };
+    },
+    [
+      // Our fork of the typedoc plugin is here 
+      // https://github.com/excaliburjs/docusaurus-plugin-typedoc-api
+      // Needs to be built to work, in site/ `npm run build:docusaurus-plugin-typedoc-api`
+      // Builds the static typedoc pages under api/class/*
+      './vendor/docusaurus-plugin-typedoc-api/',
+      {
+        projectRoot: typedocProjectRoot,
+        rehypePlugins: [],
+        remarkPlugins: [],
+        typedocOptions: {
+          excludePrivate: true
+        },
+        versions: {},
+        packages: [
+          {
+            path: '',
+            entry: 'index.ts'
+          }
+        ]
+      } satisfies DocusaurusPluginTypeDocApiOptions
+    ],
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        redirects: [
+          // /docs/oldDoc -> /docs/newDoc
+          {
+            from: '/docs/webgl',
+            to: '/docs/performance',
+          },
+        ],
+      },
+    ]
+  ],
+
+  themeConfig: {
+    image: 'img/ex-social.jpg',
+    navbar: {
+      title: 'Excalibur.js',
+      logo: {
+        alt: 'Excalibur.js Logo',
+        src: 'img/ex-logo.png'
+      },
+      items: [
+        {
+          type: 'docSidebar',
+          sidebarId: 'learnSidebar',
+          position: 'left',
+          label: 'Docs'
+        },
+        {
+          href: 'https://excaliburjs.com/playground',
+          label: 'Playground',
+          position: 'left'
+        },
+        { to: '/api', label: 'API', position: 'left' },
+        { to: '/blog', label: 'Blog', position: 'left' },
+        { to: '/samples', label: 'Samples', position: 'left' },
+        { to: '/showcase', label: 'Showcase', position: 'left' },
+        { to: '/donate', label: 'Donate', position: 'left' },
+        {
+          href: 'https://discord.gg/W6zUd4tTY3',
+          label: 'Discord',
+          position: 'left'
+        },
+        { to: '/premium-support', label: 'Premium Support', position: 'right' },
+        {
+          href: 'https://github.com/excaliburjs/Excalibur',
+          label: 'GitHub',
+          position: 'right'
+        }
+      ]
+    },
+    footer: {
+      style: 'dark',
+      links: [
+        {
+          title: 'Docs',
+          items: [
+            {
+              label: 'Tutorial',
+              to: '/docs/excalibird-flappy-bird'
+            },
+            {
+              label: 'Playground',
+              href: 'https://excaliburjs.com/playground',
+            }
+          ]
+        },
+        {
+          title: 'Community',
+          items: [
+            {
+              label: 'BlueSky',
+              href: 'https://bsky.app/profile/excaliburjs.com',
+              rel: 'me'
+            },
+            {
+              label: 'Mastodon',
+              href: 'https://mastodon.gamedev.place/@excaliburjs',
+              rel: 'me'
+            },
+            {
+              label: 'Threads',
+              href: 'https://www.threads.net/@excalibur.js'
+            },
+            {
+              label: 'Twitter',
+              href: 'https://twitter.com/excaliburjs'
+            },
+            {
+              label: 'Discord',
+              href: 'https://discord.gg/W6zUd4tTY3'
+            },
+            {
+              label: 'Discussions',
+              href: 'https://github.com/excaliburjs/Excalibur/discussions'
+            }
+          ]
+        },
+        {
+          title: 'More',
+          items: [
+            {
+              label: 'Blog',
+              to: '/blog'
+            },
+            {
+              label: 'GitHub',
+              href: 'https://github.com/excaliburjs/Excalibur'
+            },
+            {
+              label: 'Stickers',
+              href: 'https://buy.stripe.com/fZufZhf381coglRdpVe3e01'
+            },
+          ]
+        }
+      ],
+      copyright: `Copyright © ${new Date().getFullYear()} Excalibur.js Project. Built with Docusaurus.`
+    },
+    algolia: {
+      appId: 'IVI5ONIKWP',
+      apiKey: 'b6bd39e31669ade42444bfb948e9cff9',
+      indexName: 'excaliburjs',
+      contextualSearch: false,
+    },
+    prism: {
+      theme: lightCodeTheme,
+      darkTheme: darkCodeTheme,
+      additionalLanguages: ['bash', 'diff', 'json', 'glsl']
+    },
+    liveCodeBlock: {
+      /**
+       * The position of the live playground, above or under the editor
+       * Possible values: "top" | "bottom"
+       */
+      playgroundPosition: 'bottom'
+    }
+  } as ClassicPresetThemeConfig
+};
+
+export default config;

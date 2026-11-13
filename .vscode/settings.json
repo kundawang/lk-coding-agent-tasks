@@ -1,0 +1,31 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": false,
+  "eslint.enable": true,
+  "eslint.options": { "overrideConfigFile": "./eslint.config.mjs" },
+  "eslint.alwaysShowStatus": true,
+  "eslint.validate": ["typescript"],
+  "files.exclude": {
+    "**/.git": true,
+    ".grunt/": true,
+    ".tscache": true,
+    "**/.DS_Store": true,
+    "**/node_modules": false,
+    "**/node_shrinkwrap": true,
+    "**/bin": true,
+    "**/obj": true,
+    "_SpecRunner.html": true,
+    "TestsSpec.js*": true,
+    "src/engine/*.js": true,
+    "src/spec/*.js": true,
+    "src/spec/*.map": true
+  },
+  "typescript.tsdk": "./node_modules/typescript/lib",
+  "vitest.cliArguments": "--project=unit --browser.headless",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "deno.enable": false
+}

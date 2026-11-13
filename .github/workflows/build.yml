@@ -1,0 +1,165 @@
+# This workflow will do a clean install of node dependencies, build the source code and run tests across different versions of node
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
+
+name: CI
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  COVERALLS_REPO_TOKEN: '${{ secrets.COVERALLS_REPO_TOKEN }}'
+  COVERALLS_GIT_BRANCH: '${{ github.ref }}'
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_call:
+
+jobs:
+  lint:
+    runs-on: [ubuntu-24.04]
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6.5.0
+        with:
+          node-version-file: 'package.json'
+          package-manager-cache: false
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install -g npm@11.16.0
+      - run: npm ci
+      - name: Check formatting
+        run: npm run format
+      - name: Lint
+        run: npm run lint
+
+  build:
+    runs-on: [ubuntu-24.04]
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6.5.0
+        with:
+          node-version-file: 'package.json'
+          package-manager-cache: false
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install -g npm@11.16.0
+      - run: npm ci
+      - name: Build
+        run: npm run build
+
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    env:
+      CI: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 100
+      - uses: actions/setup-node@v6.5.0
+        with:
+          node-version-file: 'package.json'
+          package-manager-cache: false
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install -g npm@11.16.0
+      - run: npm ci
+      - uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: 133.0.6943.98
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Install Xvfb and Fonts (Ubuntu only)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb fonts-liberation fonts-noto-core
+
+      - name: Tests
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24 -ac +extension GLX +render -noreset" npm run test:ci -- --coverage=${{ matrix.runner == 'ubuntu-24.04' }}
+          else
+            npm run test:ci -- --coverage=${{ matrix.runner == 'ubuntu-24.04' }}
+          fi
+        shell: bash
+        env:
+          DISPLAY: ':99.0'
+
+      - name: Upload Image Diff Data
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-diffs-${{ matrix.runner }}
+          path: |
+            vitest-image-failures.json
+            image-diffs/*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Coveralls
+        if: ${{ matrix.runner == 'ubuntu-24.04'}}
+        uses: coverallsapp/github-action@v2.3.8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  examples:
+    runs-on: [ubuntu-latest]
+    env:
+      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          fetch-depth: 100
+      - uses: actions/setup-node@v6.5.0
+        with:
+          node-version-file: 'package.json'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install -g npm@11.16.0
+      - run: npm ci --ignore-scripts
+      - run: npm run build-storybook
+
+  comment-image-diffs:
+    runs-on: ubuntu-24.04
+    needs: tests
+    if: failure() && github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Ubuntu Failures
+        uses: actions/download-artifact@v4
+        with:
+          name: image-diffs-ubuntu-latest
+          path: ./ubuntu-diffs
+        continue-on-error: true
+
+      - name: Download Windows Failures
+        uses: actions/download-artifact@v4
+        with:
+          name: image-diffs-windows-2025
+          path: ./windows-diffs
+        continue-on-error: true
+
+      - name: Generate and Post Comment
+        uses: actions/github-script@v7
+        env:
+          GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const script = require('./.github/scripts/post-image-diff-comment.js');
+            await script({ github, context });
