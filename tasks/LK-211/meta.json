@@ -1,6 +1,10 @@
 {
   "task_id": "LK-211",
   "title": "KAPLAY 循环动画生命周期回调修复",
+  "domain": "游戏、图形与多媒体",
+  "subdomain": "其他",
+  "original_repo": "https://github.com/kaplayjs/kaplay",
+  "source_issue": "https://github.com/kaplayjs/kaplay/issues/819",
   "created_at": "2026-11-13T10:04:49",
   "task_type": "Bugfix",
   "difficulty": "困难",

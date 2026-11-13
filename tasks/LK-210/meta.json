@@ -1,6 +1,10 @@
 {
   "task_id": "LK-210",
   "title": "PixiJS strict-CSP UBO 同步修复",
+  "domain": "游戏、图形与多媒体",
+  "subdomain": "图形渲染",
+  "original_repo": "https://github.com/pixijs/pixijs",
+  "source_issue": "https://github.com/pixijs/pixijs/issues/12117",
   "created_at": "2026-11-13T10:04:24",
   "task_type": "Bugfix",
   "difficulty": "困难",

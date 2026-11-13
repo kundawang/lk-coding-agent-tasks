@@ -1,6 +1,10 @@
 {
   "task_id": "LK-208",
   "title": "Matter.js 传感器接触污染实体碰撞求解",
+  "domain": "游戏、图形与多媒体",
+  "subdomain": "其他",
+  "original_repo": "https://github.com/liabru/matter-js",
+  "source_issue": "https://github.com/liabru/matter-js/issues/757",
   "created_at": "2026-11-13T10:03:14",
   "task_type": "Bugfix",
   "difficulty": "困难",

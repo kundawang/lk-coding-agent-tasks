@@ -1,6 +1,10 @@
 {
   "task_id": "LK-209",
   "title": "Excalibur 重叠 Actor 指针事件校验修复",
+  "domain": "游戏、图形与多媒体",
+  "subdomain": "其他",
+  "original_repo": "https://github.com/excaliburjs/Excalibur",
+  "source_issue": "https://github.com/excaliburjs/Excalibur/issues/3059",
   "created_at": "2026-11-13T10:03:30",
   "task_type": "Bugfix",
   "difficulty": "困难",
