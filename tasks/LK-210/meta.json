@@ -1,0 +1,37 @@
+{
+  "task_id": "LK-210",
+  "title": "PixiJS strict-CSP UBO 同步修复",
+  "created_at": "2026-11-13T10:04:24",
+  "task_type": "Bugfix",
+  "difficulty": "困难",
+  "language_framework": "TypeScript, JavaScript, PixiJS, WebGPU/WebGL",
+  "harness": "Codex CLI",
+  "harness_version": "0.153.4",
+  "os": "Windows",
+  "env_level": "有外部依赖，未容器化",
+  "prompt_file": "prompt.md",
+  "initial_snapshot": {
+    "branch": "lk-210/base",
+    "sha": "1751a0647d8f34a1698db84fcbf0a77284d20cce",
+    "permalink": "https://github.com/kundawang/lk-coding-agent-tasks/commit/1751a0647d8f34a1698db84fcbf0a77284d20cce"
+  },
+  "runs": {
+    "A": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-210/a",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    },
+    "B": {
+      "session_id": "",
+      "trajectory_local": "",
+      "trajectory_url": "",
+      "branch": "lk-210/b",
+      "product_snapshot_sha": "",
+      "product_snapshot_permalink": ""
+    }
+  },
+  "notes": "来源：https://github.com/pixijs/pixijs/issues/12117；上游基线 1e707686d00a2a8cd6432b047e56034fc7e7a909"
+}
